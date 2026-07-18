@@ -1,0 +1,34 @@
+package entity
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type UserRole string
+
+const (
+	UserRoleUser         UserRole = "user"
+	UserRoleContentAdmin UserRole = "content_admin"
+	UserRoleSystemAdmin  UserRole = "system_admin"
+)
+
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
+type User struct {
+	ID           uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey"`
+	Name         string     `json:"name" gorm:"size:50;not null"`
+	Email        string     `json:"email" gorm:"size:254;not null;uniqueIndex"`
+	PasswordHash string     `json:"-" gorm:"not null"`
+	Role         UserRole   `json:"role" gorm:"size:32;not null"`
+	Status       UserStatus `json:"status" gorm:"size:32;not null"`
+	TokenVersion uint64     `json:"-" gorm:"not null;default:0"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
