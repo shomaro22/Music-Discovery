@@ -8,7 +8,6 @@ import (
 	"music-discovery/backend/entity"
 	"music-discovery/backend/repository"
 
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -89,7 +88,6 @@ func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*entity.Us
 
 	now := u.clock.Now()
 	user := &entity.User{
-		ID:           uuid.New(),
 		Name:         input.Name,
 		Email:        input.Email,
 		PasswordHash: passwordHash,
