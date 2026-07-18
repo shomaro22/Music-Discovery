@@ -7,7 +7,6 @@ import (
 
 	"music-discovery/backend/entity"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
@@ -51,7 +50,7 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity
 }
 
 func validateUserForCreate(user *entity.User) error {
-	if user == nil || user.ID == uuid.Nil {
+	if user == nil {
 		return entity.ErrInvalidUserForCreate
 	}
 	if strings.TrimSpace(user.Email) == "" || strings.TrimSpace(user.PasswordHash) == "" {

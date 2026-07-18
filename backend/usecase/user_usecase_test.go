@@ -12,12 +12,13 @@ import (
 )
 
 type fakeUserRepository struct {
-	findUser    *entity.User
-	findErr     error
-	createUser  *entity.User
-	createErr   error
-	findCalls   int
-	createCalls int
+	findUser      *entity.User
+	findErr       error
+	createUser    *entity.User
+	createErr     error
+	createInputID uuid.UUID
+	findCalls     int
+	createCalls   int
 }
 
 func (f *fakeUserRepository) FindByEmail(context.Context, string) (*entity.User, error) {
@@ -26,9 +27,13 @@ func (f *fakeUserRepository) FindByEmail(context.Context, string) (*entity.User,
 }
 func (f *fakeUserRepository) Create(_ context.Context, user *entity.User) (*entity.User, error) {
 	f.createCalls++
+	f.createInputID = user.ID
 	f.createUser = user
 	if f.createErr != nil {
 		return nil, f.createErr
+	}
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
 	}
 	return user, nil
 }
@@ -63,6 +68,9 @@ func TestSignUpSuccessSetsInternalFields(t *testing.T) {
 	}
 	if user.ID == uuid.Nil || user.Role != entity.UserRoleUser || user.Status != entity.UserStatusActive || user.TokenVersion != 0 {
 		t.Fatalf("unexpected user: %#v", user)
+	}
+	if repo.createInputID != uuid.Nil {
+		t.Fatalf("usecase generated user ID: %s", repo.createInputID)
 	}
 	if hasher.input != " password " {
 		t.Fatalf("password was trimmed: %q", hasher.input)
