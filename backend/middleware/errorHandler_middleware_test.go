@@ -1,0 +1,62 @@
+package middleware
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"music-discovery/backend/entity"
+
+	"github.com/labstack/echo/v4"
+)
+
+func TestHTTPErrorHandlerCommonFormat(t *testing.T) {
+	tests := []struct {
+		status int
+		code   string
+	}{
+		{400, "BAD_REQUEST"}, {404, "NOT_FOUND"}, {405, "METHOD_NOT_ALLOWED"},
+		{413, "PAYLOAD_TOO_LARGE"}, {415, "UNSUPPORTED_MEDIA_TYPE"}, {429, "RATE_LIMIT_EXCEEDED"},
+	}
+	for _, tt := range tests {
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Response().Header().Set(echo.HeaderXRequestID, "req-1")
+		NewHTTPErrorHandler(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))(echo.NewHTTPError(tt.status), c)
+		var got entity.APIErrorResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != tt.status || got.Code != tt.code || got.RequestID != "req-1" {
+			t.Fatalf("status=%d got=%#v", rec.Code, got)
+		}
+		var raw map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &raw)
+		if len(raw) != 4 {
+			t.Fatalf("fields=%d body=%s", len(raw), rec.Body.String())
+		}
+	}
+}
+
+func TestHTTPErrorHandlerDoesNotExposeInternalError(t *testing.T) {
+	var logBuffer bytes.Buffer
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	NewHTTPErrorHandler(slog.New(slog.NewTextHandler(&logBuffer, nil)))(errors.New("database password=secret"), c)
+	if bytes.Contains(rec.Body.Bytes(), []byte("secret")) {
+		t.Fatalf("secret leaked: %s", rec.Body.String())
+	}
+	var got entity.APIErrorResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if got.Code != "INTERNAL_ERROR" || rec.Code != 500 {
+		t.Fatalf("got=%#v status=%d", got, rec.Code)
+	}
+}
