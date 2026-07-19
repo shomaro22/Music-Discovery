@@ -22,8 +22,9 @@ type RateLimitRule struct {
 }
 
 type RateLimitConfig struct {
-	Login  RateLimitRule
-	SignUp RateLimitRule
+	Login   RateLimitRule
+	SignUp  RateLimitRule
+	Refresh RateLimitRule
 }
 
 func LoadRateLimitConfigFromEnv() (RateLimitConfig, error) {
@@ -35,7 +36,11 @@ func LoadRateLimitConfigFromEnv() (RateLimitConfig, error) {
 	if err != nil {
 		return RateLimitConfig{}, err
 	}
-	return RateLimitConfig{Login: login, SignUp: signup}, nil
+	refresh, err := loadRule("REFRESH", 30, 6.0/60.0, 300*time.Second)
+	if err != nil {
+		return RateLimitConfig{}, err
+	}
+	return RateLimitConfig{Login: login, SignUp: signup, Refresh: refresh}, nil
 }
 
 func loadRule(scope string, capacityDefault int, rateDefault float64, ttlDefault time.Duration) (RateLimitRule, error) {
@@ -74,6 +79,7 @@ func envFloat(keys []string, fallback float64) (float64, error) {
 type IRateLimitMiddleware interface {
 	SignUp(next echo.HandlerFunc) echo.HandlerFunc
 	Login(next echo.HandlerFunc) echo.HandlerFunc
+	Refresh(next echo.HandlerFunc) echo.HandlerFunc
 }
 
 type rateLimitMiddleware struct {
@@ -123,6 +129,9 @@ func (m *rateLimitMiddleware) SignUp(next echo.HandlerFunc) echo.HandlerFunc {
 }
 func (m *rateLimitMiddleware) Login(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.withTokenBucket("login", m.config.Login, next)
+}
+func (m *rateLimitMiddleware) Refresh(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.withTokenBucket("refresh", m.config.Refresh, next)
 }
 
 func (m *rateLimitMiddleware) withTokenBucket(scope string, rule RateLimitRule, next echo.HandlerFunc) echo.HandlerFunc {

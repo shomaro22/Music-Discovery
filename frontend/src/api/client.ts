@@ -1,45 +1,12 @@
-import type { ApiError } from "../types/user";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
-
-export class ApiRequestError extends Error {
-  constructor(public readonly response: ApiError) {
-    super(response.message);
-  }
-}
-export { ApiRequestError as ApiClientError };
-
-export async function request<T>(path: string, init: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...init.headers },
-    });
-  } catch {
-    throw new ApiRequestError({
-      status: 0,
-      code: "NETWORK_ERROR",
-      message: "サーバーに接続できませんでした",
-      request_id: "",
-    });
-  }
-  if (!response.ok) {
-    const fallback: ApiError = {
-      status: response.status,
-      code: "UNKNOWN_ERROR",
-      message: "処理に失敗しました",
-      request_id: response.headers.get("X-Request-ID") ?? "",
-    };
-    let error = fallback;
-    try {
-      error = (await response.json()) as ApiError;
-    } catch {
-      /* fallbackを使用 */
-    }
-    throw new ApiRequestError(error);
-  }
-  return (await response.json()) as T;
-}
+import type { ApiError, RefreshResponse } from "../types/user";
+import { getCsrfToken } from "./csrf";
+const API_BASE_URL=import.meta.env.VITE_API_BASE_URL??"http://localhost:8080";
+export class ApiRequestError extends Error{constructor(public readonly response:ApiError){super(response.message)}} export{ApiRequestError as ApiClientError};
+interface AuthHandlers{getAccessToken:()=>string|null;setAccessToken:(token:string)=>void;clearAuth:()=>void}
+let handlers:AuthHandlers={getAccessToken:()=>null,setAccessToken:()=>undefined,clearAuth:()=>undefined};
+let refreshPromise:Promise<string>|null=null;
+export function configureAuthHandlers(value:AuthHandlers):void{handlers=value}
+async function parseError(response:Response):Promise<ApiRequestError>{let error:ApiError={status:response.status,code:"UNKNOWN_ERROR",message:"処理に失敗しました",request_id:response.headers.get("X-Request-ID")??""};try{error=await response.json() as ApiError}catch{}return new ApiRequestError(error)}
+async function refreshAccessToken():Promise<string>{if(!refreshPromise){refreshPromise=(async()=>{const csrf=getCsrfToken();const response=await fetch(`${API_BASE_URL}/api/auth/refresh`,{method:"POST",credentials:"include",headers:csrf?{"X-CSRF-Token":csrf}:{}});if(!response.ok)throw await parseError(response);const body=await response.json() as RefreshResponse;handlers.setAccessToken(body.access_token);return body.access_token})().catch(e=>{handlers.clearAuth();throw e}).finally(()=>{refreshPromise=null})}return refreshPromise}
+interface InternalOptions{retried?:boolean;skipAuth?:boolean;skipRefresh?:boolean}
+export async function request<T>(path:string,init:RequestInit,options:InternalOptions={}):Promise<T>{let response:Response;const headers=new Headers(init.headers);if(init.body&&!headers.has("Content-Type"))headers.set("Content-Type","application/json");const token=handlers.getAccessToken();if(token&&!options.skipAuth)headers.set("Authorization",`Bearer ${token}`);try{response=await fetch(`${API_BASE_URL}${path}`,{...init,credentials:"include",headers})}catch{throw new ApiRequestError({status:0,code:"NETWORK_ERROR",message:"サーバーに接続できませんでした",request_id:""})}const excluded=["/api/auth/login","/api/auth/signup","/api/auth/refresh"].includes(path);if(response.status===401&&!options.retried&&!options.skipRefresh&&!excluded){const next=await refreshAccessToken();headers.set("Authorization",`Bearer ${next}`);return request<T>(path,{...init,headers},{...options,retried:true})}if(!response.ok)throw await parseError(response);return await response.json() as T}

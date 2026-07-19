@@ -7,3 +7,5 @@ export interface AuthUser { id: string; name: string; email: string; role: UserR
 export interface LoginInput { email: string; password: string; }
 export interface LoginResponse { access_token: string; token_type: "Bearer"; expires_in: number; user: AuthUser; }
 export interface ApiError { status: number; code: string; message: string; request_id: string; }
+
+export interface RefreshResponse { access_token: string; token_type: "Bearer"; expires_in: number; }

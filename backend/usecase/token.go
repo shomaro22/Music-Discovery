@@ -23,6 +23,7 @@ type ITokenService interface {
 	ComparePassword(passwordHash, password string) error
 	GenerateAccessToken(user *entity.User, now time.Time) (string, int64, error)
 	GenerateRefreshToken() (plain string, hash string, error error)
+	HashRefreshToken(plain string) (string, error)
 	GenerateCSRFToken() (string, error)
 	GenerateFamilyID() uuid.UUID
 	RefreshTokenTTL() time.Duration
@@ -114,8 +115,15 @@ func (s *tokenService) GenerateRefreshToken() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	hash, err := s.HashRefreshToken(plain)
+	return plain, hash, err
+}
+func (s *tokenService) HashRefreshToken(plain string) (string, error) {
+	if plain == "" {
+		return "", entity.ErrInvalidRefreshToken
+	}
 	sum := sha256.Sum256([]byte(plain))
-	return plain, hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:]), nil
 }
 func (s *tokenService) GenerateCSRFToken() (string, error) { return secureToken(s.random) }
 func (s *tokenService) GenerateFamilyID() uuid.UUID        { return uuid.New() }

@@ -42,7 +42,8 @@ func Start(ctx context.Context) error {
 	userUsecase := usecase.NewUserUsecase(userRepository, usecase.NewPasswordHasher(), usecase.NewClock(), refreshRepository, tokenService)
 	userController := controller.NewUserController(userUsecase, cookieConfig)
 	rateLimit := appMiddleware.NewRateLimitMiddleware(redisClient, logger, rateLimitConfig)
-	e := router.NewRouter(logger, userController, rateLimit)
+	csrf := appMiddleware.NewCSRFMiddleware(cookieConfig.CSRFName)
+	e := router.NewRouter(logger, userController, rateLimit, csrf)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

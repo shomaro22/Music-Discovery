@@ -18,25 +18,37 @@ export function LoginPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const signedUp = Boolean((location.state as { signedUp?: boolean } | null)?.signedUp);
+  const signedUp = Boolean(
+    (location.state as { signedUp?: boolean } | null)?.signedUp,
+  );
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
     const normalizedEmail = email.trim();
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedEmail.length > 254) errors.email = "有効なメールアドレスを入力してください";
-    if (countUnicodeCharacters(password) < 8) errors.password = "パスワードは8文字以上で入力してください";
-    else if (countUtf8Bytes(password) > 72) errors.password = "パスワードが長すぎます";
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedEmail.length > 254)
+      errors.email = "有効なメールアドレスを入力してください";
+    if (countUnicodeCharacters(password) < 8)
+      errors.password = "パスワードは8文字以上で入力してください";
+    else if (countUtf8Bytes(password) > 72)
+      errors.password = "パスワードが長すぎます";
     return errors;
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     event.preventDefault();
     if (isSubmitting) return;
-    setFieldErrors({}); setApiError(null); setRequestId("");
+    setFieldErrors({});
+    setApiError(null);
+    setRequestId("");
     const errors = validate();
-    if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
     setIsSubmitting(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
@@ -46,24 +58,117 @@ export function LoginPage() {
       if (error instanceof ApiRequestError) {
         setApiError(error.response.message);
         setRequestId(error.response.request_id);
-      } else setApiError("通信に失敗しました。時間を置いて再度お試しください。");
-    } finally { setIsSubmitting(false); }
+      } else
+        setApiError("通信に失敗しました。時間を置いて再度お試しください。");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  return <div className="auth-page">
-    <header className="auth-header"><Link className="auth-brand" to="/">Music Discovery</Link></header>
-    <div className="auth-layout">
-      <section className="auth-copy"><p className="auth-kicker">Music Discovery</p><h1>Welcome Back.</h1><p className="auth-copy-lead">あなたの次の一曲を、また見つけよう。</p><p className="auth-copy-description">ログインして、あなたの好みに合わせた音楽との出会いを続けましょう。</p></section>
-      <section className="auth-card" aria-labelledby="login-title">
-        <div className="auth-card-header"><h2 id="login-title">ログイン</h2><p>{signedUp ? "会員登録が完了しました。ログインしてください。" : "登録済みのメールアドレスでログインしてください。"}</p></div>
-        {apiError && <div className="api-alert" role="alert">{apiError}{requestId && <small>Request ID: {requestId}</small>}</div>}
-        <form className="auth-form" onSubmit={handleSubmit} noValidate>
-          <div className="field"><label htmlFor="login-email">メールアドレス</label><input id="login-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} disabled={isSubmitting} autoComplete="email" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "login-email-error" : undefined}/>{fieldErrors.email && <p className="field-error" id="login-email-error" role="alert">{fieldErrors.email}</p>}</div>
-          <div className="field"><label htmlFor="login-password">パスワード</label><div className="password-field"><input id="login-password" type={showPassword ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} disabled={isSubmitting} autoComplete="current-password" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? "login-password-error" : undefined}/><button className="password-toggle" type="button" disabled={isSubmitting} onClick={()=>setShowPassword((v)=>!v)} aria-label={showPassword ? "パスワードを非表示にする" : "パスワードを表示する"}>{showPassword ? "隠" : "表示"}</button></div>{fieldErrors.password && <p className="field-error" id="login-password-error" role="alert">{fieldErrors.password}</p>}</div>
-          <button className="primary-button" type="submit" disabled={isSubmitting}>{isSubmitting ? "ログイン中..." : "ログイン"}</button>
-        </form>
-        <p className="auth-switch">アカウントをお持ちでない方<Link to="/signup">会員登録</Link></p>
-      </section>
+  return (
+    <div className="auth-page">
+      <header className="auth-header">
+        <Link className="auth-brand" to="/">
+          Music Discovery
+        </Link>
+      </header>
+      <div className="auth-layout">
+        <section className="auth-copy">
+          <p className="auth-kicker">Music Discovery</p>
+          <h1>Welcome Back.</h1>
+          <p className="auth-copy-lead">あなたの次の一曲を見つけよう。</p>
+          <p className="auth-copy-description">
+            ログインして、あなたの好みに合わせた音楽との出会いを続けましょう。
+          </p>
+        </section>
+        <section className="auth-card" aria-labelledby="login-title">
+          <div className="auth-card-header">
+            <h2 id="login-title">ログイン</h2>
+            <p>
+              {signedUp
+                ? "会員登録が完了しました。ログインしてください。"
+                : "登録済みのメールアドレスでログインしてください。"}
+            </p>
+          </div>
+          {apiError && (
+            <div className="api-alert" role="alert">
+              {apiError}
+              {requestId && <small>Request ID: {requestId}</small>}
+            </div>
+          )}
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label htmlFor="login-email">メールアドレス</label>
+              <input
+                id="login-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
+                autoComplete="email"
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={
+                  fieldErrors.email ? "login-email-error" : undefined
+                }
+              />
+              {fieldErrors.email && (
+                <p className="field-error" id="login-email-error" role="alert">
+                  {fieldErrors.email}
+                </p>
+              )}
+            </div>
+            <div className="field">
+              <label htmlFor="login-password">パスワード</label>
+              <div className="password-field">
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isSubmitting}
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={
+                    fieldErrors.password ? "login-password-error" : undefined
+                  }
+                />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={
+                    showPassword
+                      ? "パスワードを非表示にする"
+                      : "パスワードを表示する"
+                  }
+                >
+                  {showPassword ? "隠" : "表示"}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p
+                  className="field-error"
+                  id="login-password-error"
+                  role="alert"
+                >
+                  {fieldErrors.password}
+                </p>
+              )}
+            </div>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "ログイン中..." : "ログイン"}
+            </button>
+          </form>
+          <p className="auth-switch">
+            アカウントをお持ちでない方<Link to="/signup">会員登録</Link>
+          </p>
+        </section>
+      </div>
     </div>
-  </div>;
+  );
 }

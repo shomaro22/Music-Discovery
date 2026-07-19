@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ApiRequestError } from "../api/client";
@@ -21,7 +20,6 @@ export function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [apiError, setApiError] = useState<string | null>(null);
@@ -29,10 +27,8 @@ export function SignupPage() {
 
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
-
     const normalizedName = name.trim();
     const normalizedEmail = email.trim();
-
     const nameLength = countUnicodeCharacters(normalizedName);
     const passwordLength = countUnicodeCharacters(password);
     const passwordByteLength = countUtf8Bytes(password);
@@ -79,7 +75,6 @@ export function SignupPage() {
     setApiError(null);
 
     const errors = validate();
-
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -103,9 +98,7 @@ export function SignupPage() {
 
       if (error instanceof ApiRequestError) {
         if (error.response.code === "EMAIL_ALREADY_EXISTS") {
-          setFieldErrors({
-            email: error.response.message,
-          });
+          setFieldErrors({ email: error.response.message });
         } else {
           setApiError(error.response.message);
         }
@@ -118,133 +111,173 @@ export function SignupPage() {
   };
 
   return (
-    <main>
-      <section>
-        <p>Discover Your Next Favorite.</p>
-        <p>あなたに合う、まだ知らない音楽と出会おう。</p>
+    <div className="auth-page">
+      <header className="auth-header">
+        <Link className="auth-brand" to="/">
+          Music Discovery
+        </Link>
+      </header>
 
-        <h1>アカウントを作成</h1>
-
-        {apiError && (
-          <p className="api-alert" role="alert">
-            {apiError}
+      <div className="auth-layout">
+        <section className="auth-copy">
+          <p className="auth-kicker">Music Discovery</p>
+          <h1>Discover Your Next Favorite.</h1>
+          <p className="auth-copy-lead">
+            あなたに合う、まだ知らない音楽と出会おう。
           </p>
-        )}
+          <p className="auth-copy-description">
+            いくつかの質問に答えるだけで、あなたの好みに合わせた新しい音楽を提案します。
+          </p>
+        </section>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label htmlFor="signup-name">名前</label>
-            <input
-              id="signup-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              disabled={isSubmitting}
-              autoComplete="name"
-              aria-invalid={Boolean(fieldErrors.name)}
-              aria-describedby={
-                fieldErrors.name ? "signup-name-error" : undefined
-              }
-            />
-
-            {fieldErrors.name && (
-              <p id="signup-name-error" role="alert">
-                {fieldErrors.name}
-              </p>
-            )}
+        <section className="auth-card" aria-labelledby="signup-title">
+          <div className="auth-card-header">
+            <h2 id="signup-title">アカウントを作成</h2>
+            <p>基本情報を入力して、音楽との新しい出会いを始めましょう。</p>
           </div>
 
-          <div className="field">
-            <label htmlFor="signup-email">メールアドレス</label>
-            <input
-              id="signup-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={isSubmitting}
-              autoComplete="email"
-              aria-invalid={Boolean(fieldErrors.email)}
-              aria-describedby={
-                fieldErrors.email ? "signup-email-error" : undefined
-              }
-            />
+          {apiError && (
+            <div className="api-alert" role="alert">
+              {apiError}
+            </div>
+          )}
 
-            {fieldErrors.email && (
-              <p id="signup-email-error" role="alert">
-                {fieldErrors.email}
-              </p>
-            )}
-          </div>
-
-          <div className="field">
-            <label htmlFor="signup-password">パスワード</label>
-
-            <div>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label htmlFor="signup-name">名前</label>
               <input
-                id="signup-password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                id="signup-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
                 disabled={isSubmitting}
-                autoComplete="new-password"
-                aria-invalid={Boolean(fieldErrors.password)}
+                autoComplete="name"
+                aria-invalid={Boolean(fieldErrors.name)}
                 aria-describedby={
-                  fieldErrors.password ? "signup-password-error" : undefined
+                  fieldErrors.name ? "signup-name-error" : undefined
                 }
               />
-
-              <button
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-                disabled={isSubmitting}
-                aria-label={
-                  showPassword
-                    ? "パスワードを非表示にする"
-                    : "パスワードを表示する"
-                }
-              >
-                {showPassword ? "非表示" : "表示"}
-              </button>
+              {fieldErrors.name && (
+                <p
+                  className="field-error"
+                  id="signup-name-error"
+                  role="alert"
+                >
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
-            {fieldErrors.password && (
-              <p id="signup-password-error" role="alert">
-                {fieldErrors.password}
-              </p>
-            )}
-          </div>
+            <div className="field">
+              <label htmlFor="signup-email">メールアドレス</label>
+              <input
+                id="signup-email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={isSubmitting}
+                autoComplete="email"
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={
+                  fieldErrors.email ? "signup-email-error" : undefined
+                }
+              />
+              {fieldErrors.email && (
+                <p
+                  className="field-error"
+                  id="signup-email-error"
+                  role="alert"
+                >
+                  {fieldErrors.email}
+                </p>
+              )}
+            </div>
 
-          <div className="field">
-            <label htmlFor="signup-password-confirmation">パスワード確認</label>
+            <div className="field">
+              <label htmlFor="signup-password">パスワード</label>
+              <div className="password-field">
+                <input
+                  id="signup-password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={isSubmitting}
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={
+                    fieldErrors.password ? "signup-password-error" : undefined
+                  }
+                />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  disabled={isSubmitting}
+                  aria-label={
+                    showPassword
+                      ? "パスワードを非表示にする"
+                      : "パスワードを表示する"
+                  }
+                >
+                  {showPassword ? "隠" : "表示"}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p
+                  className="field-error"
+                  id="signup-password-error"
+                  role="alert"
+                >
+                  {fieldErrors.password}
+                </p>
+              )}
+            </div>
 
-            <input
-              id="signup-password-confirmation"
-              type={showPassword ? "text" : "password"}
-              value={passwordConfirmation}
-              onChange={(event) => setPasswordConfirmation(event.target.value)}
+            <div className="field">
+              <label htmlFor="signup-password-confirmation">
+                パスワード確認
+              </label>
+              <input
+                id="signup-password-confirmation"
+                type={showPassword ? "text" : "password"}
+                value={passwordConfirmation}
+                onChange={(event) =>
+                  setPasswordConfirmation(event.target.value)
+                }
+                disabled={isSubmitting}
+                autoComplete="new-password"
+                aria-invalid={Boolean(fieldErrors.passwordConfirmation)}
+                aria-describedby={
+                  fieldErrors.passwordConfirmation
+                    ? "signup-password-confirmation-error"
+                    : undefined
+                }
+              />
+              {fieldErrors.passwordConfirmation && (
+                <p
+                  className="field-error"
+                  id="signup-password-confirmation-error"
+                  role="alert"
+                >
+                  {fieldErrors.passwordConfirmation}
+                </p>
+              )}
+            </div>
+
+            <button
+              className="primary-button"
+              type="submit"
               disabled={isSubmitting}
-              autoComplete="new-password"
-              aria-invalid={Boolean(fieldErrors.passwordConfirmation)}
-              aria-describedby={
-                fieldErrors.passwordConfirmation
-                  ? "signup-password-confirmation-error"
-                  : undefined
-              }
-            />
+            >
+              {isSubmitting ? "作成中..." : "アカウントを作成"}
+            </button>
+          </form>
 
-            {fieldErrors.passwordConfirmation && (
-              <p id="signup-password-confirmation-error" role="alert">
-                {fieldErrors.passwordConfirmation}
-              </p>
-            )}
-          </div>
-
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "作成中..." : "アカウントを作成"}
-          </button>
-        </form>
-
-        <Link to="/login">ログインはこちら</Link>
-      </section>
-    </main>
+          <p className="auth-switch">
+            すでにアカウントをお持ちの方
+            <Link to="/login">ログイン</Link>
+          </p>
+        </section>
+      </div>
+    </div>
   );
 }

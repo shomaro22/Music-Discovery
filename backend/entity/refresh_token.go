@@ -17,3 +17,10 @@ type RefreshToken struct {
 	RevokedAt    *time.Time `json:"revoked_at,omitempty" gorm:"index"`
 	CreatedAt    time.Time  `json:"created_at" gorm:"not null"`
 }
+
+func (r *RefreshToken) IsExpired(now time.Time) bool { return !now.Before(r.ExpiresAt) }
+func (r *RefreshToken) IsUsed() bool                 { return r.UsedAt != nil }
+func (r *RefreshToken) IsRevoked() bool              { return r.RevokedAt != nil }
+func (r *RefreshToken) CanRotate(now time.Time) bool {
+	return !r.IsExpired(now) && !r.IsUsed() && !r.IsRevoked()
+}

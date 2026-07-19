@@ -31,6 +31,9 @@ func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (
 	return f.user, f.err
 }
 
+func (f *fakeUserUsecase) Refresh(context.Context, string) (*usecase.RefreshResult, error) {
+	return nil, f.err
+}
 func (f *fakeUserUsecase) Login(_ context.Context, input usecase.LoginInput) (*usecase.LoginResult, error) {
 	f.loginInput = input
 	return f.loginResult, f.err

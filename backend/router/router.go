@@ -20,6 +20,7 @@ func NewRouter(
 	logger *slog.Logger,
 	userController controller.IUserController,
 	rateLimit appMiddleware.IRateLimitMiddleware,
+	csrf appMiddleware.ICSRFMiddleware,
 ) *echo.Echo {
 	e := echo.New()
 
@@ -82,6 +83,8 @@ func NewRouter(
 		rateLimit.Login,
 		appMiddleware.RequireJSON,
 	)
+
+	auth.POST("/refresh", userController.Refresh, rateLimit.Refresh, csrf.Validate)
 
 	return e
 }

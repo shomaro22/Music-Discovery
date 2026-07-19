@@ -37,6 +37,11 @@ type LoginUserResponse struct {
 	Role   entity.UserRole   `json:"role"`
 	Status entity.UserStatus `json:"status"`
 }
+type RefreshResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
 type LoginResponse struct {
 	AccessToken string            `json:"access_token"`
 	TokenType   string            `json:"token_type"`
@@ -47,6 +52,7 @@ type LoginResponse struct {
 type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
+	Refresh(c echo.Context) error
 }
 type userController struct {
 	userUsecase  usecase.IUserUsecase
@@ -106,19 +112,50 @@ func (c *userController) Login(ctx echo.Context) error {
 			return echo.NewHTTPError(http.StatusInternalServerError, "サーバー内部でエラーが発生しました").SetInternal(err)
 		}
 	}
-	setAuthCookies(ctx, result, c.cookieConfig)
+	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt, c.cookieConfig)
 	return ctx.JSON(http.StatusOK, LoginResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, User: LoginUserResponse{ID: result.User.ID, Name: result.User.Name, Email: result.User.Email, Role: result.User.Role, Status: result.User.Status}})
 }
 
-func setAuthCookies(ctx echo.Context, result *usecase.LoginResult, cfg CookieConfig) {
-	maxAge := int(time.Until(result.RefreshTokenExpiresAt).Seconds())
+func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt time.Time, cfg CookieConfig) {
+	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	ctx.SetCookie(&http.Cookie{Name: cfg.RefreshName, Value: result.RefreshToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: true, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
-	ctx.SetCookie(&http.Cookie{Name: cfg.CSRFName, Value: result.CSRFToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: false, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: cfg.RefreshName, Value: refreshToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: true, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: expiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: cfg.CSRFName, Value: csrfToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: false, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: expiresAt, MaxAge: maxAge})
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
 	return ctx.JSON(status, entity.APIErrorResponse{Status: status, Code: code, Message: message, RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID)})
+}
+
+func (c *userController) Refresh(ctx echo.Context) error {
+	cookie, err := ctx.Cookie(c.cookieConfig.RefreshName)
+	if err != nil || cookie.Value == "" {
+		clearAuthCookies(ctx, c.cookieConfig)
+		return writeAPIError(ctx, 401, "INVALID_REFRESH_TOKEN", "Refresh Tokenが正しくありません")
+	}
+	result, err := c.userUsecase.Refresh(ctx.Request().Context(), cookie.Value)
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrUserSuspended):
+			clearAuthCookies(ctx, c.cookieConfig)
+			return writeAPIError(ctx, 403, "USER_SUSPENDED", "このアカウントは現在利用できません。")
+		case errors.Is(err, entity.ErrRefreshTokenReuseDetected):
+			clearAuthCookies(ctx, c.cookieConfig)
+			return writeAPIError(ctx, 401, "REFRESH_TOKEN_REUSED", "Refresh Tokenの再利用を検知しました")
+		case errors.Is(err, entity.ErrInvalidRefreshToken), errors.Is(err, entity.ErrRefreshTokenExpired), errors.Is(err, entity.ErrRefreshTokenRevoked):
+			clearAuthCookies(ctx, c.cookieConfig)
+			return writeAPIError(ctx, 401, "INVALID_REFRESH_TOKEN", "Refresh Tokenが正しくありません")
+		default:
+			return echo.NewHTTPError(500, "サーバー内部でエラーが発生しました").SetInternal(err)
+		}
+	}
+	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt, c.cookieConfig)
+	return ctx.JSON(200, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn})
+}
+func clearAuthCookies(ctx echo.Context, cfg CookieConfig) {
+	expired := time.Unix(0, 0)
+	ctx.SetCookie(&http.Cookie{Name: cfg.RefreshName, Value: "", Path: cfg.Path, Domain: cfg.Domain, HttpOnly: true, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: expired, MaxAge: -1})
+	ctx.SetCookie(&http.Cookie{Name: cfg.CSRFName, Value: "", Path: cfg.Path, Domain: cfg.Domain, HttpOnly: false, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: expired, MaxAge: -1})
 }

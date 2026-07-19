@@ -21,6 +21,9 @@ type fakeUserRepository struct {
 	createCalls   int
 }
 
+func (f *fakeUserRepository) FindByID(context.Context, uuid.UUID) (*entity.User, error) {
+	return f.findUser, f.findErr
+}
 func (f *fakeUserRepository) FindByEmail(context.Context, string) (*entity.User, error) {
 	f.findCalls++
 	return f.findUser, f.findErr
@@ -127,6 +130,15 @@ type fakeRefreshRepository struct {
 	calls int
 }
 
+func (f *fakeRefreshRepository) FindByTokenHash(context.Context, string) (*entity.RefreshToken, error) {
+	return f.input, f.err
+}
+func (f *fakeRefreshRepository) Rotate(context.Context, string, *entity.RefreshToken, time.Time) error {
+	return f.err
+}
+func (f *fakeRefreshRepository) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
+	return f.err
+}
 func (f *fakeRefreshRepository) Create(_ context.Context, token *entity.RefreshToken) error {
 	f.calls++
 	f.input = token
@@ -160,6 +172,12 @@ func (f *fakeTokenService) ComparePassword(hash, password string) error {
 func (f *fakeTokenService) GenerateAccessToken(user *entity.User, _ time.Time) (string, int64, error) {
 	f.accessUser = user
 	return f.accessToken, f.expiresIn, f.accessErr
+}
+func (f *fakeTokenService) HashRefreshToken(plain string) (string, error) {
+	if plain == "" {
+		return "", entity.ErrInvalidRefreshToken
+	}
+	return f.refreshHash, nil
 }
 func (f *fakeTokenService) GenerateRefreshToken() (string, string, error) {
 	return f.refreshPlain, f.refreshHash, f.refreshErr
