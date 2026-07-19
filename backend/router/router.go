@@ -14,6 +14,7 @@ import (
 )
 
 const signupBodyLimit = "16K"
+const loginBodyLimit = "8K"
 
 func NewRouter(
 	logger *slog.Logger,
@@ -52,7 +53,9 @@ func NewRouter(
 				echo.HeaderAccept,
 				echo.HeaderAuthorization,
 				echo.HeaderXRequestID,
+				"X-CSRF-Token",
 			},
+			AllowCredentials: true,
 		},
 	))
 
@@ -69,6 +72,14 @@ func NewRouter(
 		// Controller
 		echoMiddleware.BodyLimit(signupBodyLimit),
 		rateLimit.SignUp,
+		appMiddleware.RequireJSON,
+	)
+
+	auth.POST(
+		"/login",
+		userController.Login,
+		echoMiddleware.BodyLimit(loginBodyLimit),
+		rateLimit.Login,
 		appMiddleware.RequireJSON,
 	)
 

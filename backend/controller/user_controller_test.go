@@ -28,6 +28,10 @@ func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (
 	return f.user, f.err
 }
 
+func (f *fakeUserUsecase) Login(context.Context, usecase.LoginInput) (*usecase.LoginResult, error) {
+	return nil, f.err
+}
+
 func runSignupRequest(t *testing.T, body string, uc usecase.IUserUsecase) *httptest.ResponseRecorder {
 	t.Helper()
 

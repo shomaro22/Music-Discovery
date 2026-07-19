@@ -60,3 +60,27 @@ func ValidateSignUp(
 		Password: password,
 	}, validationErrors
 }
+
+type LoginValues struct {
+	Email    string
+	Password string
+}
+
+func ValidateLogin(email, password string) (LoginValues, ValidationErrors) {
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	errors := ValidationErrors{}
+	if normalizedEmail == "" || len(normalizedEmail) > 254 {
+		errors["email"] = "メールアドレスを254文字以内で入力してください"
+	} else {
+		address, err := mail.ParseAddress(normalizedEmail)
+		if err != nil || address.Address != normalizedEmail {
+			errors["email"] = "有効なメールアドレスを入力してください"
+		}
+	}
+	if utf8.RuneCountInString(password) < 8 {
+		errors["password"] = "パスワードは8文字以上で入力してください"
+	} else if len([]byte(password)) > 72 {
+		errors["password"] = "パスワードが長すぎます"
+	}
+	return LoginValues{Email: normalizedEmail, Password: password}, errors
+}
