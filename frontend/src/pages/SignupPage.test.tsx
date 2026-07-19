@@ -41,10 +41,7 @@ function createDeferred<T>() {
 
 async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("名前"), "Taro");
-  await user.type(
-    screen.getByLabelText("メールアドレス"),
-    "taro@example.com",
-  );
+  await user.type(screen.getByLabelText("メールアドレス"), "taro@example.com");
   await user.type(screen.getByLabelText("パスワード"), "password");
   await user.type(screen.getByLabelText("パスワード確認"), "password");
 }
@@ -58,7 +55,9 @@ describe("SignupPage", () => {
     expect(
       screen.getByRole("heading", { name: "アカウントを作成" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Discover Your Next Favorite.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Discover Your Next Favorite."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("あなたに合う、まだ知らない音楽と出会おう。"),
     ).toBeInTheDocument();
@@ -106,12 +105,13 @@ describe("SignupPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText("メールアドレス"), "user@example.com");
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "user@example.com",
+    );
     await user.type(screen.getByLabelText("パスワード"), "password");
     await user.type(screen.getByLabelText("パスワード確認"), "password");
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     expect(
       screen.getByText("名前は1文字以上50文字以内で入力してください"),
@@ -127,9 +127,7 @@ describe("SignupPage", () => {
     await user.type(screen.getByLabelText("メールアドレス"), "invalid-email");
     await user.type(screen.getByLabelText("パスワード"), "password");
     await user.type(screen.getByLabelText("パスワード確認"), "password");
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     expect(
       screen.getByText("有効なメールアドレスを入力してください"),
@@ -148,9 +146,7 @@ describe("SignupPage", () => {
     );
     await user.type(screen.getByLabelText("パスワード"), "1234567");
     await user.type(screen.getByLabelText("パスワード確認"), "1234567");
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     expect(
       screen.getByText("パスワードは8文字以上で入力してください"),
@@ -163,12 +159,13 @@ describe("SignupPage", () => {
     renderPage();
 
     await user.type(screen.getByLabelText("名前"), "Taro");
-    await user.type(screen.getByLabelText("メールアドレス"), "user@example.com");
+    await user.type(
+      screen.getByLabelText("メールアドレス"),
+      "user@example.com",
+    );
     await user.type(screen.getByLabelText("パスワード"), "password");
     await user.type(screen.getByLabelText("パスワード確認"), "different");
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     expect(screen.getByText("パスワードが一致しません")).toBeInTheDocument();
     expect(mockedSignUp).not.toHaveBeenCalled();
@@ -186,9 +183,7 @@ describe("SignupPage", () => {
     );
     await user.type(screen.getByLabelText("パスワード"), " 123456 ");
     await user.type(screen.getByLabelText("パスワード確認"), " 123456 ");
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     await waitFor(() =>
       expect(mockedSignUp).toHaveBeenCalledWith({
@@ -206,12 +201,10 @@ describe("SignupPage", () => {
     renderPage();
     await fillValidForm(user);
 
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
     await waitFor(() => expect(mockedSignUp).toHaveBeenCalledTimes(1));
 
-    const pendingButton = screen.getByRole("button", { name: "作成中..." });
+    const pendingButton = screen.getByRole("button", { name: "登録中..." });
     expect(pendingButton).toBeDisabled();
     await user.click(pendingButton);
     expect(mockedSignUp).toHaveBeenCalledTimes(1);
@@ -241,24 +234,25 @@ describe("SignupPage", () => {
 
     expect(emailField).not.toBeNull();
 
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
     const duplicateError = await screen.findByText(
       "このメールアドレスは既に登録されています",
     );
 
-    expect(within(emailField as HTMLElement).getByText(
-      "このメールアドレスは既に登録されています",
-    )).toBe(duplicateError);
+    expect(
+      within(emailField as HTMLElement).getByText(
+        "このメールアドレスは既に登録されています",
+      ),
+    ).toBe(duplicateError);
     expect(email).toHaveAccessibleDescription(
       "このメールアドレスは既に登録されています",
     );
-    expect(screen.queryByText(
-      "このメールアドレスは既に登録されています",
-      { selector: ".api-alert" },
-    )).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("このメールアドレスは既に登録されています", {
+        selector: ".api-alert",
+      }),
+    ).not.toBeInTheDocument();
     expect(password).toHaveValue("");
     expect(confirmation).toHaveValue("");
   });
@@ -276,13 +270,10 @@ describe("SignupPage", () => {
     renderPage();
     await fillValidForm(user);
 
-    await user.click(
-      screen.getByRole("button", { name: "アカウントを作成" }),
-    );
+    await user.click(screen.getByRole("button", { name: "アカウントを作成" }));
 
-    const apiError = await screen.findByText(
-      "サーバー内部でエラーが発生しました",
-    );
+    const apiError =
+      await screen.findByText("サーバー内部でエラーが発生しました");
     expect(apiError).toHaveClass("api-alert");
     expect(apiError).toHaveAttribute("role", "alert");
   });
