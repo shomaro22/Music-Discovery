@@ -16,14 +16,6 @@ import (
 
 func Start(ctx context.Context) error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	cookieConfig, err := controller.LoadCookieConfigFromEnv()
-	if err != nil {
-		return fmt.Errorf("cookie config: %w", err)
-	}
-	rateLimitConfig, err := appMiddleware.LoadRateLimitConfigFromEnv()
-	if err != nil {
-		return fmt.Errorf("rate limit config: %w", err)
-	}
 	postgres, err := db.NewPostgres()
 	if err != nil {
 		return fmt.Errorf("postgres: %w", err)
@@ -40,8 +32,8 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("token service: %w", err)
 	}
 	userUsecase := usecase.NewUserUsecase(userRepository, usecase.NewPasswordHasher(), usecase.NewClock(), refreshRepository, tokenService)
-	userController := controller.NewUserController(userUsecase, cookieConfig)
-	rateLimit := appMiddleware.NewRateLimitMiddleware(redisClient, logger, rateLimitConfig)
+	userController := controller.NewUserController(userUsecase)
+	rateLimit := appMiddleware.NewRateLimitMiddleware(redisClient)
 	e := router.NewRouter(logger, userController, rateLimit)
 	port := os.Getenv("PORT")
 	if port == "" {

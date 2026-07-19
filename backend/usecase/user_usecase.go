@@ -8,6 +8,7 @@ import (
 	"music-discovery/backend/entity"
 	"music-discovery/backend/repository"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -136,7 +137,7 @@ func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult
 		return nil, entity.ErrInternal
 	}
 	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
-	refresh := &entity.RefreshToken{UserID: user.ID, TokenHash: hash, FamilyID: u.tokenService.GenerateFamilyID(), ExpiresAt: expiresAt, CreatedAt: now}
+	refresh := &entity.RefreshToken{ID: uuid.New(), UserID: user.ID, TokenHash: hash, FamilyID: u.tokenService.GenerateFamilyID(), ExpiresAt: expiresAt, CreatedAt: now}
 	if err := u.refreshTokenRepository.Create(ctx, refresh); err != nil {
 		return nil, entity.ErrInternal
 	}
