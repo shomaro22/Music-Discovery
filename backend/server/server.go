@@ -16,24 +16,25 @@ import (
 
 func Start(ctx context.Context) error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
 	postgres, err := db.NewPostgres()
 	if err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
-
 	redisClient, err := db.NewRedis(ctx)
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
 	defer redisClient.Close()
-
 	userRepository := repository.NewUserRepository(postgres)
-	userUsecase := usecase.NewUserUsecase(userRepository, usecase.NewPasswordHasher(), usecase.NewClock())
+	refreshRepository := repository.NewRefreshTokenRepository(postgres)
+	tokenService, err := usecase.NewTokenServiceFromEnv()
+	if err != nil {
+		return fmt.Errorf("token service: %w", err)
+	}
+	userUsecase := usecase.NewUserUsecase(userRepository, usecase.NewPasswordHasher(), usecase.NewClock(), refreshRepository, tokenService)
 	userController := controller.NewUserController(userUsecase)
 	rateLimit := appMiddleware.NewRateLimitMiddleware(redisClient)
 	e := router.NewRouter(logger, userController, rateLimit)
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

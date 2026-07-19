@@ -3,6 +3,9 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"music-discovery/backend/entity"
 	"music-discovery/backend/usecase"
@@ -17,7 +20,10 @@ type SignUpRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
-
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 type SignUpResponse struct {
 	ID        uuid.UUID         `json:"id"`
 	Name      string            `json:"name"`
@@ -26,14 +32,25 @@ type SignUpResponse struct {
 	Status    entity.UserStatus `json:"status"`
 	CreatedAt string            `json:"created_at"`
 }
+type LoginUserResponse struct {
+	ID     uuid.UUID         `json:"id"`
+	Name   string            `json:"name"`
+	Email  string            `json:"email"`
+	Role   entity.UserRole   `json:"role"`
+	Status entity.UserStatus `json:"status"`
+}
+type LoginResponse struct {
+	AccessToken string            `json:"access_token"`
+	TokenType   string            `json:"token_type"`
+	ExpiresIn   int64             `json:"expires_in"`
+	User        LoginUserResponse `json:"user"`
+}
 
 type IUserController interface {
 	SignUp(c echo.Context) error
+	Login(c echo.Context) error
 }
-
-type userController struct {
-	userUsecase usecase.IUserUsecase
-}
+type userController struct{ userUsecase usecase.IUserUsecase }
 
 func NewUserController(userUsecase usecase.IUserUsecase) IUserController {
 	return &userController{userUsecase: userUsecase}
@@ -44,15 +61,11 @@ func (c *userController) SignUp(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-
 	values, validationErrors := validator.ValidateSignUp(request.Name, request.Email, request.Password)
 	if len(validationErrors) > 0 {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-
-	user, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{
-		Name: values.Name, Email: values.Email, Password: values.Password,
-	})
+	user, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{Name: values.Name, Email: values.Email, Password: values.Password})
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrEmailAlreadyExists):
@@ -63,16 +76,57 @@ func (c *userController) SignUp(ctx echo.Context) error {
 			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
 		}
 	}
+	return ctx.JSON(http.StatusCreated, SignUpResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status, CreatedAt: user.CreatedAt.Format(time.RFC3339)})
+}
 
-	return ctx.JSON(http.StatusCreated, SignUpResponse{
-		ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status,
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	})
+func (c *userController) Login(ctx echo.Context) error {
+	var request LoginRequest
+	if err := ctx.Bind(&request); err != nil {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+	}
+	values, validationErrors := validator.ValidateLogin(request.Email, request.Password)
+	if len(validationErrors) > 0 {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+	}
+	result, err := c.userUsecase.Login(ctx.Request().Context(), usecase.LoginInput{Email: values.Email, Password: values.Password})
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrInvalidCredentials):
+			return writeAPIError(ctx, http.StatusUnauthorized, "INVALID_CREDENTIALS", "メールアドレスまたはパスワードが正しくありません。")
+		case errors.Is(err, entity.ErrUserSuspended):
+			return writeAPIError(ctx, http.StatusForbidden, "USER_SUSPENDED", "このアカウントは現在利用できません。")
+		case errors.Is(err, entity.ErrInvalidInput):
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+		}
+	}
+	setAuthCookies(ctx, result)
+	return ctx.JSON(http.StatusOK, LoginResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, User: LoginUserResponse{ID: result.User.ID, Name: result.User.Name, Email: result.User.Email, Role: result.User.Role, Status: result.User.Status}})
+}
+
+func setAuthCookies(ctx echo.Context, result *usecase.LoginResult) {
+	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
+	sameSite := http.SameSiteLaxMode
+	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
+		sameSite = http.SameSiteStrictMode
+	}
+	refreshName := os.Getenv("REFRESH_TOKEN_COOKIE_NAME")
+	if refreshName == "" {
+		refreshName = "refresh_token"
+	}
+	csrfName := os.Getenv("CSRF_COOKIE_NAME")
+	if csrfName == "" {
+		csrfName = "csrf_token"
+	}
+	maxAge := int(time.Until(result.RefreshTokenExpiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: result.RefreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: result.CSRFToken, Path: "/api/auth", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
-	return ctx.JSON(status, entity.APIErrorResponse{
-		Status: status, Code: code, Message: message,
-		RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID),
-	})
+	return ctx.JSON(status, entity.APIErrorResponse{Status: status, Code: code, Message: message, RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID)})
 }

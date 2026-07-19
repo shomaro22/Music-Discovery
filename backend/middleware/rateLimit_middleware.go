@@ -12,6 +12,7 @@ import (
 
 type IRateLimitMiddleware interface {
 	SignUp(next echo.HandlerFunc) echo.HandlerFunc
+	Login(next echo.HandlerFunc) echo.HandlerFunc
 }
 
 type rateLimitMiddleware struct {
@@ -72,6 +73,31 @@ func (m *rateLimitMiddleware) SignUp(next echo.HandlerFunc) echo.HandlerFunc {
 			return next(c)
 		}
 
+		retryAfter, _ := result[1].(int64)
+		if retryAfter < 1 {
+			retryAfter = 1
+		}
+		c.Response().Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
+		return echo.NewHTTPError(http.StatusTooManyRequests)
+	}
+}
+
+func (m *rateLimitMiddleware) Login(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.withTokenBucket("login", 20, 20.0/60.0, next)
+}
+
+func (m *rateLimitMiddleware) withTokenBucket(scope string, capacity int, refillPerSecond float64, next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		key := fmt.Sprintf("rate_limit:%s:%s", scope, c.RealIP())
+		result, err := tokenBucketScript.Run(c.Request().Context(), m.redisClient, []string{key}, capacity, refillPerSecond, float64(time.Now().UnixMilli())/1000, 1, 120).Slice()
+		if err != nil {
+			// Redis障害時は認証機能を停止させず、後続処理を継続する。
+			return next(c)
+		}
+		allowed, _ := result[0].(int64)
+		if allowed == 1 {
+			return next(c)
+		}
 		retryAfter, _ := result[1].(int64)
 		if retryAfter < 1 {
 			retryAfter = 1
