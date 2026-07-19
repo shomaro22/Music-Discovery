@@ -17,3 +17,7 @@ type RefreshToken struct {
 	RevokedAt    *time.Time `json:"revoked_at,omitempty" gorm:"index"`
 	CreatedAt    time.Time  `json:"created_at" gorm:"not null"`
 }
+
+func (t *RefreshToken) IsExpired(now time.Time) bool { return !now.Before(t.ExpiresAt) }
+func (t *RefreshToken) IsUsed() bool                 { return t.UsedAt != nil }
+func (t *RefreshToken) IsRevoked() bool              { return t.RevokedAt != nil }

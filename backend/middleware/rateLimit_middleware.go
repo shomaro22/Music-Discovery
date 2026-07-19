@@ -13,6 +13,7 @@ import (
 type IRateLimitMiddleware interface {
 	SignUp(next echo.HandlerFunc) echo.HandlerFunc
 	Login(next echo.HandlerFunc) echo.HandlerFunc
+	Refresh(next echo.HandlerFunc) echo.HandlerFunc
 }
 
 type rateLimitMiddleware struct {
@@ -84,6 +85,10 @@ func (m *rateLimitMiddleware) SignUp(next echo.HandlerFunc) echo.HandlerFunc {
 
 func (m *rateLimitMiddleware) Login(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.withTokenBucket("login", 20, 20.0/60.0, next)
+}
+
+func (m *rateLimitMiddleware) Refresh(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.withTokenBucket("refresh", 30, 30.0/300.0, next)
 }
 
 func (m *rateLimitMiddleware) withTokenBucket(scope string, capacity int, refillPerSecond float64, next echo.HandlerFunc) echo.HandlerFunc {

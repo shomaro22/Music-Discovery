@@ -23,6 +23,14 @@ type LoginResult struct {
 	User                  *entity.User
 }
 
+type RefreshResult struct {
+	AccessToken           string
+	ExpiresIn             int64
+	RefreshToken          string
+	RefreshTokenExpiresAt time.Time
+	CSRFToken             string
+}
+
 type IPasswordHasher interface {
 	Hash(password string) (string, error)
 }
@@ -46,6 +54,7 @@ func (c *systemClock) Now() time.Time { return time.Now().UTC() }
 type IUserUsecase interface {
 	SignUp(ctx context.Context, input SignUpInput) (*entity.User, error)
 	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
+	Refresh(ctx context.Context, refreshToken string) (*RefreshResult, error)
 }
 
 type userUsecase struct {
@@ -142,4 +151,68 @@ func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult
 		return nil, entity.ErrInternal
 	}
 	return &LoginResult{AccessToken: access, ExpiresIn: expiresIn, RefreshToken: plain, RefreshTokenExpiresAt: expiresAt, CSRFToken: csrf, User: user}, nil
+}
+
+func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshResult, error) {
+	if plainToken == "" || u.tokenService == nil || u.refreshTokenRepository == nil {
+		return nil, entity.ErrInvalidRefreshToken
+	}
+	now := u.clock.Now()
+	current, err := u.refreshTokenRepository.FindByTokenHash(ctx, u.tokenService.HashRefreshToken(plainToken))
+	if err != nil {
+		if errors.Is(err, entity.ErrInvalidRefreshToken) {
+			return nil, entity.ErrInvalidRefreshToken
+		}
+		return nil, entity.ErrInternal
+	}
+	if current.IsUsed() {
+		if err := u.refreshTokenRepository.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
+			return nil, entity.ErrInternal
+		}
+		return nil, entity.ErrInvalidRefreshToken
+	}
+	if current.IsRevoked() || current.IsExpired(now) {
+		return nil, entity.ErrInvalidRefreshToken
+	}
+	user, err := u.userRepository.FindByID(ctx, current.UserID)
+	if err != nil {
+		if errors.Is(err, entity.ErrUserNotFound) {
+			return nil, entity.ErrInvalidRefreshToken
+		}
+		return nil, entity.ErrInternal
+	}
+	if user.Status == entity.UserStatusSuspended {
+		return nil, entity.ErrUserSuspended
+	}
+	if user.Status != entity.UserStatusActive {
+		return nil, entity.ErrInvalidRefreshToken
+	}
+	newPlain, newHash, err := u.tokenService.GenerateRefreshToken()
+	if err != nil {
+		return nil, entity.ErrInternal
+	}
+	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
+	next := &entity.RefreshToken{
+		ID: uuid.New(), UserID: user.ID, TokenHash: newHash, FamilyID: current.FamilyID,
+		ExpiresAt: expiresAt, CreatedAt: now,
+	}
+	if err := u.refreshTokenRepository.Rotate(ctx, current.ID, next, now); err != nil {
+		if errors.Is(err, entity.ErrRefreshTokenReused) {
+			_ = u.refreshTokenRepository.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now)
+			return nil, entity.ErrInvalidRefreshToken
+		}
+		return nil, entity.ErrInternal
+	}
+	accessToken, expiresIn, err := u.tokenService.GenerateAccessToken(user, now)
+	if err != nil {
+		return nil, entity.ErrInternal
+	}
+	csrfToken, err := u.tokenService.GenerateCSRFToken()
+	if err != nil {
+		return nil, entity.ErrInternal
+	}
+	return &RefreshResult{
+		AccessToken: accessToken, ExpiresIn: expiresIn, RefreshToken: newPlain,
+		RefreshTokenExpiresAt: expiresAt, CSRFToken: csrfToken,
+	}, nil
 }

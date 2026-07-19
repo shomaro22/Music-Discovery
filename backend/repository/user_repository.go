@@ -7,11 +7,13 @@ import (
 
 	"music-discovery/backend/entity"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
 type IUserRepository interface {
+	FindByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
 	FindByEmail(ctx context.Context, email string) (*entity.User, error)
 	Create(ctx context.Context, user *entity.User) (*entity.User, error)
 }
@@ -19,6 +21,18 @@ type IUserRepository interface {
 type userRepository struct{ db *gorm.DB }
 
 func NewUserRepository(db *gorm.DB) IUserRepository { return &userRepository{db: db} }
+
+func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.User, error) {
+	var user entity.User
+	result := r.db.WithContext(ctx).First(&user, "id = ?", id)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, entity.ErrUserNotFound
+	}
+	if result.Error != nil {
+		return nil, entity.ErrInternal
+	}
+	return &user, nil
+}
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	var user entity.User

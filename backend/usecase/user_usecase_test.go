@@ -21,6 +21,10 @@ type fakeUserRepository struct {
 	createCalls   int
 }
 
+func (f *fakeUserRepository) FindByID(context.Context, uuid.UUID) (*entity.User, error) {
+	return f.findUser, f.findErr
+}
+
 func (f *fakeUserRepository) FindByEmail(context.Context, string) (*entity.User, error) {
 	f.findCalls++
 	return f.findUser, f.findErr
