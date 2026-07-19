@@ -1,394 +1,528 @@
-<mxfile host="Electron" agent="Codex" pages="2">
-  <diagram name="1. システム全体" id="md-system-overview">
-    <mxGraphModel dx="2012" dy="1562" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+<mxfile host="Electron" agent="Codex" revision="4" pages="2">
+  <diagram id="KWfqaeWBjvdO_wmlQnOa" name="1.システム全体">
+    <mxGraphModel dx="1341" dy="1041" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1" value="Music Discovery - システム全体構成" vertex="1">
-          <mxGeometry height="40" width="540" x="430" y="20" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-1" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1" value="Music Discovery - システム全体構成" vertex="1">
+          <mxGeometry height="40" width="540" x="480" y="140" as="geometry" />
         </mxCell>
-        <mxCell id="guest" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="Guest&#xa;会員登録 / ログイン" vertex="1">
-          <mxGeometry height="55" width="150" x="40" y="120" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="Guest&#xa;会員登録 / ログイン" vertex="1">
+          <mxGeometry height="55" width="150" x="90" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="User&#xa;通常推薦 / Daily Discovery&#xa;Feedback / 履歴" vertex="1">
-          <mxGeometry height="80" width="150" x="40" y="205" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="User&#xa;通常推薦 / Daily Discovery&#xa;Feedback / 履歴" vertex="1">
+          <mxGeometry height="80" width="150" x="90" y="325" as="geometry" />
         </mxCell>
-        <mxCell id="contentadmin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="Content Admin&#xa;Artist / Song / Tag&#xa;推薦データ管理" vertex="1">
-          <mxGeometry height="75" width="150" x="40" y="315" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="Content Admin&#xa;Artist / Song / Tag&#xa;推薦データ管理" vertex="1">
+          <mxGeometry height="75" width="150" x="90" y="435" as="geometry" />
         </mxCell>
-        <mxCell id="sysadmin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="System Admin&#xa;User / Role / Log&#xa;設定・監視" vertex="1">
-          <mxGeometry height="75" width="150" x="40" y="420" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6" value="System Admin&#xa;User / Role / Log&#xa;設定・監視" vertex="1">
+          <mxGeometry height="75" width="150" x="90" y="540" as="geometry" />
         </mxCell>
-        <mxCell id="frontend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#15803D;align=left;spacingLeft=10" value="React + Vite SPA&#xa;React Router / AuthContext&#xa;Access Token: メモリ&#xa;Refresh Token: HttpOnly Cookie&#xa;質問回答 / 推薦 / 管理画面" vertex="1">
-          <mxGeometry height="190" width="210" x="260" y="185" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#15803D;align=left;spacingLeft=10" value="React + Vite SPA&#xa;React Router / AuthContext&#xa;Access Token: メモリ&#xa;Refresh Token: HttpOnly Cookie&#xa;質問回答 / 推薦 / 管理画面" vertex="1">
+          <mxGeometry height="125" width="210" x="310" y="370" as="geometry" />
         </mxCell>
-        <mxCell id="api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFFAFE;strokeColor=#0E7490;align=left;spacingLeft=10" value="Go + Echo REST API&#xa;:8080 / JSON&#xa;Request ID / Recover / Logger&#xa;Secure Header / CORS / Body Limit&#xa;JWT Auth / Role Guard / Rate Limit" vertex="1">
-          <mxGeometry height="200" width="220" x="550" y="175" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CFFAFE;strokeColor=#0E7490;align=left;spacingLeft=10" value="Go + Echo REST API&#xa;:8080 / JSON&#xa;Request ID / Recover / Logger&#xa;Secure Header / CORS / Body Limit&#xa;JWT Auth / Role Guard / Rate Limit" vertex="1">
+          <mxGeometry height="115" width="220" x="625" y="375" as="geometry" />
         </mxCell>
-        <mxCell id="routes" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;align=left;spacingLeft=10" value="主要 API&#xa;/api/auth: signup, login, refresh, logout&#xa;/api/users/me: profile, withdraw&#xa;/api/questions, /api/answers&#xa;/api/recommendations, /daily-discovery&#xa;/api/feedbacks, /api/history&#xa;/api/admin: artists, songs, tags, users&#xa;/api/admin: roles, audit-logs, system-logs&#xa;/health" vertex="1">
-          <mxGeometry height="240" width="275" x="835" y="90" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0E7FF;strokeColor=#4F46E5;align=left;spacingLeft=10" value="主要 API&#xa;/api/auth: signup, login, refresh, logout&#xa;/api/users/me: profile, withdraw&#xa;/api/questions, /api/answers&#xa;/api/recommendations, /daily-discovery&#xa;/api/feedbacks, /api/history&#xa;/api/admin: artists, songs, tags, users&#xa;/api/admin: roles, audit-logs, system-logs&#xa;/health" vertex="1">
+          <mxGeometry height="150" width="275" x="885" y="192.5" as="geometry" />
         </mxCell>
-        <mxCell id="postgres" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#1D4ED8;align=left;spacingLeft=10" value="PostgreSQL 17&#xa;認証: users / refresh_tokens&#xa;楽曲: artists / songs / tags / 関連&#xa;質問: questions / choices / answers&#xa;嗜好: profiles / weight群&#xa;推薦: recommendations / details&#xa;学習: feedbacks&#xa;運用: audit_logs / system_logs / settings" vertex="1">
-          <mxGeometry height="235" width="280" x="840" y="385" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#1D4ED8;align=left;spacingLeft=10" value="PostgreSQL&lt;br&gt;認証: users / refresh_tokens&lt;br&gt;楽曲: artists / songs / tags / 関連&lt;br&gt;質問: questions / choices / answers&lt;br&gt;嗜好: profiles / weight群&lt;br&gt;推薦: recommendations / details&lt;br&gt;学習: feedbacks&lt;br&gt;運用: audit_logs / system_logs / settings" vertex="1">
+          <mxGeometry height="130" width="280" x="890" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="redis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#B91C1C" value="Redis 8&#xa;Rate Limit&#xa;短期・一時状態" vertex="1">
-          <mxGeometry height="90" width="130" x="620" y="470" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#B91C1C" value="Redis&lt;br&gt;Rate Limit&lt;br&gt;短期・一時状態" vertex="1">
+          <mxGeometry height="70" width="130" x="670" y="590" as="geometry" />
         </mxCell>
-        <mxCell id="spotify" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;align=left;spacingLeft=8" value="Spotify Web API&#xa;Client Credentials&#xa;Track / Artist 情報取得&#xa;初期対象: OAuth・Playlist連携なし" vertex="1">
-          <mxGeometry height="120" width="180" x="1185" y="155" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;align=left;spacingLeft=8" value="Spotify Web API&#xa;Client Credentials&#xa;Track / Artist 情報取得&#xa;初期対象: OAuth・Playlist連携なし" vertex="1">
+          <mxGeometry height="95" width="180" x="1235" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="ops" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7C3AED;align=left;spacingLeft=8" value="運用基盤&#xa;Docker / CI・CD&#xa;Health Check / 監視&#xa;Backup / Restore&#xa;環境変数で秘密情報管理" vertex="1">
-          <mxGeometry height="135" width="180" x="1185" y="385" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7C3AED;align=left;spacingLeft=8" value="運用基盤&#xa;Docker / CI・CD&#xa;Health Check / 監視&#xa;Backup / Restore&#xa;環境変数で秘密情報管理" vertex="1">
+          <mxGeometry height="105" width="180" x="1235" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="principles" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#6D28D9;align=left;spacingLeft=12" value="設計方針&#xa;• Clean Architecture: Router → Controller → UseCase → Repository / Domain&#xa;• 依存性逆転: UseCase が Repository・Spotify・Clock の Port を所有&#xa;• 通常推薦と Daily Discovery は Recommendation を共通利用&#xa;• 推薦履歴は不変、推薦理由とスコアを保存して再計算しない&#xa;• 回答保存 + Profile更新、Feedback + Weight更新、管理操作 + AuditLog はTx&#xa;• Artist / Song / Tag / User は履歴整合性のため論理削除" vertex="1">
-          <mxGeometry height="170" width="720" x="260" y="655" as="geometry" />
+        <mxCell id="qgghb9D-P2rjfL67Yas5-13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#6D28D9;align=left;spacingLeft=12" value="設計方針&#xa;• Clean Architecture: Router → Controller → UseCase → Repository / Domain&#xa;• 依存性逆転: UseCase が Repository・Spotify・Clock の Port を所有&#xa;• 通常推薦と Daily Discovery は Recommendation を共通利用&#xa;• 推薦履歴は不変、推薦理由とスコアを保存して再計算しない&#xa;• 回答保存 + Profile更新、Feedback + Weight更新、管理操作 + AuditLog はTx&#xa;• Artist / Song / Tag / User は履歴整合性のため論理削除" vertex="1">
+          <mxGeometry height="170" width="450" x="310" y="775" as="geometry" />
         </mxCell>
-        <mxCell id="statusnote" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;dashed=1;align=left;spacingLeft=8" value="実装状況（ZIP時点）&#xa;実装済み: signup / login、users、refresh_tokens、基本Middleware&#xa;本図のその他要素: 要件・仕様に基づく目標構成" vertex="1">
-          <mxGeometry height="100" width="340" x="1010" y="680" as="geometry" />
-        </mxCell>
-        <mxCell id="e1" edge="1" parent="1" source="guest" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="frontend">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-15" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-2" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-6">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e2" edge="1" parent="1" source="user" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="frontend">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-16" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-3" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-6">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" edge="1" parent="1" source="contentadmin" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="frontend">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-17" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-4" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-6">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" edge="1" parent="1" source="sysadmin" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="frontend">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-18" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-5" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-6">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e5" edge="1" parent="1" source="frontend" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="api" value="HTTPS / REST JSON">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-19" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-6" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-7" value="HTTPS / REST JSON">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" edge="1" parent="1" source="api" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="routes">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-20" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-7" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e7" edge="1" parent="1" source="api" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic" target="postgres" value="GORM / Tx">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-21" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-7" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-9" value="GORM / Tx">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e8" edge="1" parent="1" source="api" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic" target="redis">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-22" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-7" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic" target="qgghb9D-P2rjfL67Yas5-10">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e9" edge="1" parent="1" source="api" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="spotify" value="Track / Artist">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-23" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-7" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="qgghb9D-P2rjfL67Yas5-11" value="Track / Artist">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e10" edge="1" parent="1" source="api" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="ops">
+        <mxCell id="qgghb9D-P2rjfL67Yas5-24" edge="1" parent="1" source="qgghb9D-P2rjfL67Yas5-7" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="qgghb9D-P2rjfL67Yas5-12">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram name="2. クリーンアーキテクチャ詳細" id="md-clean-architecture">
-    <mxGraphModel dx="2859" dy="822" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+  <diagram name="2.クリーンアーキテクチャ図 v4" id="md-clean-v4">
+    <mxGraphModel dx="3348" dy="2602" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1400" math="0" shadow="0">
       <root>
-        <mxCell id="a0" />
-        <mxCell id="a1" parent="a0" />
-        <mxCell id="atitle" parent="a1" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1" value="Music Discovery - クリーンアーキテクチャ詳細" vertex="1">
-          <mxGeometry height="40" width="620" x="590" y="10" as="geometry" />
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title2" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1" value="Music Discovery レイヤー構成" vertex="1">
+          <mxGeometry height="40" width="600" x="372.5" y="-47.5" as="geometry" />
         </mxCell>
-        <mxCell id="routerlayer" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#BE185D;fontSize=18;fontStyle=1;align=left;spacingLeft=12" value="Layer 4: Router / Middleware" vertex="1">
-          <mxGeometry height="150" width="1930" x="-170" y="65" as="geometry" />
+        <mxCell id="layer4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE7F3;strokeColor=#BE185D;fontStyle=1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Layer 4: Router&lt;/font&gt;" vertex="1">
+          <mxGeometry height="195" width="1760" x="-200" y="30" as="geometry" />
         </mxCell>
-        <mxCell id="r_auth" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/auth&#xa;signup / login&#xa;refresh / logout" vertex="1">
-          <mxGeometry height="75" width="150" x="80" y="115" as="geometry" />
+        <mxCell id="route-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777;align=left;spacingLeft=4" value="POST&#xa;/api/auth/signup&#xa;/api/auth/login" vertex="1">
+          <mxGeometry height="80" width="92.5" x="7.5" y="140" as="geometry" />
         </mxCell>
-        <mxCell id="r_user" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/users/me&#xa;profile / withdraw" vertex="1">
-          <mxGeometry height="75" width="150" x="250" y="115" as="geometry" />
+        <mxCell id="route-refresh" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="POST&#xa;/auth/refresh&#xa;/auth/logout" vertex="1">
+          <mxGeometry height="55" width="110" x="162.5" y="145" as="geometry" />
         </mxCell>
-        <mxCell id="r_question" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/questions&#xa;/api/answers" vertex="1">
-          <mxGeometry height="75" width="150" x="420" y="115" as="geometry" />
+        <mxCell id="route-me" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET/PATCH/DELETE&#xa;/users/me" vertex="1">
+          <mxGeometry height="50" width="127.5" x="285" y="145.32" as="geometry" />
         </mxCell>
-        <mxCell id="r_rec" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/recommendations&#xa;/daily-discovery&#xa;/history" vertex="1">
-          <mxGeometry height="75" width="175" x="590" y="115" as="geometry" />
+        <mxCell id="route-projects" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/questions" vertex="1">
+          <mxGeometry height="50" width="85" x="432.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="r_feedback" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/feedbacks&#xa;登録 / 変更" vertex="1">
-          <mxGeometry height="75" width="145" x="785" y="115" as="geometry" />
+        <mxCell id="route-supporters" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="POST/GET&#xa;/answers" vertex="1">
+          <mxGeometry height="55" width="90" x="522.5" y="145" as="geometry" />
         </mxCell>
-        <mxCell id="r_content" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/admin&#xa;artists / songs / tags&#xa;推薦統計" vertex="1">
-          <mxGeometry height="75" width="165" x="950" y="115" as="geometry" />
+        <mxCell id="route-payments" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777;align=left;spacingLeft=4" value="POST&#xa;/recommendations" vertex="1">
+          <mxGeometry height="55" width="140" x="617.5" y="145" as="geometry" />
         </mxCell>
-        <mxCell id="r_system" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/api/admin&#xa;users / roles / settings&#xa;audit-logs / system-logs" vertex="1">
-          <mxGeometry height="75" width="190" x="1135" y="115" as="geometry" />
+        <mxCell id="route-webhook" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/daily-discovery" vertex="1">
+          <mxGeometry height="45" width="100" x="762.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="r_mw" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9A8D4;strokeColor=#BE185D;align=left;spacingLeft=8" value="Middleware&#xa;RequestID / Recover / Logger / Secure&#xa;CORS / BodyLimit / RequireJSON&#xa;JWT Auth / Role Guard / RateLimit" vertex="1">
-          <mxGeometry height="95" width="370" x="1350" y="105" as="geometry" />
+        <mxCell id="route-messages" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="POST/PATCH&#xa;/feedbacks" vertex="1">
+          <mxGeometry height="50" width="85" x="872.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="controllerlayer" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#0E7490;fontSize=18;fontStyle=1;align=left;spacingLeft=12" value="Layer 3: Controller / Presenter" vertex="1">
-          <mxGeometry height="135" width="1920" x="-160" y="240" as="geometry" />
+        <mxCell id="route-favorites" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/history" vertex="1">
+          <mxGeometry height="50" width="80" x="967.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="c_auth" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="AuthController&#xa;UserController" vertex="1">
-          <mxGeometry height="65" width="170" x="80" y="285" as="geometry" />
+        <mxCell id="route-seller" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/admin&#xa;artists / songs / tags" vertex="1">
+          <mxGeometry height="50" width="90" x="1057.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="c_question" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="QuestionController&#xa;AnswerController" vertex="1">
-          <mxGeometry height="65" width="170" x="275" y="285" as="geometry" />
+        <mxCell id="route-admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="/admin&#xa;users / roles / settings" vertex="1">
+          <mxGeometry height="52.63" width="100" x="1157.5" y="144" as="geometry" />
         </mxCell>
-        <mxCell id="c_rec" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="RecommendationController&#xa;DailyDiscoveryController&#xa;HistoryController" vertex="1">
-          <mxGeometry height="75" width="215" x="470" y="280" as="geometry" />
+        <mxCell id="route-media" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/admin/audit-logs" vertex="1">
+          <mxGeometry height="45" width="95" x="1262.5" y="147" as="geometry" />
         </mxCell>
-        <mxCell id="c_feedback" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="FeedbackController" vertex="1">
-          <mxGeometry height="65" width="165" x="710" y="285" as="geometry" />
+        <mxCell id="route-ws-token" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/admin/&#xa;system-logs" vertex="1">
+          <mxGeometry height="45" width="80" x="1365" y="147" as="geometry" />
         </mxCell>
-        <mxCell id="c_content" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="ArtistController&#xa;SongController&#xa;TagController" vertex="1">
-          <mxGeometry height="75" width="180" x="900" y="280" as="geometry" />
+        <mxCell id="route-ws" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="Spotify API&#xa;Track / Artist" vertex="1">
+          <mxGeometry height="45" width="75" x="1452.5" y="147" as="geometry" />
         </mxCell>
-        <mxCell id="c_admin" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="AdminUserController&#xa;RoleController&#xa;Log / Setting Controller" vertex="1">
-          <mxGeometry height="75" width="205" x="1105" y="280" as="geometry" />
+        <mxCell id="route-health" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBCFE8;strokeColor=#DB2777" value="GET&#xa;/health" vertex="1">
+          <mxGeometry height="45" width="70" x="-142.5" y="142.5" as="geometry" />
         </mxCell>
-        <mxCell id="c_present" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5F3FC;strokeColor=#0E7490" value="Request DTO / Validation&#xa;Response DTO / Error Mapping&#xa;Cookie / HTTP Status" vertex="1">
-          <mxGeometry height="75" width="380" x="1340" y="280" as="geometry" />
+        <mxCell id="layer3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F7FA;strokeColor=#0E7490;fontStyle=1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Layer 3: Controller&lt;/font&gt;" vertex="1">
+          <mxGeometry height="200" width="1762.5" x="-200" y="260" as="geometry" />
         </mxCell>
-        <mxCell id="usecaselayer" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6;fontSize=18;fontStyle=1;align=left;spacingLeft=12" value="Layer 2: Application / Use Case（Portの所有者）" vertex="1">
-          <mxGeometry height="310" width="1960" x="-200" y="400" as="geometry" />
+        <mxCell id="middleware" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2;align=left;spacingLeft=6" value="Middleware&#xa;Request ID / Recover / Logger&#xa;Secure / CORS / Body Limit&#xa;AuthToken / Role / Rate Limit" vertex="1">
+          <mxGeometry height="85" width="175" x="45" y="360" as="geometry" />
         </mxCell>
-        <mxCell id="u_auth" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="AuthUseCase&#xa;Signup / Login&#xa;Refresh Rotation / Logout&#xa;Withdraw / Profile" vertex="1">
-          <mxGeometry height="95" width="180" x="75" y="450" as="geometry" />
+        <mxCell id="handler-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2;align=left;spacingLeft=4" value="AuthController&#xa;Signup / Login&#xa;Refresh / Logout / Profile" vertex="1">
+          <mxGeometry height="90" width="115" x="240" y="350" as="geometry" />
         </mxCell>
-        <mxCell id="u_question" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="QuestionAnswerUseCase&#xa;質問一覧 / 回答検証&#xa;Session追記&#xa;Profile初期化・更新" vertex="1">
-          <mxGeometry height="95" width="190" x="275" y="450" as="geometry" />
+        <mxCell id="handler-project" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="QuestionController" vertex="1">
+          <mxGeometry height="45" width="110" x="370" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="u_rec" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="RecommendationUseCase&#xa;通常推薦 / 30日重複除外&#xa;候補取得 / Score計算&#xa;3枠選出・理由保存" vertex="1">
-          <mxGeometry height="95" width="190" x="485" y="450" as="geometry" />
+        <mxCell id="handler-supporter" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2;align=left;spacingLeft=4" value="AnswerController" vertex="1">
+          <mxGeometry height="50" width="120" x="495" y="387" as="geometry" />
         </mxCell>
-        <mxCell id="u_daily" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="DailyDiscoveryUseCase&#xa;Timezone対象日&#xa;同日結果の再利用&#xa;2 Match + 1 Challenge" vertex="1">
-          <mxGeometry height="95" width="190" x="695" y="450" as="geometry" />
+        <mxCell id="handler-payment" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="Recommendation&#xa;Controller" vertex="1">
+          <mxGeometry height="55" width="115" x="630" y="385" as="geometry" />
         </mxCell>
-        <mxCell id="u_feedback" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="FeedbackUseCase&#xa;所有権検証 / 登録・変更&#xa;Genre / Artist / Song&#xa;Weightを同一Txで更新" vertex="1">
-          <mxGeometry height="95" width="190" x="905" y="450" as="geometry" />
+        <mxCell id="handler-message" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="DailyDiscovery&#xa;Controller" vertex="1">
+          <mxGeometry height="45" width="110" x="760" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="u_content" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="ContentAdminUseCase&#xa;Artist / Song / Tag CRUD&#xa;論理削除 / 再開&#xa;Spotify取込 / 推薦統計" vertex="1">
-          <mxGeometry height="95" width="200" x="1115" y="450" as="geometry" />
+        <mxCell id="handler-favorite" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="Feedback&#xa;Controller" vertex="1">
+          <mxGeometry height="50" width="90" x="875" y="387" as="geometry" />
         </mxCell>
-        <mxCell id="u_admin" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="SystemAdminUseCase&#xa;User停止・再開 / Role&#xa;Settings / Log閲覧&#xa;管理操作 + AuditLog Tx" vertex="1">
-          <mxGeometry height="95" width="205" x="1335" y="450" as="geometry" />
+        <mxCell id="handler-history" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="History&#xa;Controller" vertex="1">
+          <mxGeometry height="50" width="80" x="975" y="387" as="geometry" />
         </mxCell>
-        <mxCell id="u_history" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="HistoryUseCase&#xa;通常 + Daily共通一覧&#xa;Pagination / 所有権検証&#xa;保存済み理由・Score表示" vertex="1">
-          <mxGeometry height="95" width="165" x="1560" y="450" as="geometry" />
+        <mxCell id="handler-seller" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="ContentAdmin&#xa;Controller" vertex="1">
+          <mxGeometry height="45" width="100" x="1070" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="ports" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2;align=left;spacingLeft=8" value="Repository Ports&#xa;User / RefreshToken / Question / Answer / Profile&#xa;Artist / Song / Tag / Recommendation / Feedback&#xa;AuditLog / SystemLog / SystemSetting" vertex="1">
-          <mxGeometry height="95" width="520" x="615" y="1120" as="geometry" />
+        <mxCell id="handler-admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="SystemAdmin&#xa;Controller" vertex="1">
+          <mxGeometry height="45" width="105" x="1190" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="serviceports" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2;align=left;spacingLeft=8" value="External / Utility Ports&#xa;SpotifyClient / TokenIssuer / PasswordHasher&#xa;RateLimiter / Clock / TransactionManager&#xa;Logger / HealthChecker" vertex="1">
-          <mxGeometry height="95" width="430" x="680" y="585" as="geometry" />
+        <mxCell id="handler-media" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="LogController" vertex="1">
+          <mxGeometry height="45" width="90" x="1310" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="rules" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;align=left;spacingLeft=8" value="Application Rules&#xa;• UserIDはJWTから取得しRequestを信用しない&#xa;• Dailyは(user, source, target_date)で一意&#xa;• FeedbackはRecommendationDetailごとに1件&#xa;• 管理操作・回答保存・Feedback更新はTx境界を明示" vertex="1">
-          <mxGeometry height="115" width="535" x="1160" y="575" as="geometry" />
+        <mxCell id="handler-ws" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B2EBF2;strokeColor=#0891B2" value="SpotifyGateway&#xa;Track / Artist" vertex="1">
+          <mxGeometry height="50" width="105" x="1410" y="387" as="geometry" />
         </mxCell>
-        <mxCell id="adapterlayer" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#0F766E;fontSize=18;fontStyle=1;align=left;spacingLeft=12" value="Interface Adapters / Infrastructure" vertex="1">
-          <mxGeometry height="185" width="1980" x="-220" y="735" as="geometry" />
+        <mxCell id="layer2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#5B21B6;fontStyle=1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Layer 2: Use Case&lt;/font&gt;" vertex="1">
+          <mxGeometry height="300" width="1760" x="-200" y="485" as="geometry" />
         </mxCell>
-        <mxCell id="repoimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="GORM Repository実装&#xa;各Repository Portを実装&#xa;Query / Preload / Pagination&#xa;論理削除Scope / Tx対応" vertex="1">
-          <mxGeometry height="100" width="260" x="80" y="790" as="geometry" />
+        <mxCell id="uc-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="AuthUseCase&#xa;Signup / Login / Refresh&#xa;Logout / Profile / Withdraw" vertex="1">
+          <mxGeometry height="65" width="140" x="70" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="tokenimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Security Adapter&#xa;JWT Access Token&#xa;Refresh Token Hash / Rotation&#xa;bcrypt Password Hash" vertex="1">
-          <mxGeometry height="100" width="230" x="370" y="790" as="geometry" />
+        <mxCell id="uc-project" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="QuestionUseCase&#xa;質問 / 選択肢取得" vertex="1">
+          <mxGeometry height="65" width="110" x="230" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="spotifyimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Spotify Adapter&#xa;Client Credentials&#xa;Track / Artist取得&#xa;Timeout / Retry / Error変換" vertex="1">
-          <mxGeometry height="100" width="220" x="630" y="790" as="geometry" />
+        <mxCell id="uc-supporter" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="AnswerUseCase&#xa;回答検証 / Session追記&#xa;Profile更新" vertex="1">
+          <mxGeometry height="65" width="130" x="365" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="redisimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Redis Adapter&#xa;Token Bucket RateLimit&#xa;TTL付き一時データ" vertex="1">
-          <mxGeometry height="100" width="210" x="880" y="790" as="geometry" />
+        <mxCell id="uc-payment" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="RecommendationUseCase&#xa;候補 / Score / 3曲選出" vertex="1">
+          <mxGeometry height="80" width="155" x="520" y="508" as="geometry" />
         </mxCell>
-        <mxCell id="tximpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="GORM TxManager&#xa;回答 + Profile&#xa;Feedback + Weight&#xa;管理操作 + AuditLog" vertex="1">
-          <mxGeometry height="100" width="220" x="1120" y="790" as="geometry" />
+        <mxCell id="uc-message" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="DailyDiscoveryUseCase&#xa;対象日 / 同日再利用" vertex="1">
+          <mxGeometry height="60" width="145" x="695" y="518" as="geometry" />
         </mxCell>
-        <mxCell id="opsimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Observability Adapter&#xa;slog / Request ID&#xa;SystemLog / Metrics&#xa;Health Check" vertex="1">
-          <mxGeometry height="100" width="200" x="1370" y="790" as="geometry" />
+        <mxCell id="uc-favorite" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="FeedbackUseCase&#xa;登録 / Weight更新" vertex="1">
+          <mxGeometry height="45" width="107.5" x="860" y="522.5" as="geometry" />
         </mxCell>
-        <mxCell id="clockimpl" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Clock実装&#xa;UTC Now&#xa;User Timezone変換&#xa;Test Clock差替" vertex="1">
-          <mxGeometry height="100" width="130" x="1595" y="790" as="geometry" />
+        <mxCell id="uc-report" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="HistoryUseCase&#xa;一覧 / 詳細" vertex="1">
+          <mxGeometry height="45" width="100" x="975" y="522.5" as="geometry" />
         </mxCell>
-        <mxCell id="domainlayer" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;fontSize=18;fontStyle=1;align=left;spacingLeft=12" value="Layer 1: Domain（Entity / Value Object / Domain Rule）" vertex="1">
-          <mxGeometry height="205" width="1970" x="-210" y="945" as="geometry" />
+        <mxCell id="uc-seller" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="ContentAdminUseCase&#xa;Artist / Song / Tag" vertex="1">
+          <mxGeometry height="50" width="135" x="1085" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="d_identity" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Identity&#xa;User / UserRole / UserStatus&#xa;RefreshToken" vertex="1">
-          <mxGeometry height="85" width="200" x="80" y="1000" as="geometry" />
+        <mxCell id="uc-admin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9;align=left;spacingLeft=4" value="SystemAdminUseCase&#xa;User / Role / Setting&#xa;Audit / System Log" vertex="1">
+          <mxGeometry height="58" width="135" x="1230" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="d_catalog" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Catalog&#xa;Artist / Song / Tag&#xa;ArtistTag / SongTag" vertex="1">
-          <mxGeometry height="85" width="200" x="305" y="1000" as="geometry" />
+        <mxCell id="uc-media" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDD6FE;strokeColor=#6D28D9" value="SpotifyImportUseCase&#xa;Track / Artist取込" vertex="1">
+          <mxGeometry height="45" width="135" x="1380" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="d_question" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Questionnaire&#xa;Question / Choice&#xa;AnswerSession / Answer&#xa;UserProfile / Weight" vertex="1">
-          <mxGeometry height="95" width="220" x="530" y="995" as="geometry" />
+        <mxCell id="uc-ratelimit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED" value="RateLimitUseCase&#xa;Token Bucket" vertex="1">
+          <mxGeometry height="42" width="130" x="-70" y="515" as="geometry" />
         </mxCell>
-        <mxCell id="d_rec" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Recommendation&#xa;Recommendation / Detail&#xa;Source / Type / ScoreDetail&#xa;Feedback" vertex="1">
-          <mxGeometry height="95" width="220" x="775" y="995" as="geometry" />
+        <mxCell id="uc-tx" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED" value="Tx 境界&#xa;（GORM トランザクション）" vertex="1">
+          <mxGeometry height="42" width="172.5" x="1357.5" y="600" as="geometry" />
         </mxCell>
-        <mxCell id="d_ops" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Operations&#xa;AuditLog / SystemLog&#xa;SystemSetting" vertex="1">
-          <mxGeometry height="85" width="200" x="1020" y="1000" as="geometry" />
+        <mxCell id="ifc-user-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="UserRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="70" x="45" y="668" as="geometry" />
         </mxCell>
-        <mxCell id="d_errors" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBD5E1;strokeColor=#475569" value="Domain Errors&#xa;NotFound / Conflict&#xa;Forbidden / Validation&#xa;CandidateShortage" vertex="1">
-          <mxGeometry height="85" width="200" x="1245" y="1000" as="geometry" />
+        <mxCell id="ifc-project-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="QuestionRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="90" x="120" y="668" as="geometry" />
         </mxCell>
-        <mxCell id="d_rules" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBD5E1;strokeColor=#475569;align=left;spacingLeft=8" value="Domain Rules&#xa;履歴・回答Sessionは追記 / 物理削除しない&#xa;無効Song・Artist、Spotify URLなしは候補外&#xa;推薦1回3曲、同一曲重複なし、30日除外&#xa;Weightは設定値の上下限内で更新" vertex="1">
-          <mxGeometry height="115" width="255" x="1470" y="985" as="geometry" />
+        <mxCell id="ifc-supporter-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="AnswerRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="85" x="220" y="668" as="geometry" />
         </mxCell>
-        <mxCell id="ae1" edge="1" parent="a1" source="r_auth" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="c_auth">
+        <mxCell id="ifc-purchase-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="RecommendationRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="125" x="355" y="720" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-purchase-event-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="RecDetailRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="100" x="560" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-report-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="HistoryRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="80" x="730" y="672" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-message-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="UserProfileRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="100" x="500" y="720" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-audit-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="AuditLogRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="85" x="1070" y="676" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-activity-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="SystemLogRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="95" x="960" y="676" as="geometry" />
+        </mxCell>
+        <mxCell id="auth-ports" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;align=left;spacingLeft=5" value="Auth Port&#xa;Token / Password" vertex="1">
+          <mxGeometry height="52" width="127.5" x="-191.25" y="668" as="geometry" />
+        </mxCell>
+        <mxCell id="stripe-port" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2;align=left;spacingLeft=4" value="SpotifyClient&#xa;interface" vertex="1">
+          <mxGeometry height="48" width="80" x="310" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="ratelimit-port" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="RateLimitRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="90" x="-50" y="668" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-favorite-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="FeedbackRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="90" x="650" y="720" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-seller-reg-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="ArtistRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="85" x="1320" y="676" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-oauth-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="SongRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="110" x="1445" y="676" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-image" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="TagRepo&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="82.5" x="1192.5" y="676" as="geometry" />
+        </mxCell>
+        <mxCell id="ifc-tx" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;fontStyle=2" value="Tx&#xa;interface" vertex="1">
+          <mxGeometry height="36" width="60" x="467.5" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="broadcaster-port" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9D5FF;strokeColor=#7E22CE;align=left;spacingLeft=5" value="Clock&#xa;interface" vertex="1">
+          <mxGeometry height="60" width="60" x="810" y="708" as="geometry" />
+        </mxCell>
+        <mxCell id="layer-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#0F766E;fontStyle=1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Layer: Repository&lt;/font&gt;" vertex="1">
+          <mxGeometry height="200" width="1760" x="-200" y="815" as="geometry" />
+        </mxCell>
+        <mxCell id="user-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="UserRepo impl&#xa;GORM" vertex="1">
+          <mxGeometry height="48" width="80" x="70" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="project-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="QuestionRepo impl" vertex="1">
+          <mxGeometry height="48" width="87.5" x="152.5" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="supporter-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="AnswerRepo impl" vertex="1">
+          <mxGeometry height="48" width="90" x="250" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="purchase-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="RecommendationRepo&#xa;impl" vertex="1">
+          <mxGeometry height="48" width="130" x="360" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="purchase-event-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="RecDetailRepo impl" vertex="1">
+          <mxGeometry height="48" width="110" x="565" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="message-repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="UserProfileRepo impl" vertex="1">
+          <mxGeometry height="48" width="105" x="502.5" y="938" as="geometry" />
+        </mxCell>
+        <mxCell id="auth-impls" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Auth Port impl&#xa;JWT / bcrypt" vertex="1">
+          <mxGeometry height="48" width="115" x="-191.25" y="838.5" as="geometry" />
+        </mxCell>
+        <mxCell id="stripe-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="SpotifyClient impl&#xa;Web API" vertex="1">
+          <mxGeometry height="48" width="100" x="300" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="ratelimit-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="RateLimitRepo impl&#xa;Redis Token Bucket" vertex="1">
+          <mxGeometry height="48" width="115" x="-60" y="838.5" as="geometry" />
+        </mxCell>
+        <mxCell id="audit-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="AuditLogRepo impl" vertex="1">
+          <mxGeometry height="48" width="80" x="1085" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="activity-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="SystemLogRepo impl" vertex="1">
+          <mxGeometry height="48" width="90" x="940" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Clock impl&#xa;UTC / Timezone" vertex="1">
+          <mxGeometry height="55" width="145" x="785" y="828" as="geometry" />
+        </mxCell>
+        <mxCell id="favorite-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="FeedbackRepo impl" vertex="1">
+          <mxGeometry height="48" width="82.5" x="680" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="report-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="HistoryRepo impl" vertex="1">
+          <mxGeometry height="48" width="80" x="730" y="931" as="geometry" />
+        </mxCell>
+        <mxCell id="seller-reg-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="ArtistRepo impl" vertex="1">
+          <mxGeometry height="48" width="95" x="1315" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="oauth-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5EEAD4;strokeColor=#0D9488" value="SongRepo impl" vertex="1">
+          <mxGeometry height="48" width="110" x="1425" y="838.5" as="geometry" />
+        </mxCell>
+        <mxCell id="image-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="TagRepo impl" vertex="1">
+          <mxGeometry height="48" width="105" x="1200" y="835" as="geometry" />
+        </mxCell>
+        <mxCell id="tx-impl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#A16207" value="Tx impl&#xa;GORM" vertex="1">
+          <mxGeometry height="48" width="70" x="462.5" y="886.5" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#475569;fontStyle=1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Layer 1: Domain（Entity）&lt;/font&gt;" vertex="1">
+          <mxGeometry height="200" width="1760" x="-200" y="1035" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="User" vertex="1">
+          <mxGeometry height="38" width="65" x="-72.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-project" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="RefreshToken" vertex="1">
+          <mxGeometry height="38" width="82.5" x="7.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-plan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Question" vertex="1">
+          <mxGeometry height="38" width="90" x="97.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-supporter" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="QuestionChoice" vertex="1">
+          <mxGeometry height="38" width="115" x="202.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-purchase" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="AnswerSession" vertex="1">
+          <mxGeometry height="38" width="87.5" x="325" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-purchase-event" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="UserAnswer" vertex="1">
+          <mxGeometry height="38" width="105" x="422.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-message" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="UserProfile" vertex="1">
+          <mxGeometry height="38" width="80" x="542.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-favorite" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="UserWeight" vertex="1">
+          <mxGeometry height="38" width="75" x="637.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-report" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Artist" vertex="1">
+          <mxGeometry height="38" width="65" x="727.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-seller-reg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Song" vertex="1">
+          <mxGeometry height="38" width="95" x="805" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-oauth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Tag" vertex="1">
+          <mxGeometry height="38" width="95" x="200" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-refresh-token" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="ArtistTag" vertex="1">
+          <mxGeometry height="38" width="90" x="310" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-ws-token" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="SongTag" vertex="1">
+          <mxGeometry height="38" width="75" x="410" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-review" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Recommendation" vertex="1">
+          <mxGeometry height="38" width="105" x="495" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-webhook" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Recommendation&#xa;Detail" vertex="1">
+          <mxGeometry height="38" width="100" x="610" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-connect" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="Feedback" vertex="1">
+          <mxGeometry height="38" width="105" x="720" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-batch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="AuditLog" vertex="1">
+          <mxGeometry height="38" width="75" x="835" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-activity" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="SystemLog" vertex="1">
+          <mxGeometry height="38" width="85" x="920" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-audit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#64748B" value="System&#xa;Setting" vertex="1">
+          <mxGeometry height="38" width="75" x="1015" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="domain-errors" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBD5E1;strokeColor=#475569" value="Domain Errors" vertex="1">
+          <mxGeometry height="38" width="100" x="922.5" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="domain-enums" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBD5E1;strokeColor=#475569;align=left;spacingLeft=4" value="Enums&#xa;role / status&#xa;recommendation source / type&#xa;feedback type" vertex="1">
+          <mxGeometry height="115" width="155" x="1045" y="1105" as="geometry" />
+        </mxCell>
+        <mxCell id="domain-rules" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBD5E1;strokeColor=#475569;align=left;spacingLeft=4" value="Domain Rules&#xa;回答Sessionは追記&#xa;Dailyは日次一意&#xa;推薦3曲 / 30日重複除外&#xa;Feedbackは明細ごとに1件&#xa;履歴関連は物理削除しない" vertex="1">
+          <mxGeometry height="118" width="165" x="1215" y="1105" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-arch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;align=left;spacingLeft=8;fontSize=11" value="矢印&lt;br&gt;&lt;font color=&quot;#2563EB&quot;&gt;■&lt;/font&gt; 青 … 上から下（Router→Controller→UseCase）&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;■&lt;/font&gt; 灰 … 下から上（impl→interface / 外部 Port）" vertex="1">
+          <mxGeometry height="55" width="260" x="1240" y="-55" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-r-auth" edge="1" parent="1" source="route-auth" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-auth">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae2" edge="1" parent="a1" source="r_question" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="c_question">
+        <mxCell id="arr-r-refresh" edge="1" parent="1" source="route-refresh" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-auth">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae3" edge="1" parent="a1" source="r_rec" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="c_rec">
+        <mxCell id="arr-r-me" edge="1" parent="1" source="route-me" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-auth">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae4" edge="1" parent="a1" source="r_feedback" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="c_feedback">
+        <mxCell id="arr-r-supporters" edge="1" parent="1" source="route-supporters" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-supporter">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae5" edge="1" parent="a1" source="c_auth" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_auth">
+        <mxCell id="arr-r-projects" edge="1" parent="1" source="route-projects" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-project">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae6" edge="1" parent="a1" source="c_question" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_question">
+        <mxCell id="arr-r-payments" edge="1" parent="1" source="route-payments" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-payment">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae7" edge="1" parent="a1" source="c_rec" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_rec">
+        <mxCell id="arr-r-webhook" edge="1" parent="1" source="route-webhook" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-message">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae8" edge="1" parent="a1" source="c_feedback" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_feedback">
+        <mxCell id="arr-r-messages" edge="1" parent="1" source="route-messages" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-favorite">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae9" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="ports" value="implements">
+        <mxCell id="arr-r-favorites" edge="1" parent="1" source="route-favorites" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-history">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae10" edge="1" parent="a1" source="spotifyimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="serviceports" value="implements">
+        <mxCell id="arr-r-seller" edge="1" parent="1" source="route-seller" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-seller">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae11" edge="1" parent="a1" source="redisimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="serviceports">
+        <mxCell id="arr-r-admin" edge="1" parent="1" source="route-admin" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-admin">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae12" edge="1" parent="a1" source="tximpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="serviceports">
+        <mxCell id="arr-r-media" edge="1" parent="1" source="route-media" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-media">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae13" edge="1" parent="a1" source="clockimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1" target="serviceports">
+        <mxCell id="arr-r-ws" edge="1" parent="1" source="route-ws" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="handler-ws">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae14" edge="1" parent="a1" source="r_user" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="c_auth">
+        <mxCell id="arr-r-health" edge="1" parent="1" source="route-health" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="middleware">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae15" edge="1" parent="a1" source="r_content" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="c_content">
+        <mxCell id="dep-h-auth" edge="1" parent="1" source="handler-auth" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-auth">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae16" edge="1" parent="a1" source="r_system" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="c_admin">
+        <mxCell id="dep-h-supporter" edge="1" parent="1" source="handler-supporter" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-supporter">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae17" edge="1" parent="a1" source="r_mw" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="c_present" value="Context / Guard">
+        <mxCell id="dep-h-project" edge="1" parent="1" source="handler-project" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-project">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae18" edge="1" parent="a1" source="c_rec" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="u_daily">
+        <mxCell id="dep-h-payment" edge="1" parent="1" source="handler-payment" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-payment">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae19" edge="1" parent="a1" source="c_rec" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="u_history">
+        <mxCell id="dep-h-message" edge="1" parent="1" source="handler-message" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-message">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae20" edge="1" parent="a1" source="c_content" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_content">
+        <mxCell id="dep-h-favorite" edge="1" parent="1" source="handler-favorite" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-favorite">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae21" edge="1" parent="a1" source="c_admin" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic" target="u_admin">
+        <mxCell id="dep-h-report" edge="1" parent="1" source="handler-history" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-report">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae22" edge="1" parent="a1" source="u_auth" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.08;entryY=0;entryDx=0;entryDy=0" target="ports" value="User / Token Repo">
+        <mxCell id="dep-h-seller" edge="1" parent="1" source="handler-seller" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-seller">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae23" edge="1" parent="a1" source="u_question" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.28;entryY=0;entryDx=0;entryDy=0" target="ports" value="Question / Answer / Profile Repo">
+        <mxCell id="dep-h-admin" edge="1" parent="1" source="handler-admin" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-admin">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae24" edge="1" parent="a1" source="u_rec" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.48;entryY=0;entryDx=0;entryDy=0" target="ports" value="Song / Recommendation Repo">
+        <mxCell id="dep-h-media" edge="1" parent="1" source="handler-ws" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;" target="uc-media">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae25" edge="1" parent="a1" source="u_daily" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.68;entryY=0;entryDx=0;entryDy=0" target="ports" value="Profile / Recommendation Repo">
+        <mxCell id="dep-h-ws" edge="1" parent="1" source="handler-ws" style="html=1;strokeColor=#2563EB;strokeWidth=2;endArrow=classic;entryX=0.986;entryY=0.065;exitX=0.366;exitY=1.02;exitDx=0;exitDy=0;exitPerimeter=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="uc-message">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1412" y="435" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="dep-stripe-impl" edge="1" parent="1" source="stripe-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="stripe-port">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae26" edge="1" parent="a1" source="u_feedback" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.88;entryY=0;entryDx=0;entryDy=0" target="ports" value="Feedback / Weight Repo">
+        <mxCell id="dep-conn-broad" edge="1" parent="1" source="conn-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="broadcaster-port">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae27" edge="1" parent="a1" source="u_content" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=1;entryY=0.35;entryDx=0;entryDy=0" target="ports" value="Artist / Song / Tag Repo">
+        <mxCell id="dep-user-repo" edge="1" parent="1" source="user-repo" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-user-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae28" edge="1" parent="a1" source="u_admin" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=1;entryY=0.65;entryDx=0;entryDy=0" target="ports" value="User / Log / Setting Repo">
+        <mxCell id="dep-project-repo" edge="1" parent="1" source="project-repo" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-project-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae29" edge="1" parent="a1" source="u_history" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=1;entryY=0.9;entryDx=0;entryDy=0" target="ports" value="Recommendation Repo">
+        <mxCell id="dep-auth-impl" edge="1" parent="1" source="auth-impls" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="auth-ports">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae30" edge="1" parent="a1" source="u_auth" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.08;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="Token / Hasher / Tx">
+        <mxCell id="dep-ratelimit-impl" edge="1" parent="1" source="ratelimit-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ratelimit-port">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae31" edge="1" parent="a1" source="u_question" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.23;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="TxManager">
+        <mxCell id="dep-supporter-repo" edge="1" parent="1" source="supporter-repo" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-supporter-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae32" edge="1" parent="a1" source="u_rec" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.38;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="Clock">
+        <mxCell id="dep-purchase-event-impl" edge="1" parent="1" source="purchase-event-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-purchase-event-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae33" edge="1" parent="a1" source="u_daily" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.53;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="Clock / Tx">
+        <mxCell id="dep-report-impl" edge="1" parent="1" source="report-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-report-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae34" edge="1" parent="a1" source="u_feedback" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.68;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="TxManager">
+        <mxCell id="dep-purchase-repo" edge="1" parent="1" source="purchase-repo" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-purchase-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae35" edge="1" parent="a1" source="u_content" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.83;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="SpotifyClient / Tx">
+        <mxCell id="dep-message-repo" edge="1" parent="1" source="message-repo" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-message-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae36" edge="1" parent="a1" source="u_admin" style="html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=classic;edgeStyle=orthogonalEdgeStyle;entryX=0.96;entryY=0;entryDx=0;entryDy=0" target="serviceports" value="Tx / HealthChecker">
+        <mxCell id="dep-audit-impl" edge="1" parent="1" source="audit-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-audit-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae37" edge="1" parent="a1" source="u_auth" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_identity" value="uses">
+        <mxCell id="dep-activity-impl" edge="1" parent="1" source="activity-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-activity-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae38" edge="1" parent="a1" source="u_question" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_question" value="uses">
+        <mxCell id="dep-favorite-impl" edge="1" parent="1" source="favorite-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-favorite-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae39" edge="1" parent="a1" source="u_rec" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_catalog" value="candidates">
+        <mxCell id="dep-seller-reg-impl" edge="1" parent="1" source="seller-reg-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-seller-reg-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae40" edge="1" parent="a1" source="u_rec" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_rec" value="creates">
+        <mxCell id="dep-oauth-impl" edge="1" parent="1" source="oauth-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-oauth-repo">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae41" edge="1" parent="a1" source="u_daily" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_question" value="profile">
+        <mxCell id="dep-image-impl" edge="1" parent="1" source="image-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-image">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ae42" edge="1" parent="a1" source="u_daily" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_rec" value="creates / reuses">
+        <mxCell id="dep-tx-impl" edge="1" parent="1" source="tx-impl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="ifc-tx">
           <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae43" edge="1" parent="a1" source="u_feedback" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_rec" value="owns / updates">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae44" edge="1" parent="a1" source="u_feedback" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_question" value="updates Weight">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae45" edge="1" parent="a1" source="u_content" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_catalog" value="manages">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae46" edge="1" parent="a1" source="u_admin" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_identity" value="suspend / role">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae47" edge="1" parent="a1" source="u_admin" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_ops" value="append / query">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae48" edge="1" parent="a1" source="u_history" style="html=1;strokeColor=#475569;strokeWidth=1.5;endArrow=classic;edgeStyle=orthogonalEdgeStyle" target="d_rec" value="read only">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae49" edge="1" parent="a1" source="tokenimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="serviceports" value="implements">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae50" edge="1" parent="a1" source="opsimpl" style="html=1;strokeColor=#64748B;strokeWidth=2;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="serviceports" value="implements">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae51" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=1.5;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="d_identity" value="maps">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae52" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=1.5;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="d_catalog" value="maps">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae53" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=1.5;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="d_question" value="maps">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae54" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=1.5;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="d_rec" value="maps">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ae55" edge="1" parent="a1" source="repoimpl" style="html=1;strokeColor=#64748B;strokeWidth=1.5;endArrow=classic;dashed=1;edgeStyle=orthogonalEdgeStyle" target="d_ops" value="maps">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="legend" parent="a1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;align=left;spacingLeft=8;fontSize=11" value="依存方向: 青 = Router→Controller→UseCase / 紫 = UseCase→Application Port / 灰 = UseCase・Adapter→Domain / 灰破線 = Adapter→Port実装&#xa;DomainはFramework・DB・HTTP・Spotifyへ依存しない" vertex="1">
-          <mxGeometry height="40" width="1150" x="70" y="1105" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,9 +19,11 @@ import (
 )
 
 type fakeUserUsecase struct {
-	user  *entity.User
-	err   error
-	input usecase.SignUpInput
+	user        *entity.User
+	err         error
+	input       usecase.SignUpInput
+	loginInput  usecase.LoginInput
+	loginResult *usecase.LoginResult
 }
 
 func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (*entity.User, error) {
@@ -28,8 +31,9 @@ func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (
 	return f.user, f.err
 }
 
-func (f *fakeUserUsecase) Login(context.Context, usecase.LoginInput) (*usecase.LoginResult, error) {
-	return nil, f.err
+func (f *fakeUserUsecase) Login(_ context.Context, input usecase.LoginInput) (*usecase.LoginResult, error) {
+	f.loginInput = input
+	return f.loginResult, f.err
 }
 
 func runSignupRequest(t *testing.T, body string, uc usecase.IUserUsecase) *httptest.ResponseRecorder {
@@ -212,5 +216,100 @@ func TestSignupControllerUsecaseErrors(t *testing.T) {
 
 			assertAPIError(t, rec, tt.wantStatus, tt.wantCode)
 		})
+	}
+}
+
+func runLoginRequest(t *testing.T, body string, uc usecase.IUserUsecase, cfg CookieConfig) (*httptest.ResponseRecorder, error) {
+	t.Helper()
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Response().Header().Set(echo.HeaderXRequestID, "req-login")
+	err := NewUserController(uc, cfg).Login(ctx)
+	if err != nil {
+		e.HTTPErrorHandler = func(err error, c echo.Context) { NewTestHTTPErrorHandler()(err, c) }
+		e.HTTPErrorHandler(err, ctx)
+	}
+	return rec, err
+}
+
+func NewTestHTTPErrorHandler() echo.HTTPErrorHandler {
+	return func(err error, c echo.Context) {
+		status := 500
+		var he *echo.HTTPError
+		if errors.As(err, &he) {
+			status = he.Code
+		}
+		_ = c.JSON(status, entity.APIErrorResponse{Status: status, Code: "INTERNAL_ERROR", Message: "サーバー内部でエラーが発生しました", RequestID: c.Response().Header().Get(echo.HeaderXRequestID)})
+	}
+}
+
+func TestLoginControllerSuccessCookiesAndResponse(t *testing.T) {
+	expires := time.Now().Add(time.Hour)
+	user := &entity.User{ID: uuid.New(), Name: "Taro", Email: "taro@example.com", Role: entity.UserRoleUser, Status: entity.UserStatusActive, PasswordHash: "secret-hash", TokenVersion: 5}
+	uc := &fakeUserUsecase{loginResult: &usecase.LoginResult{AccessToken: "access", ExpiresIn: 300, RefreshToken: "refresh-secret", RefreshTokenExpiresAt: expires, CSRFToken: "csrf-secret", User: user}}
+	cfg := CookieConfig{RefreshName: "rt", CSRFName: "csrf", Domain: "example.com", Path: "/api/auth", Secure: true, SameSite: http.SameSiteNoneMode}
+	rec, _ := runLoginRequest(t, `{"email":" TARO@EXAMPLE.COM ","password":" password "}`, uc, cfg)
+	if rec.Code != 200 {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if uc.loginInput.Email != "taro@example.com" || uc.loginInput.Password != " password " {
+		t.Fatalf("input=%#v", uc.loginInput)
+	}
+	body := rec.Body.String()
+	for _, secret := range []string{"refresh-secret", "csrf-secret", "secret-hash", "token_version", "password_hash"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("secret leaked: %s", body)
+		}
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookies=%d", len(cookies))
+	}
+	var rt, csrf *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "rt" {
+			rt = cookie
+		}
+		if cookie.Name == "csrf" {
+			csrf = cookie
+		}
+	}
+	if rt == nil || !rt.HttpOnly || !rt.Secure || rt.SameSite != http.SameSiteNoneMode || rt.Path != "/api/auth" || rt.MaxAge <= 0 {
+		t.Fatalf("refresh cookie=%#v", rt)
+	}
+	if csrf == nil || csrf.HttpOnly || !csrf.Secure || csrf.SameSite != http.SameSiteNoneMode || csrf.MaxAge <= 0 {
+		t.Fatalf("csrf cookie=%#v", csrf)
+	}
+}
+
+func TestLoginControllerErrorsAndNoCookies(t *testing.T) {
+	tests := []struct {
+		body   string
+		err    error
+		status int
+		code   string
+	}{
+		{`{`, nil, 400, "INVALID_INPUT"}, {`{"email":"bad","password":"password"}`, nil, 400, "INVALID_INPUT"},
+		{`{"email":"a@b.com","password":"password"}`, entity.ErrInvalidCredentials, 401, "INVALID_CREDENTIALS"},
+		{`{"email":"a@b.com","password":"password"}`, entity.ErrUserSuspended, 403, "USER_SUSPENDED"},
+		{`{"email":"a@b.com","password":"password"}`, errors.New("db"), 500, "INTERNAL_ERROR"},
+	}
+	cfg := CookieConfig{RefreshName: "rt", CSRFName: "csrf", Path: "/api/auth", SameSite: http.SameSiteLaxMode}
+	for _, tt := range tests {
+		rec, _ := runLoginRequest(t, tt.body, &fakeUserUsecase{err: tt.err}, cfg)
+		if rec.Code != tt.status {
+			t.Fatalf("status=%d want=%d body=%s", rec.Code, tt.status, rec.Body.String())
+		}
+		if len(rec.Result().Cookies()) != 0 {
+			t.Fatal("cookies emitted on failure")
+		}
+		var got entity.APIErrorResponse
+		_ = json.Unmarshal(rec.Body.Bytes(), &got)
+		if got.Code != tt.code {
+			t.Fatalf("code=%s want=%s", got.Code, tt.code)
+		}
 	}
 }

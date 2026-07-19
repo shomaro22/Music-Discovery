@@ -52,18 +52,5 @@ services:
     depends_on:
       - api
 
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: backend-runtime
-    command: ["/app/migrate"]
-    env_file:
-      - backend/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    profiles: ["tools"]
-
 volumes:
   postgres_data:

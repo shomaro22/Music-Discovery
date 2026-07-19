@@ -3,8 +3,6 @@ package controller
 import (
 	"errors"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"music-discovery/backend/entity"
@@ -50,10 +48,17 @@ type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
 }
-type userController struct{ userUsecase usecase.IUserUsecase }
+type userController struct {
+	userUsecase  usecase.IUserUsecase
+	cookieConfig CookieConfig
+}
 
-func NewUserController(userUsecase usecase.IUserUsecase) IUserController {
-	return &userController{userUsecase: userUsecase}
+func NewUserController(userUsecase usecase.IUserUsecase, optional ...CookieConfig) IUserController {
+	cfg, _ := LoadCookieConfigFromEnv()
+	if len(optional) > 0 {
+		cfg = optional[0]
+	}
+	return &userController{userUsecase: userUsecase, cookieConfig: cfg}
 }
 
 func (c *userController) SignUp(ctx echo.Context) error {
@@ -98,33 +103,20 @@ func (c *userController) Login(ctx echo.Context) error {
 		case errors.Is(err, entity.ErrInvalidInput):
 			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 		default:
-			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+			return echo.NewHTTPError(http.StatusInternalServerError, "サーバー内部でエラーが発生しました").SetInternal(err)
 		}
 	}
-	setAuthCookies(ctx, result)
+	setAuthCookies(ctx, result, c.cookieConfig)
 	return ctx.JSON(http.StatusOK, LoginResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, User: LoginUserResponse{ID: result.User.ID, Name: result.User.Name, Email: result.User.Email, Role: result.User.Role, Status: result.User.Status}})
 }
 
-func setAuthCookies(ctx echo.Context, result *usecase.LoginResult) {
-	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
-	sameSite := http.SameSiteLaxMode
-	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
-		sameSite = http.SameSiteStrictMode
-	}
-	refreshName := os.Getenv("REFRESH_TOKEN_COOKIE_NAME")
-	if refreshName == "" {
-		refreshName = "refresh_token"
-	}
-	csrfName := os.Getenv("CSRF_COOKIE_NAME")
-	if csrfName == "" {
-		csrfName = "csrf_token"
-	}
+func setAuthCookies(ctx echo.Context, result *usecase.LoginResult, cfg CookieConfig) {
 	maxAge := int(time.Until(result.RefreshTokenExpiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: result.RefreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
-	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: result.CSRFToken, Path: "/api/auth", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: cfg.RefreshName, Value: result.RefreshToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: true, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: cfg.CSRFName, Value: result.CSRFToken, Path: cfg.Path, Domain: cfg.Domain, HttpOnly: false, Secure: cfg.Secure, SameSite: cfg.SameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strconv"
 	"time"
@@ -33,6 +34,7 @@ type tokenService struct {
 	audience   string
 	accessTTL  time.Duration
 	refreshTTL time.Duration
+	random     io.Reader
 }
 
 func NewTokenServiceFromEnv() (ITokenService, error) {
@@ -56,6 +58,12 @@ func NewTokenServiceFromEnv() (ITokenService, error) {
 		}
 		refreshHours = value
 	}
+	accessTTL := time.Duration(accessSeconds) * time.Second
+	refreshTTL := time.Duration(refreshHours) * time.Hour
+	if refreshTTL <= accessTTL {
+		return nil, errors.New("REFRESH_TOKEN_TTL_HOURS must be longer than ACCESS_TOKEN_TTL_SECONDS")
+	}
+
 	issuer := os.Getenv("JWT_ISSUER")
 	if issuer == "" {
 		issuer = "music-discovery"
@@ -64,7 +72,7 @@ func NewTokenServiceFromEnv() (ITokenService, error) {
 	if audience == "" {
 		audience = "music-discovery-frontend"
 	}
-	return &tokenService{secret: secret, issuer: issuer, audience: audience, accessTTL: time.Duration(accessSeconds) * time.Second, refreshTTL: time.Duration(refreshHours) * time.Hour}, nil
+	return &tokenService{secret: secret, issuer: issuer, audience: audience, accessTTL: accessTTL, refreshTTL: refreshTTL, random: rand.Reader}, nil
 }
 
 func (s *tokenService) ComparePassword(hash, password string) error {
@@ -94,21 +102,21 @@ func (s *tokenService) GenerateAccessToken(user *entity.User, now time.Time) (st
 	return unsigned + "." + enc.EncodeToString(mac.Sum(nil)), int64(s.accessTTL.Seconds()), nil
 }
 
-func secureToken() (string, error) {
+func secureToken(reader io.Reader) (string, error) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(reader, b); err != nil {
 		return "", entity.ErrInternal
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 func (s *tokenService) GenerateRefreshToken() (string, string, error) {
-	plain, err := secureToken()
+	plain, err := secureToken(s.random)
 	if err != nil {
 		return "", "", err
 	}
 	sum := sha256.Sum256([]byte(plain))
 	return plain, hex.EncodeToString(sum[:]), nil
 }
-func (s *tokenService) GenerateCSRFToken() (string, error) { return secureToken() }
+func (s *tokenService) GenerateCSRFToken() (string, error) { return secureToken(s.random) }
 func (s *tokenService) GenerateFamilyID() uuid.UUID        { return uuid.New() }
 func (s *tokenService) RefreshTokenTTL() time.Duration     { return s.refreshTTL }

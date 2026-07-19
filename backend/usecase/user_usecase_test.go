@@ -120,3 +120,119 @@ func TestSignUpSaveFailure(t *testing.T) {
 		})
 	}
 }
+
+type fakeRefreshRepository struct {
+	input *entity.RefreshToken
+	err   error
+	calls int
+}
+
+func (f *fakeRefreshRepository) Create(_ context.Context, token *entity.RefreshToken) error {
+	f.calls++
+	f.input = token
+	return f.err
+}
+
+type fakeTokenService struct {
+	compareErr      error
+	accessErr       error
+	refreshErr      error
+	csrfErr         error
+	compareHash     string
+	comparePassword string
+	compareCalls    int
+	accessToken     string
+	expiresIn       int64
+	refreshPlain    string
+	refreshHash     string
+	csrf            string
+	familyID        uuid.UUID
+	refreshTTL      time.Duration
+	accessUser      *entity.User
+}
+
+func (f *fakeTokenService) ComparePassword(hash, password string) error {
+	f.compareCalls++
+	f.compareHash = hash
+	f.comparePassword = password
+	return f.compareErr
+}
+func (f *fakeTokenService) GenerateAccessToken(user *entity.User, _ time.Time) (string, int64, error) {
+	f.accessUser = user
+	return f.accessToken, f.expiresIn, f.accessErr
+}
+func (f *fakeTokenService) GenerateRefreshToken() (string, string, error) {
+	return f.refreshPlain, f.refreshHash, f.refreshErr
+}
+func (f *fakeTokenService) GenerateCSRFToken() (string, error) { return f.csrf, f.csrfErr }
+func (f *fakeTokenService) GenerateFamilyID() uuid.UUID        { return f.familyID }
+func (f *fakeTokenService) RefreshTokenTTL() time.Duration     { return f.refreshTTL }
+
+func newLoginUsecase(repo *fakeUserRepository, refresh *fakeRefreshRepository, tokens *fakeTokenService) IUserUsecase {
+	return NewUserUsecase(repo, &fakeHasher{}, &fakeClock{now: time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)}, refresh, tokens)
+}
+func activeLoginUser() *entity.User {
+	return &entity.User{ID: uuid.New(), Name: "Taro", Email: "taro@example.com", PasswordHash: "hash", Role: entity.UserRoleUser, Status: entity.UserStatusActive, TokenVersion: 9}
+}
+func validFakeTokens() *fakeTokenService {
+	return &fakeTokenService{accessToken: "access", expiresIn: 300, refreshPlain: "plain", refreshHash: "hash2", csrf: "csrf", familyID: uuid.New(), refreshTTL: 24 * time.Hour}
+}
+
+func TestLoginSuccessAndTokenVersion(t *testing.T) {
+	user := activeLoginUser()
+	repo := &fakeUserRepository{findUser: user}
+	refresh := &fakeRefreshRepository{}
+	tokens := validFakeTokens()
+	result, err := newLoginUsecase(repo, refresh, tokens).Login(context.Background(), LoginInput{Email: user.Email, Password: "password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.AccessToken != "access" || result.RefreshToken != "plain" || result.CSRFToken != "csrf" {
+		t.Fatalf("result=%#v", result)
+	}
+	if tokens.accessUser.TokenVersion != 9 {
+		t.Fatalf("token version=%d", tokens.accessUser.TokenVersion)
+	}
+	if refresh.calls != 1 || refresh.input.UserID != user.ID || refresh.input.TokenHash != "hash2" || refresh.input.FamilyID != tokens.familyID {
+		t.Fatalf("refresh=%#v", refresh.input)
+	}
+}
+
+func TestLoginFailures(t *testing.T) {
+	tests := []struct {
+		name      string
+		repo      *fakeUserRepository
+		configure func(*fakeTokenService, *fakeRefreshRepository)
+		want      error
+	}{
+		{"missing user", &fakeUserRepository{findErr: entity.ErrUserNotFound}, nil, entity.ErrInvalidCredentials},
+		{"repository", &fakeUserRepository{findErr: errors.New("db")}, nil, entity.ErrInternal},
+		{"password", &fakeUserRepository{findUser: activeLoginUser()}, func(t *fakeTokenService, _ *fakeRefreshRepository) { t.compareErr = entity.ErrInvalidCredentials }, entity.ErrInvalidCredentials},
+		{"suspended", &fakeUserRepository{findUser: func() *entity.User { u := activeLoginUser(); u.Status = entity.UserStatusSuspended; return u }()}, nil, entity.ErrUserSuspended},
+		{"access", &fakeUserRepository{findUser: activeLoginUser()}, func(t *fakeTokenService, _ *fakeRefreshRepository) { t.accessErr = errors.New("sign") }, entity.ErrInternal},
+		{"refresh generation", &fakeUserRepository{findUser: activeLoginUser()}, func(t *fakeTokenService, _ *fakeRefreshRepository) { t.refreshErr = errors.New("random") }, entity.ErrInternal},
+		{"csrf generation", &fakeUserRepository{findUser: activeLoginUser()}, func(t *fakeTokenService, _ *fakeRefreshRepository) { t.csrfErr = errors.New("random") }, entity.ErrInternal},
+		{"refresh save", &fakeUserRepository{findUser: activeLoginUser()}, func(_ *fakeTokenService, r *fakeRefreshRepository) { r.err = errors.New("db") }, entity.ErrInternal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens := validFakeTokens()
+			refresh := &fakeRefreshRepository{}
+			if tt.configure != nil {
+				tt.configure(tokens, refresh)
+			}
+			_, err := newLoginUsecase(tt.repo, refresh, tokens).Login(context.Background(), LoginInput{Email: "taro@example.com", Password: "password"})
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("err=%v want=%v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoginMissingUserUsesDummyHash(t *testing.T) {
+	tokens := validFakeTokens()
+	_, _ = newLoginUsecase(&fakeUserRepository{findErr: entity.ErrUserNotFound}, &fakeRefreshRepository{}, tokens).Login(context.Background(), LoginInput{Email: "missing@example.com", Password: "password"})
+	if tokens.compareCalls != 1 || tokens.compareHash != dummyPasswordHash || tokens.comparePassword != "password" {
+		t.Fatalf("dummy compare not performed: %#v", tokens)
+	}
+}
