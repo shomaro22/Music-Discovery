@@ -46,9 +46,16 @@ type LoginResponse struct {
 	User        LoginUserResponse `json:"user"`
 }
 
+type RefreshResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
+}
+
 type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
+	Refresh(c echo.Context) error
 }
 type userController struct{ userUsecase usecase.IUserUsecase }
 
@@ -101,30 +108,59 @@ func (c *userController) Login(ctx echo.Context) error {
 			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
 		}
 	}
-	setAuthCookies(ctx, result)
+	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
 	return ctx.JSON(http.StatusOK, LoginResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, User: LoginUserResponse{ID: result.User.ID, Name: result.User.Name, Email: result.User.Email, Role: result.User.Role, Status: result.User.Status}})
 }
 
-func setAuthCookies(ctx echo.Context, result *usecase.LoginResult) {
+func (c *userController) Refresh(ctx echo.Context) error {
+	refreshName := cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+	cookie, err := ctx.Cookie(refreshName)
+	if err != nil || cookie.Value == "" {
+		return writeAPIError(ctx, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Refresh Tokenが無効です")
+	}
+	result, err := c.userUsecase.Refresh(ctx.Request().Context(), cookie.Value)
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrInvalidRefreshToken):
+			clearAuthCookies(ctx)
+			return writeAPIError(ctx, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Refresh Tokenが無効です")
+		case errors.Is(err, entity.ErrUserSuspended):
+			clearAuthCookies(ctx)
+			return writeAPIError(ctx, http.StatusForbidden, "USER_SUSPENDED", "このアカウントは現在利用できません。")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+		}
+	}
+	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	return ctx.JSON(http.StatusOK, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn})
+}
+
+func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt time.Time) {
 	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
 	sameSite := http.SameSiteLaxMode
 	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
 		sameSite = http.SameSiteStrictMode
 	}
-	refreshName := os.Getenv("REFRESH_TOKEN_COOKIE_NAME")
-	if refreshName == "" {
-		refreshName = "refresh_token"
-	}
-	csrfName := os.Getenv("CSRF_COOKIE_NAME")
-	if csrfName == "" {
-		csrfName = "csrf_token"
-	}
-	maxAge := int(time.Until(result.RefreshTokenExpiresAt).Seconds())
+	refreshName := cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+	csrfName := cookieName("CSRF_COOKIE_NAME", "csrf_token")
+	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: result.RefreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
-	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: result.CSRFToken, Path: "/api/auth", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: result.RefreshTokenExpiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: refreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: csrfToken, Path: "/api/auth", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
+}
+
+func clearAuthCookies(ctx echo.Context) {
+	expired := time.Unix(0, 0)
+	setAuthCookies(ctx, "", "", expired)
+}
+
+func cookieName(envName, fallback string) string {
+	if value := os.Getenv(envName); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {

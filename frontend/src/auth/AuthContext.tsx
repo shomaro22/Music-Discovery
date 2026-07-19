@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { setAccessToken as setClientAccessToken } from "../api/client";
 import { login as loginApi } from "../api/user";
 import type { AuthUser, LoginInput } from "../types/user";
 
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await loginApi(input);
       setAccessToken(response.access_token);
+      setClientAccessToken(response.access_token);
       setUser(response.user);
     } finally {
       setIsLoading(false);
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearAuth = (): void => {
     setAccessToken(null);
+    setClientAccessToken(null);
     setUser(null);
   };
 

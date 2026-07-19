@@ -10,6 +10,8 @@ var (
 	ErrInternal             = errors.New("internal error")
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrUserSuspended        = errors.New("user suspended")
+	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
+	ErrRefreshTokenReused   = errors.New("refresh token reused")
 )
 
 type APIErrorResponse struct {

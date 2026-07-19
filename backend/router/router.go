@@ -83,6 +83,13 @@ func NewRouter(
 		appMiddleware.RequireJSON,
 	)
 
+	auth.POST(
+		"/refresh",
+		userController.Refresh,
+		rateLimit.Refresh,
+		appMiddleware.CSRF,
+	)
+
 	return e
 }
 
