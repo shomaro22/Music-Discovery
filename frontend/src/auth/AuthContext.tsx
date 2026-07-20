@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
 import { getCSRFCookie } from "../api/csrf";
-import { getCurrentUser, login as loginApi, refresh as refreshApi } from "../api/user";
+import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi } from "../api/user";
 import type { AuthUser, LoginInput } from "../types/user";
 
-interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; login: (input: LoginInput) => Promise<void>; clearAuth: () => void; }
+interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; login: (input: LoginInput) => Promise<void>; logout: () => Promise<void>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -40,7 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setIsLoading(false); }
   };
 
-  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, login, clearAuth }), [user, accessToken, isLoading]);
+  const logout = async (): Promise<void> => {
+    try {
+      await logoutApi();
+    } finally {
+      clearAuth();
+    }
+  };
+
+  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, login, logout, clearAuth }), [user, accessToken, isLoading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

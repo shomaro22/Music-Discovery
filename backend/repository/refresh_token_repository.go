@@ -14,6 +14,7 @@ type IRefreshTokenRepository interface {
 	Create(context.Context, *entity.RefreshToken) error
 	FindByTokenHash(context.Context, string) (*entity.RefreshToken, error)
 	Rotate(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error
+	RevokeFamily(context.Context, uuid.UUID, time.Time) error
 }
 type refreshTokenRepository struct{ db *gorm.DB }
 
@@ -63,7 +64,11 @@ func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID
 			return entity.ErrRefreshTokenReused
 		}
 		usedAt := now
-		if err := tx.Model(&current).Updates(map[string]any{"used_at": usedAt, "replaced_by_id": next.ID}).Error; err != nil {
+		updates := entity.RefreshToken{
+			UsedAt:       &usedAt,
+			ReplacedByID: &next.ID,
+		}
+		if err := tx.Model(&current).Select("used_at", "replaced_by_id").Updates(updates).Error; err != nil {
 			return entity.ErrInternal
 		}
 		if err := tx.Create(next).Error; err != nil {
@@ -71,4 +76,16 @@ func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID
 		}
 		return nil
 	})
+}
+
+func (r *refreshTokenRepository) RevokeFamily(ctx context.Context, familyID uuid.UUID, now time.Time) error {
+	if familyID == uuid.Nil {
+		return entity.ErrInvalidInput
+	}
+	if err := r.db.WithContext(ctx).Model(&entity.RefreshToken{}).
+		Where("family_id = ? AND revoked_at IS NULL", familyID).
+		Update("revoked_at", now).Error; err != nil {
+		return entity.ErrInternal
+	}
+	return nil
 }

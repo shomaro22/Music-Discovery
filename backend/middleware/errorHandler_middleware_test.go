@@ -36,10 +36,11 @@ func TestHTTPErrorHandlerCommonFormat(t *testing.T) {
 		if rec.Code != tt.status || got.Code != tt.code || got.RequestID != "req-1" {
 			t.Fatalf("status=%d got=%#v", rec.Code, got)
 		}
-		var raw map[string]any
-		_ = json.Unmarshal(rec.Body.Bytes(), &raw)
-		if len(raw) != 4 {
-			t.Fatalf("fields=%d body=%s", len(raw), rec.Body.String())
+		decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
+		decoder.DisallowUnknownFields()
+		var exactResponse entity.APIErrorResponse
+		if err := decoder.Decode(&exactResponse); err != nil {
+			t.Fatalf("unexpected response field: %v body=%s", err, rec.Body.String())
 		}
 	}
 }

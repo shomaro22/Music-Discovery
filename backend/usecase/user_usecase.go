@@ -56,6 +56,7 @@ type IUserUsecase interface {
 	SignUp(ctx context.Context, input SignUpInput) (*entity.User, error)
 	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
 	Refresh(ctx context.Context, refreshToken string) (*RefreshResult, error)
+	Logout(ctx context.Context, refreshToken string) error
 	ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error)
 }
 
@@ -221,6 +222,26 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		AccessToken: accessToken, ExpiresIn: expiresIn, RefreshToken: newPlain,
 		RefreshTokenExpiresAt: expiresAt, CSRFToken: csrfToken,
 	}, nil
+}
+
+func (u *userUsecase) Logout(ctx context.Context, plainToken string) error {
+	if plainToken == "" {
+		return nil
+	}
+	token, err := u.refreshTokenRepository.FindByTokenHash(ctx, u.tokenService.HashRefreshToken(plainToken))
+	if err != nil {
+		if errors.Is(err, entity.ErrInvalidRefreshToken) {
+			return nil
+		}
+		return entity.ErrInternal
+	}
+	if token == nil || token.FamilyID == uuid.Nil {
+		return nil
+	}
+	if err := u.refreshTokenRepository.RevokeFamily(ctx, token.FamilyID, u.clock.Now()); err != nil {
+		return entity.ErrInternal
+	}
+	return nil
 }
 
 func (u *userUsecase) ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error) {

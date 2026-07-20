@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
-	"music-discovery/backend/usecase"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -36,28 +35,23 @@ func (f *authMiddlewareTokenService) VerifyAccessToken(string, time.Time) (uuid.
 	return f.userID, f.tokenVersion, f.verifyErr
 }
 
-type authMiddlewareUserUsecase struct {
+type authMiddlewareTokenVersionValidator struct {
 	user *entity.User
 	err  error
 }
 
-func (f *authMiddlewareUserUsecase) SignUp(context.Context, usecase.SignUpInput) (*entity.User, error) {
-	return nil, nil
-}
-func (f *authMiddlewareUserUsecase) Login(context.Context, usecase.LoginInput) (*usecase.LoginResult, error) {
-	return nil, nil
-}
-func (f *authMiddlewareUserUsecase) Refresh(context.Context, string) (*usecase.RefreshResult, error) {
-	return nil, nil
-}
-func (f *authMiddlewareUserUsecase) ValidateTokenVersion(context.Context, uuid.UUID, uint64) (*entity.User, error) {
+func (f *authMiddlewareTokenVersionValidator) ValidateTokenVersion(
+	context.Context,
+	uuid.UUID,
+	uint64,
+) (*entity.User, error) {
 	return f.user, f.err
 }
 
 func TestAuthMiddlewareAcceptsValidTokenVersion(t *testing.T) {
 	userID := uuid.New()
 	user := &entity.User{ID: userID, Status: entity.UserStatusActive, TokenVersion: 2}
-	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: userID, tokenVersion: 2}, &authMiddlewareUserUsecase{user: user})
+	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: userID, tokenVersion: 2}, &authMiddlewareTokenVersionValidator{user: user})
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer valid")
@@ -74,7 +68,7 @@ func TestAuthMiddlewareAcceptsValidTokenVersion(t *testing.T) {
 }
 
 func TestAuthMiddlewareRejectsInvalidSignatureOrExpiry(t *testing.T) {
-	middleware := NewAuthMiddleware(&authMiddlewareTokenService{verifyErr: entity.ErrInvalidCredentials}, &authMiddlewareUserUsecase{})
+	middleware := NewAuthMiddleware(&authMiddlewareTokenService{verifyErr: entity.ErrInvalidCredentials}, &authMiddlewareTokenVersionValidator{})
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer invalid")
@@ -86,7 +80,7 @@ func TestAuthMiddlewareRejectsInvalidSignatureOrExpiry(t *testing.T) {
 }
 
 func TestAuthMiddlewareRejectsTokenVersionMismatch(t *testing.T) {
-	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: uuid.New(), tokenVersion: 1}, &authMiddlewareUserUsecase{err: errors.New("token version mismatch")})
+	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: uuid.New(), tokenVersion: 1}, &authMiddlewareTokenVersionValidator{err: errors.New("token version mismatch")})
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer stale")

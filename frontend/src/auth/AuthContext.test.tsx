@@ -6,10 +6,12 @@ import { AuthProvider, useAuth } from "./AuthContext";
 
 const refreshMock = vi.fn();
 const getCurrentUserMock = vi.fn();
+const logoutMock = vi.fn();
 
 vi.mock("../api/csrf", () => ({ getCSRFCookie: () => "csrf" }));
 vi.mock("../api/user", () => ({
   login: vi.fn(),
+  logout: () => logoutMock(),
   refresh: () => refreshMock(),
   getCurrentUser: () => getCurrentUserMock(),
 }));
@@ -27,6 +29,7 @@ function Probe() {
 beforeEach(() => {
   refreshMock.mockReset();
   getCurrentUserMock.mockReset();
+  logoutMock.mockReset();
 });
 
 describe("AuthProvider restore", () => {
@@ -47,6 +50,40 @@ describe("AuthProvider restore", () => {
   it("clears authentication when restoration fails", async () => {
     refreshMock.mockRejectedValue(new Error("refresh failed"));
     render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+  });
+});
+
+
+function LogoutProbe() {
+  const auth = useAuth();
+  return (
+    <>
+      <p>{auth.user?.email ?? "anonymous"}</p>
+      <button type="button" onClick={() => { void auth.logout().catch(() => undefined); }}>logout</button>
+    </>
+  );
+}
+
+describe("AuthProvider logout", () => {
+  it("clears frontend authentication after API success", async () => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" });
+    logoutMock.mockResolvedValue(undefined);
+    render(<AuthProvider><LogoutProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("taro@example.com")).toBeInTheDocument());
+    screen.getByRole("button", { name: "logout" }).click();
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears frontend authentication even when API fails", async () => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" });
+    logoutMock.mockRejectedValue(new Error("logout failed"));
+    render(<AuthProvider><LogoutProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("taro@example.com")).toBeInTheDocument());
+    screen.getByRole("button", { name: "logout" }).click();
     await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
   });
 });

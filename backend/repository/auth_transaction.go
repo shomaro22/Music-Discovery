@@ -26,7 +26,11 @@ func (m *authTransactionManager) RevokeFamilyAndIncrementTokenVersion(ctx contex
 			return entity.ErrInvalidRefreshToken
 		}
 
-		result := tx.Model(&entity.User{}).Where("id = ?", userID).Updates(map[string]any{"token_version": gorm.Expr("token_version + 1"), "updated_at": now})
+		result := tx.Exec(
+			"UPDATE users SET token_version = token_version + 1, updated_at = ? WHERE id = ?",
+			now,
+			userID,
+		)
 		if result.Error != nil || result.RowsAffected != 1 {
 			return entity.ErrInternal
 		}

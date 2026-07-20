@@ -18,7 +18,9 @@ export function LoginPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const signedUp = Boolean((location.state as { signedUp?: boolean } | null)?.signedUp);
+  const locationState = location.state as { signedUp?: boolean; logoutError?: string } | null;
+  const signedUp = Boolean(locationState?.signedUp);
+  const logoutError = locationState?.logoutError ?? "";
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
@@ -56,6 +58,7 @@ export function LoginPage() {
       <section className="auth-copy"><p className="auth-kicker">Music Discovery</p><h1>Welcome Back.</h1><p className="auth-copy-lead">あなたの次の一曲を、また見つけよう。</p><p className="auth-copy-description">ログインして、あなたの好みに合わせた音楽との出会いを続けましょう。</p></section>
       <section className="auth-card" aria-labelledby="login-title">
         <div className="auth-card-header"><h2 id="login-title">ログイン</h2><p>{signedUp ? "会員登録が完了しました。ログインしてください。" : "登録済みのメールアドレスでログインしてください。"}</p></div>
+        {logoutError && <div className="api-alert" role="alert">{logoutError}</div>}
         {apiError && <div className="api-alert" role="alert">{apiError}{requestId && <small>Request ID: {requestId}</small>}</div>}
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <div className="field"><label htmlFor="login-email">メールアドレス</label><input id="login-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} disabled={isSubmitting} autoComplete="email" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "login-email-error" : undefined}/>{fieldErrors.email && <p className="field-error" id="login-email-error" role="alert">{fieldErrors.email}</p>}</div>
