@@ -10,6 +10,8 @@ import { countUnicodeCharacters, countUtf8Bytes } from "../utils/stringLength";
 type FormField = keyof SignUpInput | "passwordConfirmation";
 type FieldErrors = Partial<Record<FormField, string>>;
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function EyeIcon({ hidden }: { hidden: boolean }) {
   return hidden ? (
     <svg
@@ -80,53 +82,55 @@ export function SignupPage() {
   const [showPasswordConfirmation, setShowPasswordConfirmation] =
     useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const validate = (): FieldErrors => {
-    const errors: FieldErrors = {};
+  const validate = (): { input: SignUpInput; errors: FieldErrors } => {
     const normalizedName = name.trim();
-    const normalizedEmail = email.trim();
-    const nameLength = countUnicodeCharacters(normalizedName);
-    const passwordLength = countUnicodeCharacters(password);
-    const passwordByteLength = countUtf8Bytes(password);
+    const normalizedEmail = email.trim().toLowerCase();
+    const errors: FieldErrors = {};
 
+    const nameLength = countUnicodeCharacters(normalizedName);
     if (nameLength < 1 || nameLength > 50) {
       errors.name = "名前は1文字以上50文字以内で入力してください";
     }
 
-    if (
-      !/^\S+@\S+\.\S+$/.test(normalizedEmail) ||
-      normalizedEmail.length > 254
-    ) {
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
       errors.email = "有効なメールアドレスを入力してください";
     }
 
-    if (passwordLength < 8) {
+    const passwordBytes = countUtf8Bytes(password);
+    if (passwordBytes < 8) {
       errors.password = "パスワードは8文字以上で入力してください";
-    } else if (passwordByteLength > 72) {
+    } else if (passwordBytes > 72) {
       errors.password = "パスワードは72バイト以内で入力してください";
     }
 
-    if (passwordConfirmation.length === 0) {
-      errors.passwordConfirmation = "パスワード確認を入力してください";
-    } else if (passwordConfirmation !== password) {
+    if (passwordConfirmation !== password) {
       errors.passwordConfirmation = "パスワードが一致しません";
     }
 
-    return errors;
+    return {
+      input: {
+        name: normalizedName,
+        email: normalizedEmail,
+        password,
+      },
+      errors,
+    };
   };
 
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
 
+    if (isSubmitting) {
+      return;
+    }
+
+    setApiError("");
     setFieldErrors({});
-    setApiError(null);
 
-    const errors = validate();
+    const { input, errors } = validate();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       return;
@@ -135,37 +139,48 @@ export function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      await signUp({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      navigate("/login", {
-        replace: true,
-        state: { signedUp: true },
-      });
+      await signUp(input);
+      navigate("/login");
     } catch (error: unknown) {
-      setPassword("");
-      setPasswordConfirmation("");
-
       if (error instanceof ApiRequestError) {
-        if (error.response.code === "EMAIL_ALREADY_EXISTS") {
+        const response = error.response;
+        const code = response?.code;
+        const message = response?.message ?? error.message;
+
+        if (
+          code === "EMAIL_ALREADY_EXISTS" ||
+          message === "このメールアドレスは既に登録されています"
+        ) {
           setFieldErrors({
-            email: error.message,
+            email: "このメールアドレスは既に登録されています",
           });
+          setPassword("");
+          setPasswordConfirmation("");
           return;
         }
 
-        setApiError(error.message);
+        setApiError(message || "登録に失敗しました");
         return;
       }
 
-      setApiError("通信に失敗しました。時間を置いてから再度お試しください");
+      setApiError("登録に失敗しました");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const nameErrorId = fieldErrors.name ? `${nameId}-error` : undefined;
+  const emailErrorId = fieldErrors.email ? `${emailId}-error` : undefined;
+  const passwordHintId = `${passwordId}-hint`;
+  const passwordErrorId = fieldErrors.password
+    ? `${passwordId}-error`
+    : undefined;
+  const passwordDescription = [passwordHintId, passwordErrorId]
+    .filter(Boolean)
+    .join(" ");
+  const confirmationErrorId = fieldErrors.passwordConfirmation
+    ? `${passwordConfirmationId}-error`
+    : undefined;
 
   return (
     <main className="signup-shell">
@@ -218,12 +233,12 @@ export function SignupPage() {
           </p>
 
           {apiError && (
-            <div className="api-alert" role="alert">
+            <p className="api-alert" role="alert">
               {apiError}
-            </div>
+            </p>
           )}
 
-          <form className="form-grid" onSubmit={handleSubmit} noValidate>
+          <form className="form-grid" noValidate onSubmit={handleSubmit}>
             <div className="field">
               <label className="field-label" htmlFor={nameId}>
                 名前
@@ -232,16 +247,14 @@ export function SignupPage() {
                 id={nameId}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                disabled={isSubmitting}
                 autoComplete="name"
                 placeholder="山田 太郎"
                 aria-invalid={Boolean(fieldErrors.name)}
-                aria-describedby={
-                  fieldErrors.name ? `${nameId}-error` : undefined
-                }
+                aria-describedby={nameErrorId}
+                disabled={isSubmitting}
               />
               {fieldErrors.name && (
-                <p id={`${nameId}-error`} className="field-error" role="alert">
+                <p className="field-error" id={nameErrorId}>
                   {fieldErrors.name}
                 </p>
               )}
@@ -256,16 +269,14 @@ export function SignupPage() {
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                disabled={isSubmitting}
                 autoComplete="email"
                 placeholder="you@example.com"
                 aria-invalid={Boolean(fieldErrors.email)}
-                aria-describedby={
-                  fieldErrors.email ? `${emailId}-error` : undefined
-                }
+                aria-describedby={emailErrorId}
+                disabled={isSubmitting}
               />
               {fieldErrors.email && (
-                <p id={`${emailId}-error`} className="field-error" role="alert">
+                <p className="field-error" id={emailErrorId}>
                   {fieldErrors.email}
                 </p>
               )}
@@ -281,35 +292,31 @@ export function SignupPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  disabled={isSubmitting}
                   autoComplete="new-password"
                   placeholder="8文字以上で入力"
                   aria-invalid={Boolean(fieldErrors.password)}
-                  aria-describedby={`${passwordId}-hint${fieldErrors.password ? ` ${passwordId}-error` : ""}`}
+                  aria-describedby={passwordDescription}
+                  disabled={isSubmitting}
                 />
                 <button
-                  className="password-toggle"
                   type="button"
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  disabled={isSubmitting}
+                  className="password-toggle"
                   aria-label={
                     showPassword
                       ? "パスワードを非表示にする"
                       : "パスワードを表示する"
                   }
+                  onClick={() => setShowPassword((current) => !current)}
+                  disabled={isSubmitting}
                 >
                   <EyeIcon hidden={showPassword} />
                 </button>
               </div>
-              <p id={`${passwordId}-hint`} className="field-hint">
+              <p className="field-hint" id={passwordHintId}>
                 8文字以上で入力してください。
               </p>
               {fieldErrors.password && (
-                <p
-                  id={`${passwordId}-error`}
-                  className="field-error"
-                  role="alert"
-                >
+                <p className="field-error" id={passwordErrorId}>
                   {fieldErrors.password}
                 </p>
               )}
@@ -327,45 +334,38 @@ export function SignupPage() {
                   onChange={(event) =>
                     setPasswordConfirmation(event.target.value)
                   }
-                  disabled={isSubmitting}
                   autoComplete="new-password"
                   placeholder="パスワードを再入力"
                   aria-invalid={Boolean(fieldErrors.passwordConfirmation)}
-                  aria-describedby={
-                    fieldErrors.passwordConfirmation
-                      ? `${passwordConfirmationId}-error`
-                      : undefined
-                  }
+                  aria-describedby={confirmationErrorId}
+                  disabled={isSubmitting}
                 />
                 <button
-                  className="password-toggle"
                   type="button"
-                  onClick={() =>
-                    setShowPasswordConfirmation((visible) => !visible)
-                  }
-                  disabled={isSubmitting}
+                  className="password-toggle"
                   aria-label={
                     showPasswordConfirmation
                       ? "パスワード確認を非表示にする"
                       : "パスワード確認を表示する"
                   }
+                  onClick={() =>
+                    setShowPasswordConfirmation((current) => !current)
+                  }
+                  disabled={isSubmitting}
                 >
                   <EyeIcon hidden={showPasswordConfirmation} />
                 </button>
               </div>
               {fieldErrors.passwordConfirmation && (
-                <p
-                  id={`${passwordConfirmationId}-error`}
-                  className="field-error"
-                  role="alert"
-                >
+                <p className="field-error" id={confirmationErrorId}>
                   {fieldErrors.passwordConfirmation}
                 </p>
               )}
             </div>
 
             <p className="terms-note">
-              アカウントを作成することで、<a href="/terms">利用規約</a>と
+              アカウントを作成することで、
+              <a href="/terms">利用規約</a>と
               <a href="/privacy">プライバシーポリシー</a>
               に同意したものとみなされます。
             </p>
@@ -375,7 +375,7 @@ export function SignupPage() {
               type="submit"
               disabled={isSubmitting}
             >
-              <span>{isSubmitting ? "登録中..." : "アカウントを作成"}</span>
+              <span>{isSubmitting ? "作成中..." : "アカウントを作成"}</span>
               {isSubmitting ? (
                 <span className="loader" aria-hidden="true" />
               ) : (

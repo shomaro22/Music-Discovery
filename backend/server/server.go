@@ -12,6 +12,7 @@ import (
 	"music-discovery/backend/repository"
 	"music-discovery/backend/router"
 	"music-discovery/backend/usecase"
+	"music-discovery/backend/validator"
 )
 
 func Start(ctx context.Context) error {
@@ -31,10 +32,16 @@ func Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("token service: %w", err)
 	}
-	userUsecase := usecase.NewUserUsecase(userRepository, usecase.NewPasswordHasher(), usecase.NewClock(), refreshRepository, tokenService)
+	authTransactionManager := repository.NewAuthTransactionManager(postgres)
+	userValidator := validator.NewUserValidator()
+	clock := usecase.NewClock()
+	userUsecase := usecase.NewUserUsecase(userRepository, userValidator, refreshRepository, authTransactionManager, usecase.NewPasswordHasher(), tokenService, clock)
 	userController := controller.NewUserController(userUsecase)
-	rateLimit := appMiddleware.NewRateLimitMiddleware(redisClient)
-	e := router.NewRouter(logger, userController, rateLimit)
+	rateLimitRepository := repository.NewRateLimitRepository(redisClient)
+	rateLimitUsecase := usecase.NewRateLimitUsecase(rateLimitRepository, clock)
+	rateLimit := appMiddleware.NewRateLimitMiddleware(rateLimitUsecase)
+	authMiddleware := appMiddleware.NewAuthMiddleware(tokenService, userUsecase)
+	e := router.NewRouter(logger, userController, rateLimit, authMiddleware)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

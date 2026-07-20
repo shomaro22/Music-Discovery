@@ -20,7 +20,7 @@ func CSRF(next echo.HandlerFunc) echo.HandlerFunc {
 		header := c.Request().Header.Get("X-CSRF-Token")
 		if err != nil || cookie.Value == "" || header == "" || subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(header)) != 1 {
 			return c.JSON(http.StatusForbidden, entity.APIErrorResponse{
-				Status: http.StatusForbidden, Code: "CSRF_TOKEN_MISMATCH",
+				Status: http.StatusForbidden, Code: "CSRF_TOKEN_INVALID",
 				Message: "CSRF Tokenが無効です", RequestID: c.Response().Header().Get(echo.HeaderXRequestID),
 			})
 		}
