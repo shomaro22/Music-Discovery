@@ -69,7 +69,6 @@ function ArrowIcon() {
 
 export function SignupPage() {
   const navigate = useNavigate();
-
   const nameId = useId();
   const emailId = useId();
   const passwordId = useId();
@@ -185,10 +184,7 @@ export function SignupPage() {
 
   return (
     <main className="signup-shell">
-      <section
-        className="signup-visual"
-        aria-label="Music Discoveryの紹介"
-      >
+      <section className="signup-visual" aria-label="Music Discoveryの紹介">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
             <span className="brand-compass" />
@@ -200,7 +196,6 @@ export function SignupPage() {
 
         <div className="visual-orbit visual-orbit-one" aria-hidden="true" />
         <div className="visual-orbit visual-orbit-two" aria-hidden="true" />
-
         <div className="sound-wave" aria-hidden="true">
           {Array.from({ length: 14 }, (_, index) => (
             <span key={index} />
@@ -390,8 +385,7 @@ export function SignupPage() {
           </form>
 
           <p className="login-link">
-            すでにアカウントをお持ちですか？{" "}
-            <Link to="/login">ログイン</Link>
+            すでにアカウントをお持ちですか？ <Link to="/login">ログイン</Link>
           </p>
         </div>
       </section>
