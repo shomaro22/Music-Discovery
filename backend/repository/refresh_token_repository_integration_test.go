@@ -147,3 +147,57 @@ func TestRefreshTokenRepositoryConcurrentRotateOnlyOneSucceeds(t *testing.T) {
 		t.Fatalf("family token count=%d", count)
 	}
 }
+
+func TestRefreshTokenRepositoryRevokeFamily(t *testing.T) {
+	repo, user := setupRefreshTokenRepositoryTest(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	targetFamily := uuid.New()
+	otherFamily := uuid.New()
+
+	targetOne := newStoredRefreshToken(user.ID, targetFamily, "logout-target-1", now)
+	targetTwo := newStoredRefreshToken(user.ID, targetFamily, "logout-target-2", now)
+	alreadyRevoked := newStoredRefreshToken(user.ID, targetFamily, "logout-target-revoked", now)
+	previousRevokedAt := now.Add(-time.Hour)
+	alreadyRevoked.RevokedAt = &previousRevokedAt
+	other := newStoredRefreshToken(user.ID, otherFamily, "logout-other", now)
+
+	for _, token := range []*entity.RefreshToken{targetOne, targetTwo, alreadyRevoked, other} {
+		if err := repo.db.Create(token).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := repo.RevokeFamily(context.Background(), targetFamily, now); err != nil {
+		t.Fatal(err)
+	}
+
+	var tokens []entity.RefreshToken
+	if err := repo.db.Where("id IN ?", []uuid.UUID{targetOne.ID, targetTwo.ID, alreadyRevoked.ID, other.ID}).Find(&tokens).Error; err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[uuid.UUID]entity.RefreshToken, len(tokens))
+	for _, token := range tokens {
+		byID[token.ID] = token
+	}
+	if byID[targetOne.ID].RevokedAt == nil || byID[targetTwo.ID].RevokedAt == nil {
+		t.Fatalf("target family was not fully revoked: %+v", byID)
+	}
+	if byID[alreadyRevoked.ID].RevokedAt == nil || !byID[alreadyRevoked.ID].RevokedAt.Equal(previousRevokedAt) {
+		t.Fatalf("already revoked token was changed: %+v", byID[alreadyRevoked.ID])
+	}
+	if byID[other.ID].RevokedAt != nil {
+		t.Fatalf("other family was revoked: %+v", byID[other.ID])
+	}
+
+	var userAfter entity.User
+	if err := repo.db.First(&userAfter, "id = ?", user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if userAfter.TokenVersion != user.TokenVersion {
+		t.Fatalf("token version changed: before=%d after=%d", user.TokenVersion, userAfter.TokenVersion)
+	}
+
+	if err := repo.RevokeFamily(context.Background(), uuid.New(), now); err != nil {
+		t.Fatalf("missing family must be idempotent: %v", err)
+	}
+}

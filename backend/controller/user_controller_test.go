@@ -24,6 +24,8 @@ type fakeUserUsecase struct {
 	refreshResult *usecase.RefreshResult
 	refreshInput  string
 	refreshCalls  int
+	logoutInput   string
+	logoutCalls   int
 }
 
 func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (*entity.User, error) {
@@ -45,6 +47,11 @@ func (f *fakeUserUsecase) Refresh(_ context.Context, token string) (*usecase.Ref
 	f.refreshCalls++
 	f.refreshInput = token
 	return f.refreshResult, f.err
+}
+func (f *fakeUserUsecase) Logout(_ context.Context, token string) error {
+	f.logoutCalls++
+	f.logoutInput = token
+	return f.err
 }
 func (f *fakeUserUsecase) ValidateTokenVersion(context.Context, uuid.UUID, uint64) (*entity.User, error) {
 	return f.user, f.err
@@ -90,12 +97,11 @@ func assertAPIError(
 		t.Fatalf("request_id=%q want=%q", apiErr.RequestID, "req-123")
 	}
 
-	var raw map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
-		t.Fatalf("decode raw response: %v", err)
-	}
-	if len(raw) != 4 {
-		t.Fatalf("error response fields=%d body=%s", len(raw), rec.Body.String())
+	decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
+	decoder.DisallowUnknownFields()
+	var exactResponse entity.APIErrorResponse
+	if err := decoder.Decode(&exactResponse); err != nil {
+		t.Fatalf("unexpected response field: %v body=%s", err, rec.Body.String())
 	}
 }
 
@@ -344,5 +350,56 @@ func TestRefreshControllerEmptyCookieValueReturns401(t *testing.T) {
 	assertAPIError(t, rec, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN")
 	if uc.refreshCalls != 0 {
 		t.Fatalf("refresh usecase calls=%d", uc.refreshCalls)
+	}
+}
+
+func runLogoutRequest(t *testing.T, uc usecase.IUserUsecase, withCookie bool) *httptest.ResponseRecorder {
+	t.Helper()
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	if withCookie {
+		req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "refresh-token"})
+	}
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	_ = NewUserController(uc).Logout(ctx)
+	return rec
+}
+
+func TestLogoutControllerSuccessClearsCookies(t *testing.T) {
+	uc := &fakeUserUsecase{}
+	rec := runLogoutRequest(t, uc, true)
+	if rec.Code != http.StatusNoContent || rec.Body.Len() != 0 {
+		t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+	}
+	if uc.logoutInput != "refresh-token" || uc.logoutCalls != 1 {
+		t.Fatalf("input=%q calls=%d", uc.logoutInput, uc.logoutCalls)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookies=%d", len(cookies))
+	}
+	for _, cookie := range cookies {
+		if cookie.Value != "" || cookie.MaxAge >= 0 {
+			t.Fatalf("cookie=%+v", cookie)
+		}
+	}
+}
+
+func TestLogoutControllerWithoutCookieIsSuccessful(t *testing.T) {
+	uc := &fakeUserUsecase{}
+	rec := runLogoutRequest(t, uc, false)
+	if rec.Code != http.StatusNoContent || uc.logoutInput != "" {
+		t.Fatalf("status=%d input=%q", rec.Code, uc.logoutInput)
+	}
+}
+
+func TestLogoutControllerInternalErrorDoesNotClearCookies(t *testing.T) {
+	rec := runLogoutRequest(t, &fakeUserUsecase{err: errors.New("db down")}, true)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if len(rec.Result().Cookies()) != 0 {
+		t.Fatalf("cookies should not be cleared on backend failure")
 	}
 }

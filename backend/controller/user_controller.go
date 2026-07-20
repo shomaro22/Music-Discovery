@@ -55,6 +55,7 @@ type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
 	Refresh(c echo.Context) error
+	Logout(c echo.Context) error
 	CurrentUser(c echo.Context) error
 }
 type userController struct{ userUsecase usecase.IUserUsecase }
@@ -128,6 +129,19 @@ func (c *userController) Refresh(ctx echo.Context) error {
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
 	return ctx.JSON(http.StatusOK, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn})
+}
+
+func (c *userController) Logout(ctx echo.Context) error {
+	refreshName := cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+	refreshToken := ""
+	if cookie, err := ctx.Cookie(refreshName); err == nil {
+		refreshToken = cookie.Value
+	}
+	if err := c.userUsecase.Logout(ctx.Request().Context(), refreshToken); err != nil {
+		return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+	}
+	clearAuthCookies(ctx)
+	return ctx.NoContent(http.StatusNoContent)
 }
 
 func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt time.Time) {

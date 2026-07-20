@@ -71,6 +71,7 @@ func (f *fakeRefreshRepository) FindByTokenHash(context.Context, string) (*entit
 func (f *fakeRefreshRepository) Rotate(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error {
 	return nil
 }
+func (f *fakeRefreshRepository) RevokeFamily(context.Context, uuid.UUID, time.Time) error { return nil }
 
 type fakeAuthTransactionManager struct{}
 
@@ -181,13 +182,17 @@ func TestValidateTokenVersionRejectsMismatch(t *testing.T) {
 }
 
 type refreshRepoStub struct {
-	current     *entity.RefreshToken
-	findErr     error
-	rotateErr   error
-	findHash    string
-	findCalls   int
-	rotateCalls int
-	next        *entity.RefreshToken
+	current      *entity.RefreshToken
+	findErr      error
+	rotateErr    error
+	findHash     string
+	findCalls    int
+	rotateCalls  int
+	revokeCalls  int
+	revokeFamily uuid.UUID
+	revokeAt     time.Time
+	revokeErr    error
+	next         *entity.RefreshToken
 }
 
 func (f *refreshRepoStub) Create(context.Context, *entity.RefreshToken) error { return nil }
@@ -200,6 +205,12 @@ func (f *refreshRepoStub) Rotate(_ context.Context, _ uuid.UUID, next *entity.Re
 	f.rotateCalls++
 	f.next = next
 	return f.rotateErr
+}
+func (f *refreshRepoStub) RevokeFamily(_ context.Context, familyID uuid.UUID, now time.Time) error {
+	f.revokeCalls++
+	f.revokeFamily = familyID
+	f.revokeAt = now
+	return f.revokeErr
 }
 
 type authTxStub struct {
@@ -422,5 +433,65 @@ func TestRefreshAccessTokenGenerationFailure(t *testing.T) {
 	}
 	if refreshRepo.rotateCalls != 1 {
 		t.Fatalf("rotateCalls=%d", refreshRepo.rotateCalls)
+	}
+}
+
+func TestLogoutRevokesFamilyForAnyStoredTokenState(t *testing.T) {
+	now := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-2 * time.Hour)
+	revokedAt := now.Add(-time.Hour)
+
+	tests := []struct {
+		name  string
+		token *entity.RefreshToken
+	}{
+		{name: "active token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour)}},
+		{name: "expired token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(-time.Minute)}},
+		{name: "used token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour), UsedAt: &usedAt}},
+		{name: "revoked token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour), RevokedAt: &revokedAt}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			refreshRepo := &refreshRepoStub{current: tc.token}
+			token := &tokenServiceStub{hash: "hashed-token"}
+			u := newRefreshUsecaseForTest(&fakeUserRepository{}, refreshRepo, &authTxStub{}, token, now)
+			if err := u.Logout(context.Background(), "plain-token"); err != nil {
+				t.Fatal(err)
+			}
+			if refreshRepo.findHash != "hashed-token" || refreshRepo.revokeCalls != 1 || refreshRepo.revokeFamily != tc.token.FamilyID || !refreshRepo.revokeAt.Equal(now) {
+				t.Fatalf("repo=%+v", refreshRepo)
+			}
+		})
+	}
+}
+
+func TestLogoutIsIdempotentForMissingToken(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		plain   string
+		findErr error
+	}{
+		{name: "empty cookie", plain: ""},
+		{name: "unknown token", plain: "plain", findErr: entity.ErrInvalidRefreshToken},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &refreshRepoStub{findErr: tc.findErr}
+			u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
+			if err := u.Logout(context.Background(), tc.plain); err != nil {
+				t.Fatal(err)
+			}
+			if repo.revokeCalls != 0 {
+				t.Fatalf("revokeCalls=%d", repo.revokeCalls)
+			}
+		})
+	}
+}
+
+func TestLogoutRevokeFailureReturnsInternalError(t *testing.T) {
+	repo := &refreshRepoStub{current: &entity.RefreshToken{FamilyID: uuid.New()}, revokeErr: errors.New("db down")}
+	u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
+	if err := u.Logout(context.Background(), "plain"); !errors.Is(err, entity.ErrInternal) {
+		t.Fatalf("err=%v", err)
 	}
 }

@@ -30,6 +30,16 @@ type ITokenService interface {
 	VerifyAccessToken(token string, now time.Time) (uuid.UUID, uint64, error)
 }
 
+type accessTokenClaims struct {
+	Issuer       string          `json:"iss"`
+	Audience     string          `json:"aud"`
+	Subject      string          `json:"sub"`
+	Role         entity.UserRole `json:"role"`
+	TokenVersion uint64          `json:"tv"`
+	IssuedAt     int64           `json:"iat"`
+	ExpiresAt    int64           `json:"exp"`
+}
+
 type tokenService struct {
 	secret     []byte
 	issuer     string
@@ -83,9 +93,14 @@ func (s *tokenService) GenerateAccessToken(user *entity.User, now time.Time) (st
 	}
 	exp := now.Add(s.accessTTL)
 	header, _ := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
-	payload, err := json.Marshal(map[string]any{
-		"iss": s.issuer, "aud": s.audience, "sub": user.ID.String(), "role": user.Role,
-		"tv": user.TokenVersion, "iat": now.Unix(), "exp": exp.Unix(),
+	payload, err := json.Marshal(accessTokenClaims{
+		Issuer:       s.issuer,
+		Audience:     s.audience,
+		Subject:      user.ID.String(),
+		Role:         user.Role,
+		TokenVersion: user.TokenVersion,
+		IssuedAt:     now.Unix(),
+		ExpiresAt:    exp.Unix(),
 	})
 	if err != nil {
 		return "", 0, entity.ErrInternal

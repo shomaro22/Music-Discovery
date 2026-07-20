@@ -11,7 +11,7 @@ import (
 func TestPostgreSQLUserConstraints(t *testing.T) {
 	db := openTestPostgres(t)
 	now := time.Now().UTC()
-	insert := func(id any, name, email, hash, role, status string, tokenVersion any) error {
+	insert := func(id uuid.UUID, name, email, hash, role, status string, tokenVersion int64) error {
 		return db.Exec(`INSERT INTO users (id,name,email,password_hash,role,status,token_version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`, id, name, email, hash, role, status, tokenVersion, now, now).Error
 	}
 	if err := insert(uuid.New(), "Taro", "base@example.com", "hash", "user", "active", 0); err != nil {

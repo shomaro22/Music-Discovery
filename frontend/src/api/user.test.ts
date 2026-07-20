@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { signUp } from "./user";
+import { logout, signUp } from "./user";
 import { ApiRequestError } from "./client";
 
 afterEach(() => vi.restoreAllMocks());
@@ -61,5 +61,21 @@ describe("signUp", () => {
     await expect(
       signUp({ name: "Taro", email: "taro@example.com", password: "password" }),
     ).rejects.toBeInstanceOf(ApiRequestError);
+  });
+});
+
+
+describe("logout", () => {
+  it("posts with the CSRF header and accepts 204", async () => {
+    document.cookie = "csrf_token=csrf-value; path=/";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/api/auth/logout");
+    expect(options.method).toBe("POST");
+    expect(options.credentials).toBe("include");
+    expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 });

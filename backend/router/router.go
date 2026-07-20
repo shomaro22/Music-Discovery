@@ -86,6 +86,13 @@ func NewRouter(
 	)
 
 	auth.POST(
+		"/logout",
+		userController.Logout,
+		echoMiddleware.BodyLimit(refreshBodyLimit),
+		appMiddleware.CSRF,
+	)
+
+	auth.POST(
 		"/refresh",
 		userController.Refresh,
 		echoMiddleware.BodyLimit(refreshBodyLimit),
