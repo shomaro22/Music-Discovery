@@ -7,6 +7,7 @@ import (
 
 	"music-discovery/backend/entity"
 	"music-discovery/backend/repository"
+	"music-discovery/backend/validator"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -55,33 +56,37 @@ type IUserUsecase interface {
 	SignUp(ctx context.Context, input SignUpInput) (*entity.User, error)
 	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
 	Refresh(ctx context.Context, refreshToken string) (*RefreshResult, error)
+	ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error)
 }
 
 type userUsecase struct {
 	userRepository         repository.IUserRepository
+	userValidator          validator.IUserValidator
 	refreshTokenRepository repository.IRefreshTokenRepository
+	authTransactionManager repository.IAuthTransactionManager
 	passwordHasher         IPasswordHasher
 	tokenService           ITokenService
 	clock                  IClock
 }
 
-func NewUserUsecase(userRepository repository.IUserRepository, passwordHasher IPasswordHasher, clock IClock, optional ...any) IUserUsecase {
-	u := &userUsecase{userRepository: userRepository, passwordHasher: passwordHasher, clock: clock}
-	for _, dep := range optional {
-		switch v := dep.(type) {
-		case repository.IRefreshTokenRepository:
-			u.refreshTokenRepository = v
-		case ITokenService:
-			u.tokenService = v
-		}
-	}
-	return u
+func NewUserUsecase(
+	userRepository repository.IUserRepository,
+	userValidator validator.IUserValidator,
+	refreshTokenRepository repository.IRefreshTokenRepository,
+	authTransactionManager repository.IAuthTransactionManager,
+	passwordHasher IPasswordHasher,
+	tokenService ITokenService,
+	clock IClock,
+) IUserUsecase {
+	return &userUsecase{userRepository: userRepository, userValidator: userValidator, refreshTokenRepository: refreshTokenRepository, authTransactionManager: authTransactionManager, passwordHasher: passwordHasher, tokenService: tokenService, clock: clock}
 }
 
 func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*entity.User, error) {
-	if input.Name == "" || input.Email == "" || input.Password == "" {
+	values, validationErrors := u.userValidator.ValidateSignUp(input.Name, input.Email, input.Password)
+	if len(validationErrors) > 0 {
 		return nil, entity.ErrInvalidInput
 	}
+	input = SignUpInput{Name: values.Name, Email: values.Email, Password: values.Password}
 	_, err := u.userRepository.FindByEmail(ctx, input.Email)
 	switch {
 	case err == nil:
@@ -109,12 +114,11 @@ func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*entity.Us
 const dummyPasswordHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoO5LQzYOgTBz8tLJ7YQnbvCw8wq9a3E0K"
 
 func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult, error) {
-	if input.Email == "" || input.Password == "" {
+	values, validationErrors := u.userValidator.ValidateLogin(input.Email, input.Password)
+	if len(validationErrors) > 0 {
 		return nil, entity.ErrInvalidInput
 	}
-	if u.tokenService == nil || u.refreshTokenRepository == nil {
-		return nil, entity.ErrInternal
-	}
+	input = LoginInput{Email: values.Email, Password: values.Password}
 	user, err := u.userRepository.FindByEmail(ctx, input.Email)
 	if errors.Is(err, entity.ErrUserNotFound) {
 		_ = u.tokenService.ComparePassword(dummyPasswordHash, input.Password)
@@ -154,7 +158,7 @@ func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult
 }
 
 func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshResult, error) {
-	if plainToken == "" || u.tokenService == nil || u.refreshTokenRepository == nil {
+	if plainToken == "" {
 		return nil, entity.ErrInvalidRefreshToken
 	}
 	now := u.clock.Now()
@@ -165,14 +169,14 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		}
 		return nil, entity.ErrInternal
 	}
-	if current.IsUsed() {
-		if err := u.refreshTokenRepository.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
-			return nil, entity.ErrInternal
-		}
-		return nil, entity.ErrInvalidRefreshToken
-	}
 	if current.IsRevoked() || current.IsExpired(now) {
 		return nil, entity.ErrInvalidRefreshToken
+	}
+	if current.IsUsed() {
+		if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
+			return nil, entity.ErrInternal
+		}
+		return nil, entity.ErrRefreshTokenReused
 	}
 	user, err := u.userRepository.FindByID(ctx, current.UserID)
 	if err != nil {
@@ -198,8 +202,10 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 	}
 	if err := u.refreshTokenRepository.Rotate(ctx, current.ID, next, now); err != nil {
 		if errors.Is(err, entity.ErrRefreshTokenReused) {
-			_ = u.refreshTokenRepository.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now)
-			return nil, entity.ErrInvalidRefreshToken
+			if revokeErr := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); revokeErr != nil {
+				return nil, entity.ErrInternal
+			}
+			return nil, entity.ErrRefreshTokenReused
 		}
 		return nil, entity.ErrInternal
 	}
@@ -215,4 +221,15 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		AccessToken: accessToken, ExpiresIn: expiresIn, RefreshToken: newPlain,
 		RefreshTokenExpiresAt: expiresAt, CSRFToken: csrfToken,
 	}, nil
+}
+
+func (u *userUsecase) ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error) {
+	user, err := u.userRepository.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.Status != entity.UserStatusActive || user.TokenVersion != tokenVersion {
+		return nil, entity.ErrInvalidCredentials
+	}
+	return user, nil
 }

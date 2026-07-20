@@ -3,27 +3,23 @@ package repository
 import (
 	"context"
 	"errors"
-	"time"
-
-	"music-discovery/backend/entity"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"music-discovery/backend/entity"
+	"time"
 )
 
 type IRefreshTokenRepository interface {
-	Create(ctx context.Context, refreshToken *entity.RefreshToken) error
-	FindByTokenHash(ctx context.Context, tokenHash string) (*entity.RefreshToken, error)
-	Rotate(ctx context.Context, currentID uuid.UUID, next *entity.RefreshToken, usedAt time.Time) error
-	RevokeFamilyAndIncrementTokenVersion(ctx context.Context, familyID, userID uuid.UUID, revokedAt time.Time) error
+	Create(context.Context, *entity.RefreshToken) error
+	FindByTokenHash(context.Context, string) (*entity.RefreshToken, error)
+	Rotate(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error
 }
-
 type refreshTokenRepository struct{ db *gorm.DB }
 
 func NewRefreshTokenRepository(db *gorm.DB) IRefreshTokenRepository {
 	return &refreshTokenRepository{db: db}
 }
-
 func (r *refreshTokenRepository) Create(ctx context.Context, token *entity.RefreshToken) error {
 	if token == nil || token.UserID == uuid.Nil || token.FamilyID == uuid.Nil || token.TokenHash == "" || !token.ExpiresAt.After(token.CreatedAt) {
 		return entity.ErrInvalidInput
@@ -33,13 +29,12 @@ func (r *refreshTokenRepository) Create(ctx context.Context, token *entity.Refre
 	}
 	return nil
 }
-
-func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, tokenHash string) (*entity.RefreshToken, error) {
-	if tokenHash == "" {
+func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, hash string) (*entity.RefreshToken, error) {
+	if hash == "" {
 		return nil, entity.ErrInvalidRefreshToken
 	}
 	var token entity.RefreshToken
-	err := r.db.WithContext(ctx).Where("token_hash = ?", tokenHash).First(&token).Error
+	err := r.db.WithContext(ctx).Where("token_hash = ?", hash).First(&token).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, entity.ErrInvalidRefreshToken
 	}
@@ -48,41 +43,30 @@ func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, tokenHash 
 	}
 	return &token, nil
 }
-
-func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID, next *entity.RefreshToken, usedAt time.Time) error {
+func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID, next *entity.RefreshToken, now time.Time) error {
 	if currentID == uuid.Nil || next == nil {
 		return entity.ErrInvalidInput
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&entity.RefreshToken{}).
-			Where("id = ? AND used_at IS NULL AND revoked_at IS NULL", currentID).
-			Updates(map[string]any{"used_at": usedAt, "replaced_by_id": next.ID})
-		if result.Error != nil {
+		var current entity.RefreshToken
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, "id = ?", currentID).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return entity.ErrInvalidRefreshToken
+		}
+		if err != nil {
 			return entity.ErrInternal
 		}
-		if result.RowsAffected != 1 {
+		if current.IsRevoked() || current.IsExpired(now) {
+			return entity.ErrInvalidRefreshToken
+		}
+		if current.IsUsed() {
 			return entity.ErrRefreshTokenReused
 		}
+		usedAt := now
+		if err := tx.Model(&current).Updates(map[string]any{"used_at": usedAt, "replaced_by_id": next.ID}).Error; err != nil {
+			return entity.ErrInternal
+		}
 		if err := tx.Create(next).Error; err != nil {
-			return entity.ErrInternal
-		}
-		return nil
-	})
-}
-
-func (r *refreshTokenRepository) RevokeFamilyAndIncrementTokenVersion(ctx context.Context, familyID, userID uuid.UUID, revokedAt time.Time) error {
-	if familyID == uuid.Nil || userID == uuid.Nil {
-		return entity.ErrInvalidInput
-	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&entity.RefreshToken{}).
-			Where("family_id = ? AND revoked_at IS NULL", familyID).
-			Update("revoked_at", revokedAt).Error; err != nil {
-			return entity.ErrInternal
-		}
-		result := tx.Model(&entity.User{}).Where("id = ?", userID).
-			UpdateColumn("token_version", gorm.Expr("token_version + 1"))
-		if result.Error != nil || result.RowsAffected != 1 {
 			return entity.ErrInternal
 		}
 		return nil

@@ -15,11 +15,13 @@ import (
 
 const signupBodyLimit = "16K"
 const loginBodyLimit = "8K"
+const refreshBodyLimit = "1K"
 
 func NewRouter(
 	logger *slog.Logger,
 	userController controller.IUserController,
 	rateLimit appMiddleware.IRateLimitMiddleware,
+	authMiddleware appMiddleware.IAuthMiddleware,
 ) *echo.Echo {
 	e := echo.New()
 
@@ -86,16 +88,19 @@ func NewRouter(
 	auth.POST(
 		"/refresh",
 		userController.Refresh,
+		echoMiddleware.BodyLimit(refreshBodyLimit),
 		rateLimit.Refresh,
 		appMiddleware.CSRF,
 	)
+
+	e.GET("/api/users/me", userController.CurrentUser, authMiddleware.Authenticate)
 
 	return e
 }
 
 func loadAllowedOrigins() []string {
 	rawOrigins := strings.TrimSpace(
-		os.Getenv("CORS_ALLOWED_ORIGINS"),
+		os.Getenv("CORS_ALLOW_ORIGIN"),
 	)
 	if rawOrigins == "" {
 		return []string{}

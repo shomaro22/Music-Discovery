@@ -9,7 +9,6 @@ import (
 
 	"music-discovery/backend/entity"
 	"music-discovery/backend/usecase"
-	"music-discovery/backend/validator"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -56,6 +55,7 @@ type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
 	Refresh(c echo.Context) error
+	CurrentUser(c echo.Context) error
 }
 type userController struct{ userUsecase usecase.IUserUsecase }
 
@@ -68,11 +68,7 @@ func (c *userController) SignUp(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-	values, validationErrors := validator.ValidateSignUp(request.Name, request.Email, request.Password)
-	if len(validationErrors) > 0 {
-		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
-	}
-	user, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{Name: values.Name, Email: values.Email, Password: values.Password})
+	user, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{Name: request.Name, Email: request.Email, Password: request.Password})
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrEmailAlreadyExists):
@@ -91,11 +87,7 @@ func (c *userController) Login(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-	values, validationErrors := validator.ValidateLogin(request.Email, request.Password)
-	if len(validationErrors) > 0 {
-		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
-	}
-	result, err := c.userUsecase.Login(ctx.Request().Context(), usecase.LoginInput{Email: values.Email, Password: values.Password})
+	result, err := c.userUsecase.Login(ctx.Request().Context(), usecase.LoginInput{Email: request.Email, Password: request.Password})
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrInvalidCredentials):
@@ -121,6 +113,9 @@ func (c *userController) Refresh(ctx echo.Context) error {
 	result, err := c.userUsecase.Refresh(ctx.Request().Context(), cookie.Value)
 	if err != nil {
 		switch {
+		case errors.Is(err, entity.ErrRefreshTokenReused):
+			clearAuthCookies(ctx)
+			return writeAPIError(ctx, http.StatusUnauthorized, "REFRESH_TOKEN_REUSED", "Refresh Tokenの再利用を検知しました")
 		case errors.Is(err, entity.ErrInvalidRefreshToken):
 			clearAuthCookies(ctx)
 			return writeAPIError(ctx, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Refresh Tokenが無効です")
@@ -148,12 +143,36 @@ func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt 
 		maxAge = 0
 	}
 	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: refreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
-	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: csrfToken, Path: "/api/auth", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: csrfToken, Path: "/", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
 }
 
 func clearAuthCookies(ctx echo.Context) {
+	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
+	sameSite := http.SameSiteLaxMode
+	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
+		sameSite = http.SameSiteStrictMode
+	}
 	expired := time.Unix(0, 0)
-	setAuthCookies(ctx, "", "", expired)
+	ctx.SetCookie(&http.Cookie{
+		Name:     cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token"),
+		Value:    "",
+		Path:     "/api/auth",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: sameSite,
+		Expires:  expired,
+		MaxAge:   -1,
+	})
+	ctx.SetCookie(&http.Cookie{
+		Name:     cookieName("CSRF_COOKIE_NAME", "csrf_token"),
+		Value:    "",
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   secure,
+		SameSite: sameSite,
+		Expires:  expired,
+		MaxAge:   -1,
+	})
 }
 
 func cookieName(envName, fallback string) string {
@@ -165,4 +184,12 @@ func cookieName(envName, fallback string) string {
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
 	return ctx.JSON(status, entity.APIErrorResponse{Status: status, Code: code, Message: message, RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID)})
+}
+
+func (c *userController) CurrentUser(ctx echo.Context) error {
+	user, ok := ctx.Get("auth_user").(*entity.User)
+	if !ok || user == nil {
+		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
+	}
+	return ctx.JSON(http.StatusOK, LoginUserResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status})
 }
