@@ -53,13 +53,17 @@ describe("SignupPage", () => {
     renderPage();
 
     expect(
-      screen.getByRole("heading", { name: "アカウントを作成" }),
+      screen.getByRole("heading", {
+        name: "アカウントを作成",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Discover Your Next Favorite."),
+      screen.getByRole("heading", {
+        name: /Start Your\s*Discovery\./,
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("あなたに合う、まだ知らない音楽と出会おう。"),
+      screen.getByText("あなたの次の一曲を、ここから見つけよう。"),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("名前")).toHaveAttribute(
       "autocomplete",
