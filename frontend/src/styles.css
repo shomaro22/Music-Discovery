@@ -446,3 +446,20 @@ a {
     color: #f5f5f5;
   }
 }
+
+
+/* Signup page: login画面と統一したモノクロデザイン */
+.signup-auth-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 500px);
+}
+.signup-auth-card { padding: clamp(28px, 3.3vw, 40px); }
+.signup-auth-form { gap: 16px; }
+.signup-terms { margin: 0; color: #6b7280; font-size: 0.78rem; line-height: 1.65; }
+.signup-terms a { color: #111111; font-weight: 700; text-underline-offset: 3px; }
+@media (prefers-color-scheme: dark) {
+  .signup-terms { color: #a3a3a3; }
+  .signup-terms a { color: #f5f5f5; }
+}
+@media (max-width: 920px) {
+  .signup-auth-layout { grid-template-columns: 1fr; }
+}
