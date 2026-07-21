@@ -18,9 +18,10 @@ export function LoginPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [requestId, setRequestId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const locationState = location.state as { signedUp?: boolean; logoutError?: string } | null;
+  const locationState = location.state as { signedUp?: boolean; logoutError?: string; authExpired?: boolean; from?: { pathname?: string } } | null;
   const signedUp = Boolean(locationState?.signedUp);
   const logoutError = locationState?.logoutError ?? "";
+  const authExpired = Boolean(locationState?.authExpired);
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
@@ -42,7 +43,7 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login({ email: email.trim().toLowerCase(), password });
-      navigate("/", { replace: true });
+      navigate(locationState?.from?.pathname ?? "/", { replace: true });
     } catch (error: unknown) {
       setPassword("");
       if (error instanceof ApiRequestError) {
@@ -58,6 +59,7 @@ export function LoginPage() {
       <section className="auth-copy"><p className="auth-kicker">Music Discovery</p><h1>Welcome Back.</h1><p className="auth-copy-lead">あなたの次の一曲を、また見つけよう。</p><p className="auth-copy-description">ログインして、あなたの好みに合わせた音楽との出会いを続けましょう。</p></section>
       <section className="auth-card" aria-labelledby="login-title">
         <div className="auth-card-header"><h2 id="login-title">ログイン</h2><p>{signedUp ? "会員登録が完了しました。ログインしてください。" : "登録済みのメールアドレスでログインしてください。"}</p></div>
+        {authExpired && <div className="api-alert" role="alert">認証期限が切れました。もう一度ログインしてください。</div>}
         {logoutError && <div className="api-alert" role="alert">{logoutError}</div>}
         {apiError && <div className="api-alert" role="alert">{apiError}{requestId && <small>Request ID: {requestId}</small>}</div>}
         <form className="auth-form" onSubmit={handleSubmit} noValidate>

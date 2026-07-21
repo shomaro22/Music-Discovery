@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ApiRequestError } from "../api/client";
-import { signUp } from "../api/user";
+import { useAuth } from "../hooks/useAuth";
 import type { SignUpInput } from "../types/user";
 import { countUnicodeCharacters, countUtf8Bytes } from "../utils/stringLength";
 
@@ -50,6 +50,7 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
 
 export function SignupPage() {
   const navigate = useNavigate();
+  const { signUp } = useAuth();
   const nameId = useId();
   const emailId = useId();
   const passwordId = useId();
@@ -121,7 +122,7 @@ export function SignupPage() {
 
     try {
       await signUp(input);
-      navigate("/login");
+      navigate("/", { replace: true });
     } catch (error: unknown) {
       if (error instanceof ApiRequestError) {
         const response = error.response;

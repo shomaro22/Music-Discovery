@@ -18,9 +18,12 @@ func CreateUsers(db *gorm.DB) error {
 			status VARCHAR(32) NOT NULL CHECK (status IN ('active', 'suspended')),
 			token_version BIGINT NOT NULL DEFAULT 0 CHECK (token_version >= 0),
 			created_at TIMESTAMPTZ NOT NULL,
-			updated_at TIMESTAMPTZ NOT NULL
+			updated_at TIMESTAMPTZ NOT NULL,
+			deleted_at TIMESTAMPTZ NULL
 		)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+		`CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at)`,
 	}
 	for _, statement := range statements {
 		if err := db.Exec(statement).Error; err != nil {

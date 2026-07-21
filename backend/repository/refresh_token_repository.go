@@ -57,18 +57,18 @@ func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID
 		if err != nil {
 			return entity.ErrInternal
 		}
-		if current.IsRevoked() || current.IsExpired(now) {
-			return entity.ErrInvalidRefreshToken
-		}
-		if current.IsUsed() {
+		if current.IsRevoked() {
 			return entity.ErrRefreshTokenReused
 		}
-		usedAt := now
+		if current.IsExpired(now) {
+			return entity.ErrInvalidRefreshToken
+		}
+		revokedAt := now
 		updates := entity.RefreshToken{
-			UsedAt:       &usedAt,
+			RevokedAt:    &revokedAt,
 			ReplacedByID: &next.ID,
 		}
-		if err := tx.Model(&current).Select("used_at", "replaced_by_id").Updates(updates).Error; err != nil {
+		if err := tx.Model(&current).Select("revoked_at", "replaced_by_id").Updates(updates).Error; err != nil {
 			return entity.ErrInternal
 		}
 		if err := tx.Create(next).Error; err != nil {

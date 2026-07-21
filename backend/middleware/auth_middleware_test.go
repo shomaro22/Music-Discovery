@@ -57,8 +57,11 @@ func TestAuthMiddlewareAcceptsValidTokenVersion(t *testing.T) {
 	req.Header.Set(echo.HeaderAuthorization, "Bearer valid")
 	rec := httptest.NewRecorder()
 	err := middleware.Authenticate(func(c echo.Context) error {
-		if c.Get("auth_user") != user {
-			t.Fatal("auth_user was not stored")
+		if c.Get("auth_user_id") != user.ID {
+			t.Fatal("auth_user_id was not stored")
+		}
+		if c.Get("auth_user_role") != user.Role {
+			t.Fatal("auth_user_role was not stored")
 		}
 		return c.NoContent(http.StatusNoContent)
 	})(e.NewContext(req, rec))

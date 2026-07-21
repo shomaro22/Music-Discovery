@@ -20,6 +20,8 @@ function renderTopPage() {
     accessToken: "access-token",
     isAuthenticated: true,
     isLoading: false,
+      authExpired: false,
+    signUp: vi.fn(),
     login: vi.fn(),
     logout: logoutMock,
     clearAuth: vi.fn(),

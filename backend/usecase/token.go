@@ -151,18 +151,18 @@ func (s *tokenService) VerifyAccessToken(token string, now time.Time) (uuid.UUID
 		return uuid.Nil, 0, entity.ErrInvalidCredentials
 	}
 	var payload struct {
-		Subject      string `json:"sub"`
-		TokenVersion uint64 `json:"tv"`
-		ExpiresAt    int64  `json:"exp"`
-		Issuer       string `json:"iss"`
-		Audience     string `json:"aud"`
+		Subject      string  `json:"sub"`
+		TokenVersion *uint64 `json:"tv"`
+		ExpiresAt    int64   `json:"exp"`
+		Issuer       string  `json:"iss"`
+		Audience     string  `json:"aud"`
 	}
-	if json.Unmarshal(payloadBytes, &payload) != nil || payload.Issuer != s.issuer || payload.Audience != s.audience || now.Unix() >= payload.ExpiresAt {
+	if json.Unmarshal(payloadBytes, &payload) != nil || payload.TokenVersion == nil || payload.Issuer != s.issuer || payload.Audience != s.audience || now.Unix() >= payload.ExpiresAt {
 		return uuid.Nil, 0, entity.ErrInvalidCredentials
 	}
 	userID, err := uuid.Parse(payload.Subject)
 	if err != nil {
 		return uuid.Nil, 0, entity.ErrInvalidCredentials
 	}
-	return userID, payload.TokenVersion, nil
+	return userID, *payload.TokenVersion, nil
 }

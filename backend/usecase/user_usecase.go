@@ -15,13 +15,24 @@ import (
 
 type SignUpInput struct{ Name, Email, Password string }
 type LoginInput struct{ Email, Password string }
-type LoginResult struct {
+type AuthResult struct {
 	AccessToken           string
 	ExpiresIn             int64
 	RefreshToken          string
 	RefreshTokenExpiresAt time.Time
 	CSRFToken             string
 	User                  *entity.User
+}
+
+type LoginResult = AuthResult
+type SignUpResult = AuthResult
+
+type CurrentUserResult struct {
+	ID     uuid.UUID
+	Name   string
+	Email  string
+	Role   entity.UserRole
+	Status entity.UserStatus
 }
 
 type RefreshResult struct {
@@ -53,10 +64,11 @@ func NewClock() IClock                { return &systemClock{} }
 func (c *systemClock) Now() time.Time { return time.Now().UTC() }
 
 type IUserUsecase interface {
-	SignUp(ctx context.Context, input SignUpInput) (*entity.User, error)
+	SignUp(ctx context.Context, input SignUpInput) (*SignUpResult, error)
 	Login(ctx context.Context, input LoginInput) (*LoginResult, error)
 	Refresh(ctx context.Context, refreshToken string) (*RefreshResult, error)
 	Logout(ctx context.Context, refreshToken string) error
+	CurrentUser(ctx context.Context, userID uuid.UUID) (*CurrentUserResult, error)
 	ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error)
 }
 
@@ -82,7 +94,7 @@ func NewUserUsecase(
 	return &userUsecase{userRepository: userRepository, userValidator: userValidator, refreshTokenRepository: refreshTokenRepository, authTransactionManager: authTransactionManager, passwordHasher: passwordHasher, tokenService: tokenService, clock: clock}
 }
 
-func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*entity.User, error) {
+func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*SignUpResult, error) {
 	values, validationErrors := u.userValidator.ValidateSignUp(input.Name, input.Email, input.Password)
 	if len(validationErrors) > 0 {
 		return nil, entity.ErrInvalidInput
@@ -101,15 +113,58 @@ func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*entity.Us
 		return nil, entity.ErrInternal
 	}
 	now := u.clock.Now()
-	user := &entity.User{Name: input.Name, Email: input.Email, PasswordHash: passwordHash, Role: entity.UserRoleUser, Status: entity.UserStatusActive, TokenVersion: 0, CreatedAt: now, UpdatedAt: now}
-	created, err := u.userRepository.Create(ctx, user)
-	if errors.Is(err, entity.ErrEmailAlreadyExists) {
-		return nil, entity.ErrEmailAlreadyExists
+	user := &entity.User{
+		ID: uuid.New(), Name: input.Name, Email: input.Email, PasswordHash: passwordHash,
+		Role: entity.UserRoleUser, Status: entity.UserStatusActive, TokenVersion: 0,
+		CreatedAt: now, UpdatedAt: now,
 	}
+	authResult, refreshToken, err := u.buildAuthResult(user, now)
 	if err != nil {
+		return nil, err
+	}
+	if err := u.authTransactionManager.CreateUserAndRefreshToken(ctx, user, refreshToken); err != nil {
+		if errors.Is(err, entity.ErrEmailAlreadyExists) {
+			return nil, entity.ErrEmailAlreadyExists
+		}
 		return nil, entity.ErrInternal
 	}
-	return created, nil
+	return (*SignUpResult)(authResult), nil
+}
+
+func (u *userUsecase) buildAuthResult(user *entity.User, now time.Time) (*AuthResult, *entity.RefreshToken, error) {
+	access, expiresIn, err := u.tokenService.GenerateAccessToken(user, now)
+	if err != nil {
+		return nil, nil, entity.ErrInternal
+	}
+	plain, hash, err := u.tokenService.GenerateRefreshToken()
+	if err != nil {
+		return nil, nil, entity.ErrInternal
+	}
+	csrf, err := u.tokenService.GenerateCSRFToken()
+	if err != nil {
+		return nil, nil, entity.ErrInternal
+	}
+	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
+	refresh := &entity.RefreshToken{
+		ID: uuid.New(), UserID: user.ID, TokenHash: hash, FamilyID: u.tokenService.GenerateFamilyID(),
+		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now,
+	}
+	result := &AuthResult{
+		AccessToken: access, ExpiresIn: expiresIn, RefreshToken: plain,
+		RefreshTokenExpiresAt: expiresAt, CSRFToken: csrf, User: user,
+	}
+	return result, refresh, nil
+}
+
+func (u *userUsecase) issueAuthResult(ctx context.Context, user *entity.User, now time.Time) (*AuthResult, error) {
+	result, refresh, err := u.buildAuthResult(user, now)
+	if err != nil {
+		return nil, err
+	}
+	if err := u.refreshTokenRepository.Create(ctx, refresh); err != nil {
+		return nil, entity.ErrInternal
+	}
+	return result, nil
 }
 
 const dummyPasswordHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoO5LQzYOgTBz8tLJ7YQnbvCw8wq9a3E0K"
@@ -137,25 +192,11 @@ func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult
 	if user.Status != entity.UserStatusActive {
 		return nil, entity.ErrInvalidCredentials
 	}
-	now := u.clock.Now()
-	access, expiresIn, err := u.tokenService.GenerateAccessToken(user, now)
+	result, err := u.issueAuthResult(ctx, user, u.clock.Now())
 	if err != nil {
-		return nil, entity.ErrInternal
+		return nil, err
 	}
-	plain, hash, err := u.tokenService.GenerateRefreshToken()
-	if err != nil {
-		return nil, entity.ErrInternal
-	}
-	csrf, err := u.tokenService.GenerateCSRFToken()
-	if err != nil {
-		return nil, entity.ErrInternal
-	}
-	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
-	refresh := &entity.RefreshToken{ID: uuid.New(), UserID: user.ID, TokenHash: hash, FamilyID: u.tokenService.GenerateFamilyID(), ExpiresAt: expiresAt, CreatedAt: now}
-	if err := u.refreshTokenRepository.Create(ctx, refresh); err != nil {
-		return nil, entity.ErrInternal
-	}
-	return &LoginResult{AccessToken: access, ExpiresIn: expiresIn, RefreshToken: plain, RefreshTokenExpiresAt: expiresAt, CSRFToken: csrf, User: user}, nil
+	return (*LoginResult)(result), nil
 }
 
 func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshResult, error) {
@@ -170,14 +211,14 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		}
 		return nil, entity.ErrInternal
 	}
-	if current.IsRevoked() || current.IsExpired(now) {
-		return nil, entity.ErrInvalidRefreshToken
-	}
-	if current.IsUsed() {
+	if current.IsRevoked() {
 		if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
 			return nil, entity.ErrInternal
 		}
 		return nil, entity.ErrRefreshTokenReused
+	}
+	if current.IsExpired(now) {
+		return nil, entity.ErrInvalidRefreshToken
 	}
 	user, err := u.userRepository.FindByID(ctx, current.UserID)
 	if err != nil {
@@ -185,6 +226,9 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 			return nil, entity.ErrInvalidRefreshToken
 		}
 		return nil, entity.ErrInternal
+	}
+	if current.TokenVersion != user.TokenVersion {
+		return nil, entity.ErrInvalidRefreshToken
 	}
 	if user.Status == entity.UserStatusSuspended {
 		return nil, entity.ErrUserSuspended
@@ -199,7 +243,7 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
 	next := &entity.RefreshToken{
 		ID: uuid.New(), UserID: user.ID, TokenHash: newHash, FamilyID: current.FamilyID,
-		ExpiresAt: expiresAt, CreatedAt: now,
+		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now,
 	}
 	if err := u.refreshTokenRepository.Rotate(ctx, current.ID, next, now); err != nil {
 		if errors.Is(err, entity.ErrRefreshTokenReused) {
@@ -244,10 +288,37 @@ func (u *userUsecase) Logout(ctx context.Context, plainToken string) error {
 	return nil
 }
 
+func (u *userUsecase) CurrentUser(ctx context.Context, userID uuid.UUID) (*CurrentUserResult, error) {
+	if userID == uuid.Nil {
+		return nil, entity.ErrInvalidCredentials
+	}
+
+	user, err := u.userRepository.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, entity.ErrUserNotFound) {
+			return nil, entity.ErrInvalidCredentials
+		}
+		return nil, entity.ErrInternal
+	}
+	if user.Status == entity.UserStatusSuspended {
+		return nil, entity.ErrUserSuspended
+	}
+	if user.Status != entity.UserStatusActive {
+		return nil, entity.ErrInvalidCredentials
+	}
+
+	return &CurrentUserResult{
+		ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status,
+	}, nil
+}
+
 func (u *userUsecase) ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error) {
 	user, err := u.userRepository.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
+	}
+	if user.Status == entity.UserStatusSuspended {
+		return nil, entity.ErrUserSuspended
 	}
 	if user.Status != entity.UserStatusActive || user.TokenVersion != tokenVersion {
 		return nil, entity.ErrInvalidCredentials

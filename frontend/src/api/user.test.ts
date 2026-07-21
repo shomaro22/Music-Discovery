@@ -7,12 +7,17 @@ afterEach(() => vi.restoreAllMocks());
 describe("signUp", () => {
   it("posts JSON to the signup endpoint", async () => {
     const response = {
-      id: "7c4ef6d5-cac5-4fca-b15f-f1641cdada23",
-      name: "Taro",
-      email: "taro@example.com",
-      role: "user",
-      status: "active",
-      created_at: "2026-07-18T00:00:00Z",
+      access_token: "access-token",
+      token_type: "Bearer",
+      expires_in: 300,
+      user: {
+        id: "7c4ef6d5-cac5-4fca-b15f-f1641cdada23",
+        name: "Taro",
+        email: "taro@example.com",
+        role: "user",
+        status: "active",
+        created_at: "2026-07-18T00:00:00Z",
+      },
     };
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

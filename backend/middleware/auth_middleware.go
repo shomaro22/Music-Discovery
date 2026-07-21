@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -61,10 +62,18 @@ func (m *authMiddleware) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 			tokenVersion,
 		)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusUnauthorized, entity.ErrInvalidCredentials)
+			switch {
+			case errors.Is(err, entity.ErrUserSuspended):
+				return echo.NewHTTPError(http.StatusForbidden, entity.ErrUserSuspended)
+			case errors.Is(err, entity.ErrUserNotFound), errors.Is(err, entity.ErrInvalidCredentials):
+				return echo.NewHTTPError(http.StatusUnauthorized, entity.ErrInvalidCredentials)
+			default:
+				return echo.NewHTTPError(http.StatusInternalServerError, entity.ErrInternal)
+			}
 		}
 
-		c.Set("auth_user", user)
+		c.Set("auth_user_id", user.ID)
+		c.Set("auth_user_role", user.Role)
 		return next(c)
 	}
 }
