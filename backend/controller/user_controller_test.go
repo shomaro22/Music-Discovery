@@ -28,7 +28,7 @@ type fakeUserUsecase struct {
 	logoutCalls   int
 }
 
-func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (*entity.User, error) {
+func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (*usecase.SignUpResult, error) {
 	f.input = input
 	if f.err != nil {
 		return nil, f.err
@@ -36,7 +36,14 @@ func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (
 	if f.user == nil {
 		return nil, entity.ErrInvalidInput
 	}
-	return f.user, nil
+	return &usecase.SignUpResult{
+		AccessToken:           "access-token",
+		ExpiresIn:             300,
+		RefreshToken:          "refresh-token",
+		RefreshTokenExpiresAt: time.Now().Add(time.Hour),
+		CSRFToken:             "csrf-token",
+		User:                  f.user,
+	}, nil
 }
 
 func (f *fakeUserUsecase) Login(context.Context, usecase.LoginInput) (*usecase.LoginResult, error) {
@@ -52,6 +59,15 @@ func (f *fakeUserUsecase) Logout(_ context.Context, token string) error {
 	f.logoutCalls++
 	f.logoutInput = token
 	return f.err
+}
+func (f *fakeUserUsecase) CurrentUser(context.Context, uuid.UUID) (*usecase.CurrentUserResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.user == nil {
+		return nil, entity.ErrInvalidCredentials
+	}
+	return &usecase.CurrentUserResult{ID: f.user.ID, Name: f.user.Name, Email: f.user.Email, Role: f.user.Role, Status: f.user.Status}, nil
 }
 func (f *fakeUserUsecase) ValidateTokenVersion(context.Context, uuid.UUID, uint64) (*entity.User, error) {
 	return f.user, f.err
@@ -401,5 +417,42 @@ func TestLogoutControllerInternalErrorDoesNotClearCookies(t *testing.T) {
 	}
 	if len(rec.Result().Cookies()) != 0 {
 		t.Fatalf("cookies should not be cleared on backend failure")
+	}
+}
+
+func TestCurrentUserControllerSuccess(t *testing.T) {
+	userID := uuid.New()
+	uc := &fakeUserUsecase{user: &entity.User{
+		ID: userID, Name: "Taro", Email: "taro@example.com",
+		Role: entity.UserRoleUser, Status: entity.UserStatusActive,
+		PasswordHash: "must-not-leak", TokenVersion: 4,
+	}}
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Set("auth_user_id", userID)
+
+	if err := NewUserController(uc).CurrentUser(ctx); err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("must-not-leak")) || bytes.Contains(rec.Body.Bytes(), []byte("token_version")) {
+		t.Fatalf("private field leaked: %s", rec.Body.String())
+	}
+}
+
+func TestCurrentUserControllerRequiresContextUserID(t *testing.T) {
+	uc := &fakeUserUsecase{}
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+
+	_ = NewUserController(uc).CurrentUser(ctx)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }

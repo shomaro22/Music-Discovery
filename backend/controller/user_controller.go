@@ -23,13 +23,19 @@ type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
-type SignUpResponse struct {
+type SignUpUserResponse struct {
 	ID        uuid.UUID         `json:"id"`
 	Name      string            `json:"name"`
 	Email     string            `json:"email"`
 	Role      entity.UserRole   `json:"role"`
 	Status    entity.UserStatus `json:"status"`
 	CreatedAt string            `json:"created_at"`
+}
+type SignUpResponse struct {
+	AccessToken string             `json:"access_token"`
+	TokenType   string             `json:"token_type"`
+	ExpiresIn   int64              `json:"expires_in"`
+	User        SignUpUserResponse `json:"user"`
 }
 type LoginUserResponse struct {
 	ID     uuid.UUID         `json:"id"`
@@ -69,7 +75,7 @@ func (c *userController) SignUp(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-	user, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{Name: request.Name, Email: request.Email, Password: request.Password})
+	result, err := c.userUsecase.SignUp(ctx.Request().Context(), usecase.SignUpInput{Name: request.Name, Email: request.Email, Password: request.Password})
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrEmailAlreadyExists):
@@ -80,7 +86,20 @@ func (c *userController) SignUp(ctx echo.Context) error {
 			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
 		}
 	}
-	return ctx.JSON(http.StatusCreated, SignUpResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status, CreatedAt: user.CreatedAt.Format(time.RFC3339)})
+	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	return ctx.JSON(http.StatusCreated, SignUpResponse{
+		AccessToken: result.AccessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   result.ExpiresIn,
+		User: SignUpUserResponse{
+			ID:        result.User.ID,
+			Name:      result.User.Name,
+			Email:     result.User.Email,
+			Role:      result.User.Role,
+			Status:    result.User.Status,
+			CreatedAt: result.User.CreatedAt.Format(time.RFC3339),
+		},
+	})
 }
 
 func (c *userController) Login(ctx echo.Context) error {
@@ -201,9 +220,22 @@ func writeAPIError(ctx echo.Context, status int, code, message string) error {
 }
 
 func (c *userController) CurrentUser(ctx echo.Context) error {
-	user, ok := ctx.Get("auth_user").(*entity.User)
-	if !ok || user == nil {
+	userID, ok := ctx.Get("auth_user_id").(uuid.UUID)
+	if !ok || userID == uuid.Nil {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
+
+	user, err := c.userUsecase.CurrentUser(ctx.Request().Context(), userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrInvalidCredentials), errors.Is(err, entity.ErrUserNotFound):
+			return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
+		case errors.Is(err, entity.ErrUserSuspended):
+			return writeAPIError(ctx, http.StatusForbidden, "USER_SUSPENDED", "このアカウントは現在利用できません。")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+		}
+	}
+
 	return ctx.JSON(http.StatusOK, LoginUserResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status})
 }

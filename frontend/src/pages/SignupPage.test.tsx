@@ -4,28 +4,19 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiRequestError } from "../api/client";
-import { signUp } from "../api/user";
-import type { SignUpResponse } from "../types/user";
+import { useAuth } from "../hooks/useAuth";
 import { SignupPage } from "./SignupPage";
 
-vi.mock("../api/user", () => ({ signUp: vi.fn() }));
-const mockedSignUp = vi.mocked(signUp);
-
-const signUpResponse: SignUpResponse = {
-  id: "id",
-  name: "Taro",
-  email: "taro@example.com",
-  role: "user",
-  status: "active",
-  created_at: "now",
-};
+vi.mock("../hooks/useAuth", () => ({ useAuth: vi.fn() }));
+const mockedUseAuth = vi.mocked(useAuth);
+const mockedSignUp = vi.fn<ReturnType<typeof useAuth>["signUp"]>();
 
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/signup"]}>
       <Routes>
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/login" element={<p>ログイン画面</p>} />
+        <Route path="/" element={<p>トップ画面</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -46,7 +37,20 @@ async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("パスワード確認"), "password");
 }
 
-beforeEach(() => mockedSignUp.mockReset());
+beforeEach(() => {
+  mockedSignUp.mockReset();
+  mockedUseAuth.mockReturnValue({
+    user: null,
+    accessToken: null,
+    isAuthenticated: false,
+    isLoading: false,
+      authExpired: false,
+    signUp: mockedSignUp,
+    login: vi.fn(),
+    logout: vi.fn(),
+    clearAuth: vi.fn(),
+  });
+});
 
 describe("SignupPage", () => {
   it("renders the branded signup UI and accessible fields", () => {
@@ -178,7 +182,7 @@ describe("SignupPage", () => {
   it("does not trim password and normalizes email", async () => {
     const user = userEvent.setup();
     renderPage();
-    mockedSignUp.mockResolvedValueOnce(signUpResponse);
+    mockedSignUp.mockResolvedValueOnce(undefined);
 
     await user.type(screen.getByLabelText("名前"), " Taro ");
     await user.type(
@@ -199,7 +203,7 @@ describe("SignupPage", () => {
   });
 
   it("prevents duplicate submission and redirects after success", async () => {
-    const deferred = createDeferred<SignUpResponse>();
+    const deferred = createDeferred<void>();
     mockedSignUp.mockReturnValueOnce(deferred.promise);
     const user = userEvent.setup();
     renderPage();
@@ -213,8 +217,8 @@ describe("SignupPage", () => {
     await user.click(pendingButton);
     expect(mockedSignUp).toHaveBeenCalledTimes(1);
 
-    deferred.resolve(signUpResponse);
-    expect(await screen.findByText("ログイン画面")).toBeInTheDocument();
+    deferred.resolve();
+    expect(await screen.findByText("トップ画面")).toBeInTheDocument();
   });
 
   it("shows duplicate email error beside the email field and clears passwords", async () => {

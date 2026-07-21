@@ -73,8 +73,12 @@ func (f *fakeRefreshRepository) Rotate(context.Context, uuid.UUID, *entity.Refre
 }
 func (f *fakeRefreshRepository) RevokeFamily(context.Context, uuid.UUID, time.Time) error { return nil }
 
-type fakeAuthTransactionManager struct{}
+type fakeAuthTransactionManager struct{ repo *fakeUserRepository }
 
+func (f *fakeAuthTransactionManager) CreateUserAndRefreshToken(ctx context.Context, user *entity.User, _ *entity.RefreshToken) error {
+	_, err := f.repo.Create(ctx, user)
+	return err
+}
 func (f *fakeAuthTransactionManager) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
 	return nil
 }
@@ -95,7 +99,7 @@ func (f *fakeTokenService) VerifyAccessToken(string, time.Time) (uuid.UUID, uint
 }
 
 func newUsecaseForTest(repo *fakeUserRepository, hasher *fakeHasher) IUserUsecase {
-	return NewUserUsecase(repo, validator.NewUserValidator(), &fakeRefreshRepository{}, &fakeAuthTransactionManager{}, hasher, &fakeTokenService{}, &fakeClock{now: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)})
+	return NewUserUsecase(repo, validator.NewUserValidator(), &fakeRefreshRepository{}, &fakeAuthTransactionManager{repo: repo}, hasher, &fakeTokenService{}, &fakeClock{now: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)})
 }
 
 var _ repository.IUserRepository = (*fakeUserRepository)(nil)
@@ -103,15 +107,16 @@ var _ repository.IUserRepository = (*fakeUserRepository)(nil)
 func TestSignUpSuccessSetsInternalFields(t *testing.T) {
 	repo := &fakeUserRepository{findErr: entity.ErrUserNotFound}
 	hasher := &fakeHasher{hash: "hashed"}
-	user, err := newUsecaseForTest(repo, hasher).SignUp(context.Background(), SignUpInput{Name: "Taro", Email: "taro@example.com", Password: " password "})
+	result, err := newUsecaseForTest(repo, hasher).SignUp(context.Background(), SignUpInput{Name: "Taro", Email: "taro@example.com", Password: " password "})
 	if err != nil {
 		t.Fatal(err)
 	}
+	user := result.User
 	if user.ID == uuid.Nil || user.Role != entity.UserRoleUser || user.Status != entity.UserStatusActive || user.TokenVersion != 0 {
 		t.Fatalf("unexpected user: %#v", user)
 	}
-	if repo.createInputID != uuid.Nil {
-		t.Fatalf("usecase generated user ID: %s", repo.createInputID)
+	if repo.createInputID == uuid.Nil {
+		t.Fatal("usecase must generate user ID before the transaction")
 	}
 	if hasher.input != " password " {
 		t.Fatalf("password was trimmed: %q", hasher.input)
@@ -218,6 +223,9 @@ type authTxStub struct {
 	err   error
 }
 
+func (f *authTxStub) CreateUserAndRefreshToken(context.Context, *entity.User, *entity.RefreshToken) error {
+	return nil
+}
 func (f *authTxStub) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
 	f.calls++
 	return f.err
@@ -493,5 +501,45 @@ func TestLogoutRevokeFailureReturnsInternalError(t *testing.T) {
 	u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
 	if err := u.Logout(context.Background(), "plain"); !errors.Is(err, entity.ErrInternal) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestCurrentUserReturnsPublicUserInformation(t *testing.T) {
+	userID := uuid.New()
+	repo := &fakeUserRepository{findUser: &entity.User{
+		ID: userID, Name: "Taro", Email: "taro@example.com",
+		Role: entity.UserRoleUser, Status: entity.UserStatusActive,
+		PasswordHash: "must-not-leak", TokenVersion: 9,
+	}}
+
+	result, err := newUsecaseForTest(repo, &fakeHasher{}).CurrentUser(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if result.ID != userID || result.Email != "taro@example.com" || result.Status != entity.UserStatusActive {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
+func TestCurrentUserRejectsInvalidOrUnavailableUser(t *testing.T) {
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		repo    *fakeUserRepository
+		wantErr error
+	}{
+		{name: "nil user id", userID: uuid.Nil, repo: &fakeUserRepository{}, wantErr: entity.ErrInvalidCredentials},
+		{name: "not found", userID: uuid.New(), repo: &fakeUserRepository{findErr: entity.ErrUserNotFound}, wantErr: entity.ErrInvalidCredentials},
+		{name: "suspended", userID: uuid.New(), repo: &fakeUserRepository{findUser: &entity.User{Status: entity.UserStatusSuspended}}, wantErr: entity.ErrUserSuspended},
+		{name: "repository error", userID: uuid.New(), repo: &fakeUserRepository{findErr: errors.New("db error")}, wantErr: entity.ErrInternal},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := newUsecaseForTest(tt.repo, &fakeHasher{}).CurrentUser(context.Background(), tt.userID)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err=%v want=%v", err, tt.wantErr)
+			}
+		})
 	}
 }

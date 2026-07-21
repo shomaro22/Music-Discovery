@@ -24,6 +24,12 @@ func NewHTTPErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 		if errors.As(err, &httpError) {
 			status = httpError.Code
 			switch status {
+			case http.StatusUnauthorized:
+				code = "UNAUTHORIZED"
+				message = "認証情報が無効または期限切れです"
+			case http.StatusForbidden:
+				code = "FORBIDDEN"
+				message = "この操作を実行する権限がありません"
 			case http.StatusBadRequest:
 				code = "BAD_REQUEST"
 				message = "リクエスト内容が不正です"
