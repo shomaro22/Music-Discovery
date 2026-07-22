@@ -48,6 +48,7 @@ beforeEach(() => {
     signUp: mockedSignUp,
     login: vi.fn(),
     logout: vi.fn(),
+    withdraw: vi.fn(),
     clearAuth: vi.fn(),
   });
 });

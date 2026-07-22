@@ -16,6 +16,7 @@ import (
 const signupBodyLimit = "16K"
 const loginBodyLimit = "8K"
 const refreshBodyLimit = "1K"
+const withdrawBodyLimit = "8K"
 
 func NewRouter(
 	logger *slog.Logger,
@@ -101,6 +102,7 @@ func NewRouter(
 	)
 
 	e.GET("/api/users/me", userController.CurrentUser, authMiddleware.Authenticate)
+	e.DELETE("/api/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, authMiddleware.Authenticate, appMiddleware.CSRF, appMiddleware.RequireJSON)
 
 	return e
 }

@@ -29,7 +29,7 @@ func setupRefreshTokenRepositoryTest(t *testing.T) (*refreshTokenRepository, *en
 }
 
 func newStoredRefreshToken(userID, familyID uuid.UUID, hash string, now time.Time) *entity.RefreshToken {
-	return &entity.RefreshToken{ID: uuid.New(), UserID: userID, TokenHash: hash, FamilyID: familyID, ExpiresAt: now.Add(time.Hour), CreatedAt: now.Add(-time.Minute)}
+	return &entity.RefreshToken{ID: uuid.New(), UserID: userID, TokenHash: hash, FamilyID: familyID, ExpiresAt: now.Add(time.Hour), CreatedAt: now.Add(-time.Minute), UpdatedAt: now.Add(-time.Minute)}
 }
 
 func TestRefreshTokenRepositoryFindByTokenHash(t *testing.T) {

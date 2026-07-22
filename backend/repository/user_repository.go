@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"music-discovery/backend/entity"
 
@@ -16,6 +17,8 @@ type IUserRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*entity.User, error)
 	FindByEmail(ctx context.Context, email string) (*entity.User, error)
 	Create(ctx context.Context, user *entity.User) (*entity.User, error)
+	SoftDelete(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
+	IncrementTokenVersion(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
 }
 
 type userRepository struct{ db *gorm.DB }
@@ -33,7 +36,6 @@ func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Us
 	}
 	return &user, nil
 }
-
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	var user entity.User
 	result := r.db.WithContext(ctx).Where("email = ?", email).First(&user)
@@ -45,24 +47,74 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity
 	}
 	return &user, nil
 }
-
 func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
 	if err := validateUserForCreate(user); err != nil {
 		return nil, err
 	}
-
 	result := r.db.WithContext(ctx).Create(user)
 	if result.Error == nil {
 		return user, nil
 	}
-
 	var pgErr *pgconn.PgError
 	if errors.As(result.Error, &pgErr) && pgErr.Code == "23505" {
 		return nil, entity.ErrEmailAlreadyExists
 	}
 	return nil, entity.ErrInternal
 }
+func (r *userRepository) SoftDelete(
+	ctx context.Context,
+	tx ITransaction,
+	userID uuid.UUID,
+	now time.Time,
+) error {
+	db, ok := transactionDB(tx)
+	if !ok || userID == uuid.Nil {
+		return entity.ErrInvalidInput
+	}
 
+	result := db.WithContext(ctx).
+		Unscoped().
+		Model(&entity.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(struct {
+			DeletedAt time.Time
+			UpdatedAt time.Time
+		}{
+			DeletedAt: now,
+			UpdatedAt: now,
+		})
+
+	if result.Error != nil {
+		return entity.ErrInternal
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		checkResult := db.WithContext(ctx).
+			Unscoped().
+			Model(&entity.User{}).
+			Where("id = ?", userID).
+			Count(&count)
+		if checkResult.Error != nil {
+			return entity.ErrInternal
+		}
+		if count == 0 {
+			return entity.ErrUserNotFound
+		}
+		return entity.ErrUserAlreadyWithdrawn
+	}
+	return nil
+}
+func (r *userRepository) IncrementTokenVersion(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error {
+	db, ok := transactionDB(tx)
+	if !ok || userID == uuid.Nil {
+		return entity.ErrInvalidInput
+	}
+	result := db.WithContext(ctx).Exec("UPDATE users SET token_version = token_version + 1, updated_at = ? WHERE id = ?", now, userID)
+	if result.Error != nil || result.RowsAffected != 1 {
+		return entity.ErrInternal
+	}
+	return nil
+}
 func validateUserForCreate(user *entity.User) error {
 	if user == nil {
 		return entity.ErrInvalidUserForCreate

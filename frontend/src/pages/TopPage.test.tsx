@@ -24,6 +24,7 @@ function renderTopPage() {
     signUp: vi.fn(),
     login: vi.fn(),
     logout: logoutMock,
+    withdraw: vi.fn(),
     clearAuth: vi.fn(),
   });
 
@@ -32,6 +33,7 @@ function renderTopPage() {
       <Routes>
         <Route path="/" element={<TopPage />} />
         <Route path="/login" element={<LoginResult />} />
+        <Route path="/withdraw" element={<p>withdraw page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -41,7 +43,13 @@ beforeEach(() => {
   logoutMock.mockReset();
 });
 
-describe("TopPage logout", () => {
+describe("TopPage", () => {
+  it("moves to the withdraw page", () => {
+    renderTopPage();
+    fireEvent.click(screen.getByRole("button", { name: "退会手続きへ" }));
+    expect(screen.getByText("withdraw page")).toBeInTheDocument();
+  });
+
   it("moves to login after successful logout", async () => {
     logoutMock.mockResolvedValue(undefined);
     renderTopPage();

@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
 import { getCSRFCookie } from "../api/csrf";
-import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi } from "../api/user";
-import type { AuthUser, LoginInput, SignUpInput } from "../types/user";
+import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi } from "../api/user";
+import type { AuthUser, LoginInput, SignUpInput, WithdrawInput } from "../types/user";
 
-interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<void>; logout: () => Promise<void>; clearAuth: () => void; }
+interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<void>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -77,6 +77,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setIsLoading(false); }
   };
 
+  const withdraw = async (input: WithdrawInput): Promise<string> => {
+    const response = await withdrawApi(input);
+    clearAuth();
+    setAuthExpired(false);
+    return response.message;
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await logoutApi();
@@ -85,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, clearAuth }), [user, accessToken, isLoading, authExpired]);
+  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, withdraw, clearAuth }), [user, accessToken, isLoading, authExpired]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

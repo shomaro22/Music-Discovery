@@ -136,6 +136,10 @@ export async function request<T>(
     !retried;
 
   if (canRefresh) {
+    const originalError = await parseError(response);
+    if (originalError.response.code === "CURRENT_PASSWORD_MISMATCH") {
+      throw originalError;
+    }
     try {
       await refreshAccessToken();
       // await is required so a 401 from the single retry is handled below.

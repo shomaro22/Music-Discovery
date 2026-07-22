@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../api/client";
@@ -8,11 +9,13 @@ import { AuthProvider, useAuth } from "./AuthContext";
 const refreshMock = vi.fn();
 const getCurrentUserMock = vi.fn();
 const logoutMock = vi.fn();
+const withdrawMock = vi.fn();
 
 vi.mock("../api/csrf", () => ({ getCSRFCookie: () => "csrf" }));
 vi.mock("../api/user", () => ({
   login: vi.fn(),
   logout: () => logoutMock(),
+  withdraw: (...args: unknown[]) => withdrawMock(...args),
   refresh: () => refreshMock(),
   getCurrentUser: () => getCurrentUserMock(),
 }));
@@ -35,6 +38,7 @@ beforeEach(() => {
   refreshMock.mockReset();
   getCurrentUserMock.mockReset();
   logoutMock.mockReset();
+  withdrawMock.mockReset();
 });
 
 describe("AuthProvider restore", () => {
@@ -103,5 +107,50 @@ describe("AuthProvider logout", () => {
     await waitFor(() => expect(screen.getByText("taro@example.com")).toBeInTheDocument());
     screen.getByRole("button", { name: "logout" }).click();
     await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+  });
+});
+
+
+function WithdrawProbe() {
+  const auth = useAuth();
+  return (
+    <>
+      <p data-testid="auth-state">{`${auth.user?.email ?? "anonymous"}|${auth.accessToken ?? "no-token"}|${auth.isAuthenticated}|${auth.isLoading}`}</p>
+      <button type="button" onClick={() => { void auth.withdraw({ current_password: "password123" }).catch(() => undefined); }}>withdraw</button>
+    </>
+  );
+}
+
+describe("AuthProvider withdraw", () => {
+  it("clears authentication after withdrawal succeeds without using global loading", async () => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" });
+    let resolveWithdraw!: (value: { message: string }) => void;
+    withdrawMock.mockReturnValue(new Promise((resolve) => { resolveWithdraw = resolve; }));
+    const user = userEvent.setup();
+
+    render(<AuthProvider><WithdrawProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("auth-state")).toHaveTextContent("taro@example.com|token|true|false"));
+
+    await user.click(screen.getByRole("button", { name: "withdraw" }));
+    expect(screen.getByTestId("auth-state")).toHaveTextContent("taro@example.com|token|true|false");
+
+    resolveWithdraw({ message: "退会が完了しました。" });
+    await waitFor(() => expect(screen.getByTestId("auth-state")).toHaveTextContent("anonymous|no-token|false|false"));
+    expect(withdrawMock).toHaveBeenCalledWith({ current_password: "password123" });
+  });
+
+  it("preserves authentication after withdrawal fails", async () => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" });
+    withdrawMock.mockRejectedValue(new ApiRequestError({ status: 500, code: "INTERNAL_ERROR", message: "failed", request_id: "" }));
+    const user = userEvent.setup();
+
+    render(<AuthProvider><WithdrawProbe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByTestId("auth-state")).toHaveTextContent("taro@example.com|token|true|false"));
+
+    await user.click(screen.getByRole("button", { name: "withdraw" }));
+    await waitFor(() => expect(withdrawMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("auth-state")).toHaveTextContent("taro@example.com|token|true|false");
   });
 });

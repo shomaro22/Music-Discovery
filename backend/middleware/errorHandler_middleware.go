@@ -38,13 +38,13 @@ func NewHTTPErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 				message = "対象のリソースが見つかりません"
 			case http.StatusMethodNotAllowed:
 				code = "METHOD_NOT_ALLOWED"
-				message = "許可されていないHTTP Methodです"
+				message = "この操作はサポートされていません"
 			case http.StatusRequestEntityTooLarge:
 				code = "PAYLOAD_TOO_LARGE"
 				message = "リクエストサイズが上限を超えています"
 			case http.StatusUnsupportedMediaType:
 				code = "UNSUPPORTED_MEDIA_TYPE"
-				message = "Content-Typeにはapplication/jsonを指定してください"
+				message = "リクエストはJSON形式で送信してください"
 			case http.StatusTooManyRequests:
 				code = "RATE_LIMIT_EXCEEDED"
 				message = "しばらく時間を置いてから再度お試しください"
