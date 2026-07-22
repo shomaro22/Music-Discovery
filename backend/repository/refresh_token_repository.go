@@ -57,7 +57,7 @@ func (r *refreshTokenRepository) Rotate(ctx context.Context, currentID uuid.UUID
 		if err != nil {
 			return entity.ErrInternal
 		}
-		if current.IsRevoked() {
+		if current.IsRevoked() || current.IsUsed() {
 			return entity.ErrRefreshTokenReused
 		}
 		if current.IsExpired(now) {

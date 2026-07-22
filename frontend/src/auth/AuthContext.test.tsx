@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiRequestError } from "../api/client";
 
 import { AuthProvider, useAuth } from "./AuthContext";
 
@@ -15,15 +16,19 @@ vi.mock("../api/user", () => ({
   refresh: () => refreshMock(),
   getCurrentUser: () => getCurrentUserMock(),
 }));
-vi.mock("../api/client", () => ({
-  setAccessToken: vi.fn(),
-  setAuthStateListener: vi.fn(),
-}));
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client")>();
+  return {
+    ...actual,
+    setAccessToken: vi.fn(),
+    setAuthStateListener: vi.fn(),
+  };
+});
 
 function Probe() {
   const auth = useAuth();
   useEffect(() => undefined, [auth]);
-  return <p>{auth.isLoading ? "loading" : auth.user?.email ?? "anonymous"}</p>;
+  return <p>{auth.isLoading ? "loading" : auth.authExpired ? "expired" : auth.user?.email ?? "anonymous"}</p>;
 }
 
 beforeEach(() => {
@@ -47,6 +52,19 @@ describe("AuthProvider restore", () => {
     expect(getCurrentUserMock).toHaveBeenCalledTimes(1);
   });
 
+
+  it("marks authentication expired when restoration refresh is unauthorized", async () => {
+    refreshMock.mockRejectedValue(new ApiRequestError({ status: 401, code: "INVALID_REFRESH_TOKEN", message: "expired", request_id: "" }));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("expired")).toBeInTheDocument());
+  });
+
+  it("does not mark authentication expired for a restoration server error", async () => {
+    refreshMock.mockRejectedValue(new ApiRequestError({ status: 500, code: "INTERNAL_ERROR", message: "failed", request_id: "" }));
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    expect(screen.queryByText("expired")).not.toBeInTheDocument();
+  });
   it("clears authentication when restoration fails", async () => {
     refreshMock.mockRejectedValue(new Error("refresh failed"));
     render(<AuthProvider><Probe /></AuthProvider>);

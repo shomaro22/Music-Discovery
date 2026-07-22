@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -57,11 +56,14 @@ func TestAuthMiddlewareAcceptsValidTokenVersion(t *testing.T) {
 	req.Header.Set(echo.HeaderAuthorization, "Bearer valid")
 	rec := httptest.NewRecorder()
 	err := middleware.Authenticate(func(c echo.Context) error {
-		if c.Get("auth_user_id") != user.ID {
-			t.Fatal("auth_user_id was not stored")
+		if got := c.Get("auth_user_id"); got != user.ID {
+			t.Fatalf("auth_user_id=%v want=%v", got, user.ID)
 		}
-		if c.Get("auth_user_role") != user.Role {
-			t.Fatal("auth_user_role was not stored")
+		if got := c.Get("auth_user_role"); got != user.Role {
+			t.Fatalf("auth_user_role=%v want=%v", got, user.Role)
+		}
+		if got := c.Get("auth_user"); got != nil {
+			t.Fatalf("auth_user must not contain the User entity: %v", got)
 		}
 		return c.NoContent(http.StatusNoContent)
 	})(e.NewContext(req, rec))
@@ -83,7 +85,7 @@ func TestAuthMiddlewareRejectsInvalidSignatureOrExpiry(t *testing.T) {
 }
 
 func TestAuthMiddlewareRejectsTokenVersionMismatch(t *testing.T) {
-	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: uuid.New(), tokenVersion: 1}, &authMiddlewareTokenVersionValidator{err: errors.New("token version mismatch")})
+	middleware := NewAuthMiddleware(&authMiddlewareTokenService{userID: uuid.New(), tokenVersion: 1}, &authMiddlewareTokenVersionValidator{err: entity.ErrInvalidCredentials})
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/api/users/me", nil)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer stale")

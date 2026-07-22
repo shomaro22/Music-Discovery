@@ -308,7 +308,7 @@ func TestRefreshRevokedToken(t *testing.T) {
 	current := &entity.RefreshToken{ID: uuid.New(), UserID: uuid.New(), FamilyID: uuid.New(), UsedAt: &usedAt, RevokedAt: &revokedAt, ExpiresAt: now.Add(time.Hour)}
 	tx := &authTxStub{}
 	_, err := newRefreshUsecaseForTest(&fakeUserRepository{}, &refreshRepoStub{current: current}, tx, &tokenServiceStub{hash: "hash", ttl: time.Hour}, now).Refresh(context.Background(), "token")
-	if !errors.Is(err, entity.ErrInvalidRefreshToken) || tx.calls != 0 {
+	if !errors.Is(err, entity.ErrRefreshTokenReused) || tx.calls != 1 {
 		t.Fatalf("err=%v tx.calls=%d", err, tx.calls)
 	}
 }

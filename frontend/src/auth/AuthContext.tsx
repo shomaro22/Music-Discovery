@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
+import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
 import { getCSRFCookie } from "../api/csrf";
 import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi } from "../api/user";
 import type { AuthUser, LoginInput, SignUpInput } from "../types/user";
@@ -34,8 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClientAccessToken(refreshed.access_token);
         const currentUser = await getCurrentUser();
         if (active) setUser(currentUser);
-      } catch {
-        if (active) clearAuth();
+      } catch (error: unknown) {
+        if (active) {
+          clearAuth();
+          if (isAuthenticationFailure(error)) setAuthExpired(true);
+        }
       } finally {
         if (active) setIsLoading(false);
       }
