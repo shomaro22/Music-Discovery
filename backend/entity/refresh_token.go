@@ -11,7 +11,7 @@ type RefreshToken struct {
 	UserID       uuid.UUID  `json:"user_id" gorm:"type:uuid;not null;index"`
 	TokenHash    string     `json:"-" gorm:"size:64;not null;uniqueIndex"`
 	FamilyID     uuid.UUID  `json:"family_id" gorm:"type:uuid;not null;index"`
-	TokenVersion uint64     `json:"-" gorm:"not null"`
+	TokenVersion uint64     `json:"-" gorm:"not null;default:0;check:chk_refresh_tokens_token_version,token_version >= 0"`
 	ReplacedByID *uuid.UUID `json:"replaced_by_id,omitempty" gorm:"type:uuid"`
 	ExpiresAt    time.Time  `json:"expires_at" gorm:"not null;index"`
 	UsedAt       *time.Time `json:"used_at,omitempty"` // legacy column; rotation uses RevokedAt

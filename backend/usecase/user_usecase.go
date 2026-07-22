@@ -211,7 +211,7 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		}
 		return nil, entity.ErrInternal
 	}
-	if current.IsRevoked() {
+	if current.IsRevoked() || current.IsUsed() {
 		if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
 			return nil, entity.ErrInternal
 		}
