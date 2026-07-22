@@ -106,3 +106,48 @@ describe("request authentication recovery", () => {
     expect(listener).toHaveBeenLastCalledWith(null, "expired");
   });
 });
+
+describe("withdraw request authentication recovery", () => {
+  it("does not refresh or retry for CURRENT_PASSWORD_MISMATCH", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: 401, code: "CURRENT_PASSWORD_MISMATCH", message: "password mismatch", request_id: "" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+    const listener = vi.fn();
+    client.setAuthStateListener(listener);
+    client.setAccessToken("old-token");
+
+    await expect(client.request("/api/users/me", {
+      method: "DELETE",
+      body: JSON.stringify({ current_password: "wrong" }),
+    })).rejects.toMatchObject({ response: { code: "CURRENT_PASSWORD_MISMATCH" } });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/users/me");
+    expect(client.hasAccessToken()).toBe(true);
+    expect(listener).not.toHaveBeenCalledWith(null, "expired");
+  });
+
+  it("refreshes and retries DELETE exactly once for UNAUTHORIZED", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 401, code: "UNAUTHORIZED", message: "expired", request_id: "" }), { status: 401, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "退会が完了しました。" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const client = await import("./client");
+    client.setAccessToken("old-token");
+
+    await expect(client.request<{ message: string }>("/api/users/me", {
+      method: "DELETE",
+      body: JSON.stringify({ current_password: "password123" }),
+    })).resolves.toEqual({ message: "退会が完了しました。" });
+
+    const withdrawCalls = fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/users/me"));
+    const refreshCalls = fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/auth/refresh"));
+    expect(withdrawCalls).toHaveLength(2);
+    expect(refreshCalls).toHaveLength(1);
+    expect(new Headers(withdrawCalls[1][1]?.headers).get("Authorization")).toBe("Bearer new-token");
+  });
+});

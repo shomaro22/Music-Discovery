@@ -14,9 +14,10 @@ type RefreshToken struct {
 	TokenVersion uint64     `json:"-" gorm:"not null;default:0;check:chk_refresh_tokens_token_version,token_version >= 0"`
 	ReplacedByID *uuid.UUID `json:"replaced_by_id,omitempty" gorm:"type:uuid"`
 	ExpiresAt    time.Time  `json:"expires_at" gorm:"not null;index"`
-	UsedAt       *time.Time `json:"used_at,omitempty"` // legacy column; rotation uses RevokedAt
+	UsedAt       *time.Time `json:"used_at,omitempty"` // lrotation uses RevokedAt
 	RevokedAt    *time.Time `json:"revoked_at,omitempty" gorm:"index"`
 	CreatedAt    time.Time  `json:"created_at" gorm:"not null"`
+	UpdatedAt    time.Time  `json:"updated_at" gorm:"not null"`
 }
 
 func (t *RefreshToken) IsExpired(now time.Time) bool { return !now.Before(t.ExpiresAt) }

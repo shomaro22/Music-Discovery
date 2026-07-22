@@ -26,16 +26,41 @@ export function TopPage() {
   };
 
   return (
-    <main>
-      <h1>Music Discovery</h1>
-      <p>{user?.name}さん、ログインしました。</p>
-      <dl>
-        <dt>Email</dt><dd>{user?.email}</dd>
-        <dt>Role</dt><dd>{user?.role}</dd>
-      </dl>
-      <button type="button" onClick={() => void handleLogout()} disabled={isLoggingOut}>
-        {isLoggingOut ? "ログアウト中..." : "ログアウト"}
-      </button>
+    <main className="top-page">
+      <section className="top-card" aria-labelledby="top-title">
+        <p className="top-kicker">Music Discovery</p>
+        <h1 id="top-title">ようこそ、{user?.name}さん</h1>
+        <p className="top-description">ログインしています。</p>
+
+        <dl className="top-profile">
+          <div>
+            <dt>Email</dt>
+            <dd>{user?.email}</dd>
+          </div>
+          <div>
+            <dt>Role</dt>
+            <dd>{user?.role}</dd>
+          </div>
+        </dl>
+
+        <div className="top-actions">
+          <button
+            className="top-withdraw-button"
+            type="button"
+            onClick={() => navigate("/withdraw")}
+          >
+            退会手続きへ
+          </button>
+          <button
+            className="top-logout-button"
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? "ログアウト中..." : "ログアウト"}
+          </button>
+        </div>
+      </section>
     </main>
   );
 }

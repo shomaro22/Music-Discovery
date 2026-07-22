@@ -1,4 +1,4 @@
-import type { AuthUser, LoginInput, LoginResponse, RefreshResponse, SignUpInput, SignUpResponse } from "../types/user";
+import type { AuthUser, LoginInput, LoginResponse, RefreshResponse, SignUpInput, SignUpResponse, WithdrawInput, WithdrawResponse } from "../types/user";
 import { refreshAccessToken, request } from "./client";
 import { getCSRFCookie } from "./csrf";
 
@@ -10,3 +10,12 @@ export function logout(): Promise<void> {
   return request<void>("/api/auth/logout", { method: "POST", headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined });
 }
 export function getCurrentUser(): Promise<AuthUser> { return request<AuthUser>("/api/users/me", { method: "GET" }); }
+
+export function withdraw(input: WithdrawInput): Promise<WithdrawResponse> {
+  const csrfToken = getCSRFCookie();
+  return request<WithdrawResponse>("/api/users/me", {
+    method: "DELETE",
+    headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
+    body: JSON.stringify(input),
+  });
+}

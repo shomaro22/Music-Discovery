@@ -13,11 +13,15 @@ import (
 )
 
 type IAuthTransactionManager interface {
-	CreateUserAndRefreshToken(context.Context, *entity.User, *entity.RefreshToken) error
-	RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error
+	ITransactionManager
+
+	CreateUserAndRefreshToken(ctx context.Context, user *entity.User, token *entity.RefreshToken) error
+	RevokeFamilyAndIncrementTokenVersion(ctx context.Context, familyID, userID uuid.UUID, now time.Time) error
 }
 
 type authTransactionManager struct{ db *gorm.DB }
+
+var _ IAuthTransactionManager = (*authTransactionManager)(nil)
 
 func NewAuthTransactionManager(db *gorm.DB) IAuthTransactionManager {
 	return &authTransactionManager{db: db}
@@ -59,5 +63,14 @@ func (m *authTransactionManager) RevokeFamilyAndIncrementTokenVersion(ctx contex
 			return entity.ErrInternal
 		}
 		return nil
+	})
+}
+
+func (m *authTransactionManager) WithinTransaction(ctx context.Context, fn func(tx ITransaction) error) error {
+	if m == nil || m.db == nil || fn == nil {
+		return entity.ErrInvalidInput
+	}
+	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(&gormTransaction{db: tx})
 	})
 }

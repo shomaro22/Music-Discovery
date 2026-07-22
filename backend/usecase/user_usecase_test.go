@@ -32,6 +32,13 @@ func (f *fakeUserRepository) FindByEmail(context.Context, string) (*entity.User,
 	return f.findUser, f.findErr
 }
 
+func (f *fakeUserRepository) SoftDelete(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
+	return nil
+}
+func (f *fakeUserRepository) IncrementTokenVersion(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
+	return nil
+}
+
 func (f *fakeUserRepository) Create(_ context.Context, user *entity.User) (*entity.User, error) {
 	f.createCalls++
 	f.createInputID = user.ID
@@ -72,6 +79,9 @@ func (f *fakeRefreshRepository) Rotate(context.Context, uuid.UUID, *entity.Refre
 	return nil
 }
 func (f *fakeRefreshRepository) RevokeFamily(context.Context, uuid.UUID, time.Time) error { return nil }
+func (f *fakeRefreshRepository) RevokeAllByUserID(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
+	return nil
+}
 
 type fakeAuthTransactionManager struct{ repo *fakeUserRepository }
 
@@ -81,6 +91,9 @@ func (f *fakeAuthTransactionManager) CreateUserAndRefreshToken(ctx context.Conte
 }
 func (f *fakeAuthTransactionManager) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
 	return nil
+}
+func (f *fakeAuthTransactionManager) WithinTransaction(ctx context.Context, fn func(repository.ITransaction) error) error {
+	return fn(nil)
 }
 
 type fakeTokenService struct{}
@@ -211,6 +224,9 @@ func (f *refreshRepoStub) Rotate(_ context.Context, _ uuid.UUID, next *entity.Re
 	f.next = next
 	return f.rotateErr
 }
+func (f *refreshRepoStub) RevokeAllByUserID(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
+	return nil
+}
 func (f *refreshRepoStub) RevokeFamily(_ context.Context, familyID uuid.UUID, now time.Time) error {
 	f.revokeCalls++
 	f.revokeFamily = familyID
@@ -229,6 +245,22 @@ func (f *authTxStub) CreateUserAndRefreshToken(context.Context, *entity.User, *e
 func (f *authTxStub) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
 	f.calls++
 	return f.err
+}
+func (f *authTxStub) SaveRefreshToken(context.Context, *entity.RefreshToken) error { return nil }
+func (f *authTxStub) RotateRefreshToken(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error {
+	return nil
+}
+func (f *authTxStub) RevokeRefreshTokenFamily(context.Context, uuid.UUID, time.Time) error {
+	return nil
+}
+func (f *authTxStub) WithinTransaction(ctx context.Context, fn func(repository.ITransaction) error) error {
+	if f.err != nil {
+		return f.err
+	}
+	if fn == nil {
+		return entity.ErrInvalidInput
+	}
+	return fn(nil)
 }
 
 type tokenServiceStub struct {

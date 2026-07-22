@@ -19,6 +19,12 @@ type SignUpRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+type WithdrawRequest struct {
+	CurrentPassword string `json:"current_password"`
+}
+type WithdrawResponse struct {
+	Message string `json:"message"`
+}
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -29,7 +35,7 @@ type SignUpUserResponse struct {
 	Email     string            `json:"email"`
 	Role      entity.UserRole   `json:"role"`
 	Status    entity.UserStatus `json:"status"`
-	CreatedAt string            `json:"created_at"`
+	CreatedAt time.Time         `json:"created_at"`
 }
 type SignUpResponse struct {
 	AccessToken string             `json:"access_token"`
@@ -63,6 +69,7 @@ type IUserController interface {
 	Refresh(c echo.Context) error
 	Logout(c echo.Context) error
 	CurrentUser(c echo.Context) error
+	Withdraw(c echo.Context) error
 }
 type userController struct{ userUsecase usecase.IUserUsecase }
 
@@ -97,7 +104,7 @@ func (c *userController) SignUp(ctx echo.Context) error {
 			Email:     result.User.Email,
 			Role:      result.User.Role,
 			Status:    result.User.Status,
-			CreatedAt: result.User.CreatedAt.Format(time.RFC3339),
+			CreatedAt: result.User.CreatedAt,
 		},
 	})
 }
@@ -121,7 +128,15 @@ func (c *userController) Login(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
-	return ctx.JSON(http.StatusOK, LoginResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, User: LoginUserResponse{ID: result.User.ID, Name: result.User.Name, Email: result.User.Email, Role: result.User.Role, Status: result.User.Status}})
+	return ctx.JSON(http.StatusOK, LoginResponse{
+		AccessToken: result.AccessToken,
+		TokenType:   "Bearer", ExpiresIn: result.ExpiresIn,
+		User: LoginUserResponse{
+			ID:     result.User.ID,
+			Name:   result.User.Name,
+			Email:  result.User.Email,
+			Role:   result.User.Role,
+			Status: result.User.Status}})
 }
 
 func (c *userController) Refresh(ctx echo.Context) error {
@@ -238,4 +253,30 @@ func (c *userController) CurrentUser(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, LoginUserResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status})
+}
+
+func (c *userController) Withdraw(ctx echo.Context) error {
+	userID, ok := ctx.Get("auth_user_id").(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
+	}
+	var request WithdrawRequest
+	if err := ctx.Bind(&request); err != nil || request.CurrentPassword == "" {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "現在のパスワードを入力してください")
+	}
+	result, err := c.userUsecase.Withdraw(ctx.Request().Context(), userID, usecase.WithdrawInput{CurrentPassword: request.CurrentPassword})
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrCurrentPasswordMismatch):
+			return writeAPIError(ctx, http.StatusUnauthorized, "CURRENT_PASSWORD_MISMATCH", "現在のパスワードが正しくありません")
+		case errors.Is(err, entity.ErrInvalidCredentials), errors.Is(err, entity.ErrUserNotFound):
+			return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
+		case errors.Is(err, entity.ErrInvalidInput):
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "現在のパスワードを入力してください")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+		}
+	}
+	clearAuthCookies(ctx)
+	return ctx.JSON(http.StatusOK, WithdrawResponse{Message: result.Message})
 }

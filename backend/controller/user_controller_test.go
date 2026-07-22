@@ -18,14 +18,17 @@ import (
 )
 
 type fakeUserUsecase struct {
-	user          *entity.User
-	err           error
-	input         usecase.SignUpInput
-	refreshResult *usecase.RefreshResult
-	refreshInput  string
-	refreshCalls  int
-	logoutInput   string
-	logoutCalls   int
+	user           *entity.User
+	err            error
+	input          usecase.SignUpInput
+	refreshResult  *usecase.RefreshResult
+	refreshInput   string
+	refreshCalls   int
+	logoutInput    string
+	logoutCalls    int
+	withdrawInput  usecase.WithdrawInput
+	withdrawUserID uuid.UUID
+	withdrawCalls  int
 }
 
 func (f *fakeUserUsecase) SignUp(_ context.Context, input usecase.SignUpInput) (*usecase.SignUpResult, error) {
@@ -71,6 +74,15 @@ func (f *fakeUserUsecase) CurrentUser(context.Context, uuid.UUID) (*usecase.Curr
 }
 func (f *fakeUserUsecase) ValidateTokenVersion(context.Context, uuid.UUID, uint64) (*entity.User, error) {
 	return f.user, f.err
+}
+func (f *fakeUserUsecase) Withdraw(_ context.Context, userID uuid.UUID, input usecase.WithdrawInput) (*usecase.WithdrawResult, error) {
+	f.withdrawCalls++
+	f.withdrawUserID = userID
+	f.withdrawInput = input
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &usecase.WithdrawResult{Message: "退会が完了しました。"}, nil
 }
 
 func runSignupRequest(t *testing.T, body string, uc usecase.IUserUsecase) *httptest.ResponseRecorder {
@@ -454,5 +466,103 @@ func TestCurrentUserControllerRequiresContextUserID(t *testing.T) {
 	_ = NewUserController(uc).CurrentUser(ctx)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func runWithdrawRequest(t *testing.T, body string, uc usecase.IUserUsecase, withUserID bool) *httptest.ResponseRecorder {
+	t.Helper()
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodDelete, "/api/users/me", bytes.NewBufferString(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderXRequestID, "req-123")
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Response().Header().Set(echo.HeaderXRequestID, "req-123")
+	if withUserID {
+		ctx.Set("auth_user_id", uuid.New())
+	}
+	_ = NewUserController(uc).Withdraw(ctx)
+	return rec
+}
+
+func TestWithdrawControllerSuccessClearsCookiesAndReturnsOnlyMessage(t *testing.T) {
+	uc := &fakeUserUsecase{}
+	rec := runWithdrawRequest(t, `{"current_password":"password"}`, uc, true)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if uc.withdrawCalls != 1 || uc.withdrawInput.CurrentPassword != "password" || uc.withdrawUserID == uuid.Nil {
+		t.Fatalf("unexpected usecase call: calls=%d userID=%v input=%#v", uc.withdrawCalls, uc.withdrawUserID, uc.withdrawInput)
+	}
+	var response map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(response) != 1 || response["message"] == "" {
+		t.Fatalf("unexpected response: %v", response)
+	}
+	for _, value := range []string{"password", "password_hash", "access_token", "refresh_token", "token_version"} {
+		if bytes.Contains(rec.Body.Bytes(), []byte(value)) {
+			t.Fatalf("sensitive value %q leaked: %s", value, rec.Body.String())
+		}
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookies=%d want=2", len(cookies))
+	}
+	for _, cookie := range cookies {
+		if cookie.Value != "" || cookie.MaxAge >= 0 {
+			t.Fatalf("cookie not cleared: %+v", cookie)
+		}
+	}
+}
+
+func TestWithdrawControllerRejectsInvalidRequests(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		body       string
+		withUserID bool
+		status     int
+	}{
+		{name: "missing auth user", body: `{"current_password":"password"}`, status: http.StatusUnauthorized},
+		{name: "invalid json", body: `{`, withUserID: true, status: http.StatusBadRequest},
+		{name: "empty password", body: `{"current_password":""}`, withUserID: true, status: http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := &fakeUserUsecase{}
+			rec := runWithdrawRequest(t, tc.body, uc, tc.withUserID)
+			if rec.Code != tc.status {
+				t.Fatalf("status=%d want=%d body=%s", rec.Code, tc.status, rec.Body.String())
+			}
+			if uc.withdrawCalls != 0 {
+				t.Fatalf("withdraw calls=%d want=0", uc.withdrawCalls)
+			}
+			if len(rec.Result().Cookies()) != 0 {
+				t.Fatal("cookies must not be cleared")
+			}
+		})
+	}
+}
+
+func TestWithdrawControllerMapsErrorsWithoutClearingCookies(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{name: "password mismatch", err: entity.ErrCurrentPasswordMismatch, status: http.StatusUnauthorized, code: "CURRENT_PASSWORD_MISMATCH"},
+		{name: "already withdrawn", err: entity.ErrInvalidCredentials, status: http.StatusUnauthorized, code: "UNAUTHORIZED"},
+		{name: "invalid input", err: entity.ErrInvalidInput, status: http.StatusBadRequest, code: "INVALID_INPUT"},
+		{name: "internal", err: entity.ErrInternal, status: http.StatusInternalServerError, code: "INTERNAL_ERROR"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := runWithdrawRequest(t, `{"current_password":"password"}`, &fakeUserUsecase{err: tc.err}, true)
+			assertAPIError(t, rec, tc.status, tc.code)
+			if len(rec.Result().Cookies()) != 0 {
+				t.Fatal("cookies must not be cleared on failure")
+			}
+		})
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 type SignUpInput struct{ Name, Email, Password string }
 type LoginInput struct{ Email, Password string }
+type WithdrawInput struct{ CurrentPassword string }
 type AuthResult struct {
 	AccessToken           string
 	ExpiresIn             int64
@@ -26,6 +27,8 @@ type AuthResult struct {
 
 type LoginResult = AuthResult
 type SignUpResult = AuthResult
+
+type WithdrawResult struct{ Message string }
 
 type CurrentUserResult struct {
 	ID     uuid.UUID
@@ -70,6 +73,7 @@ type IUserUsecase interface {
 	Logout(ctx context.Context, refreshToken string) error
 	CurrentUser(ctx context.Context, userID uuid.UUID) (*CurrentUserResult, error)
 	ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error)
+	Withdraw(ctx context.Context, userID uuid.UUID, input WithdrawInput) (*WithdrawResult, error)
 }
 
 type userUsecase struct {
@@ -123,12 +127,15 @@ func (u *userUsecase) SignUp(ctx context.Context, input SignUpInput) (*SignUpRes
 		return nil, err
 	}
 	if err := u.authTransactionManager.CreateUserAndRefreshToken(ctx, user, refreshToken); err != nil {
-		if errors.Is(err, entity.ErrEmailAlreadyExists) {
+		switch {
+		case errors.Is(err, entity.ErrEmailAlreadyExists):
 			return nil, entity.ErrEmailAlreadyExists
+		default:
+			return nil, entity.ErrInternal
 		}
-		return nil, entity.ErrInternal
 	}
-	return (*SignUpResult)(authResult), nil
+
+	return authResult, nil
 }
 
 func (u *userUsecase) buildAuthResult(user *entity.User, now time.Time) (*AuthResult, *entity.RefreshToken, error) {
@@ -147,7 +154,7 @@ func (u *userUsecase) buildAuthResult(user *entity.User, now time.Time) (*AuthRe
 	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
 	refresh := &entity.RefreshToken{
 		ID: uuid.New(), UserID: user.ID, TokenHash: hash, FamilyID: u.tokenService.GenerateFamilyID(),
-		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now,
+		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now, UpdatedAt: now,
 	}
 	result := &AuthResult{
 		AccessToken: access, ExpiresIn: expiresIn, RefreshToken: plain,
@@ -243,7 +250,7 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 	expiresAt := now.Add(u.tokenService.RefreshTokenTTL())
 	next := &entity.RefreshToken{
 		ID: uuid.New(), UserID: user.ID, TokenHash: newHash, FamilyID: current.FamilyID,
-		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now,
+		TokenVersion: user.TokenVersion, ExpiresAt: expiresAt, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := u.refreshTokenRepository.Rotate(ctx, current.ID, next, now); err != nil {
 		if errors.Is(err, entity.ErrRefreshTokenReused) {
@@ -324,4 +331,48 @@ func (u *userUsecase) ValidateTokenVersion(ctx context.Context, userID uuid.UUID
 		return nil, entity.ErrInvalidCredentials
 	}
 	return user, nil
+}
+
+func (u *userUsecase) Withdraw(ctx context.Context, userID uuid.UUID, input WithdrawInput) (*WithdrawResult, error) {
+	if userID == uuid.Nil || input.CurrentPassword == "" {
+		return nil, entity.ErrInvalidInput
+	}
+	user, err := u.userRepository.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, entity.ErrUserNotFound) {
+			return nil, entity.ErrInvalidCredentials
+		}
+		return nil, entity.ErrInternal
+	}
+	if user.Status != entity.UserStatusActive {
+		return nil, entity.ErrInvalidCredentials
+	}
+	if err := u.tokenService.ComparePassword(user.PasswordHash, input.CurrentPassword); err != nil {
+		return nil, entity.ErrCurrentPasswordMismatch
+	}
+
+	now := u.clock.Now()
+	if err := u.authTransactionManager.WithinTransaction(
+		ctx,
+		func(tx repository.ITransaction) error {
+			if err := u.userRepository.SoftDelete(ctx, tx, userID, now); err != nil {
+				return err
+			}
+			if err := u.userRepository.IncrementTokenVersion(ctx, tx, userID, now); err != nil {
+				return err
+			}
+			if err := u.refreshTokenRepository.RevokeAllByUserID(ctx, tx, userID, now); err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+		switch {
+		case errors.Is(err, entity.ErrUserNotFound),
+			errors.Is(err, entity.ErrUserAlreadyWithdrawn):
+			return nil, entity.ErrInvalidCredentials
+		default:
+			return nil, entity.ErrInternal
+		}
+	}
+	return &WithdrawResult{Message: "退会が完了しました。"}, nil
 }

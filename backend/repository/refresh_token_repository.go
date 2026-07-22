@@ -15,6 +15,7 @@ type IRefreshTokenRepository interface {
 	FindByTokenHash(context.Context, string) (*entity.RefreshToken, error)
 	Rotate(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error
 	RevokeFamily(context.Context, uuid.UUID, time.Time) error
+	RevokeAllByUserID(context.Context, ITransaction, uuid.UUID, time.Time) error
 }
 type refreshTokenRepository struct{ db *gorm.DB }
 
@@ -85,6 +86,20 @@ func (r *refreshTokenRepository) RevokeFamily(ctx context.Context, familyID uuid
 	if err := r.db.WithContext(ctx).Model(&entity.RefreshToken{}).
 		Where("family_id = ? AND revoked_at IS NULL", familyID).
 		Update("revoked_at", now).Error; err != nil {
+		return entity.ErrInternal
+	}
+	return nil
+}
+
+func (r *refreshTokenRepository) RevokeAllByUserID(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error {
+	db, ok := transactionDB(tx)
+	if !ok || userID == uuid.Nil {
+		return entity.ErrInvalidInput
+	}
+	result := db.WithContext(ctx).Model(&entity.RefreshToken{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Updates(entity.RefreshToken{RevokedAt: &now, UpdatedAt: now})
+	if result.Error != nil {
 		return entity.ErrInternal
 	}
 	return nil

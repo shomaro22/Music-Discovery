@@ -3,15 +3,17 @@ package entity
 import "errors"
 
 var (
-	ErrInvalidInput         = errors.New("invalid input")
-	ErrInvalidUserForCreate = errors.New("invalid user for create")
-	ErrEmailAlreadyExists   = errors.New("email already exists")
-	ErrUserNotFound         = errors.New("user not found")
-	ErrInternal             = errors.New("internal error")
-	ErrInvalidCredentials   = errors.New("invalid credentials")
-	ErrUserSuspended        = errors.New("user suspended")
-	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
-	ErrRefreshTokenReused   = errors.New("refresh token reused")
+	ErrInvalidInput            = errors.New("invalid input")
+	ErrInvalidUserForCreate    = errors.New("invalid user for create")
+	ErrEmailAlreadyExists      = errors.New("email already exists")
+	ErrUserNotFound            = errors.New("user not found")
+	ErrUserAlreadyWithdrawn    = errors.New("user already withdrawn")
+	ErrInternal                = errors.New("internal error")
+	ErrInvalidCredentials      = errors.New("invalid credentials")
+	ErrUserSuspended           = errors.New("user suspended")
+	ErrInvalidRefreshToken     = errors.New("invalid refresh token")
+	ErrRefreshTokenReused      = errors.New("refresh token reused")
+	ErrCurrentPasswordMismatch = errors.New("current password mismatch")
 )
 
 type APIErrorResponse struct {

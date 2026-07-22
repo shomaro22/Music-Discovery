@@ -10,3 +10,6 @@ export interface LoginResponse { access_token: string; token_type: "Bearer"; exp
 export interface ApiError { status: number; code: string; message: string; request_id: string; }
 
 export interface RefreshResponse { access_token: string; token_type: "Bearer"; expires_in: number; }
+
+export interface WithdrawInput { current_password: string; }
+export interface WithdrawResponse { message: string; }

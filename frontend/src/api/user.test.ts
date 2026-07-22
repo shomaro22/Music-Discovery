@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { logout, signUp } from "./user";
+import { logout, signUp, withdraw } from "./user";
 import { ApiRequestError } from "./client";
 
 afterEach(() => vi.restoreAllMocks());
@@ -81,6 +81,20 @@ describe("logout", () => {
     expect(url).toBe("http://localhost:8080/api/auth/logout");
     expect(options.method).toBe("POST");
     expect(options.credentials).toBe("include");
+    expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
+  });
+});
+
+
+describe("withdraw", () => {
+  it("deletes the current user with snake_case current_password", async () => {
+    document.cookie = "csrf_token=csrf-value; path=/";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ message: "退会が完了しました。" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await expect(withdraw({ current_password: "password" })).resolves.toEqual({ message: "退会が完了しました。" });
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/api/users/me");
+    expect(options.method).toBe("DELETE");
+    expect(options.body).toBe(JSON.stringify({ current_password: "password" }));
     expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 });
