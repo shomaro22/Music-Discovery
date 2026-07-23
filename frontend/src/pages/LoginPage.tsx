@@ -10,7 +10,7 @@ type FieldErrors = Partial<Record<keyof LoginInput, string>>;
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +24,13 @@ export function LoginPage() {
   const authExpired = Boolean(locationState?.authExpired);
   const withdrawn = Boolean(locationState?.withdrawn);
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  const destinationForRole = (role: "user" | "content_admin" | "system_admin"): string => {
+    if (role === "content_admin") return "/admin/content";
+    if (role === "system_admin") return "/system/users";
+    return "/";
+  };
+
+  if (isAuthenticated && user) return <Navigate to={destinationForRole(user.role)} replace />;
 
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
@@ -43,8 +49,11 @@ export function LoginPage() {
     if (Object.keys(errors).length > 0) { setFieldErrors(errors); return; }
     setIsSubmitting(true);
     try {
-      await login({ email: email.trim().toLowerCase(), password });
-      navigate(locationState?.from?.pathname ?? "/", { replace: true });
+      const loggedInUser = await login({ email: email.trim().toLowerCase(), password });
+      navigate(
+        locationState?.from?.pathname ?? destinationForRole(loggedInUser.role),
+        { replace: true },
+      );
     } catch (error: unknown) {
       setPassword("");
       if (error instanceof ApiRequestError) {
