@@ -58,13 +58,15 @@ func start(ctx context.Context) error {
 		clock,
 	)
 	userController := controller.NewUserController(userUsecase)
+	adminUsecase := usecase.NewAdminUsecase(userRepository, authTransactionManager, clock)
+	adminController := controller.NewAdminController(adminUsecase)
 
 	rateLimitRepository := repository.NewRateLimitRepository(redisClient)
 	rateLimitUsecase := usecase.NewRateLimitUsecase(rateLimitRepository, clock)
 	rateLimit := appMiddleware.NewRateLimitMiddleware(rateLimitUsecase)
 	authMiddleware := appMiddleware.NewAuthMiddleware(tokenService, userUsecase)
 
-	e := router.NewRouter(logger, userController, rateLimit, authMiddleware)
+	e := router.NewRouter(logger, userController, adminController, rateLimit, authMiddleware)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

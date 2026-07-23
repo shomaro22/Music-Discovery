@@ -14,6 +14,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const (
+	AuthUserIDKey   = "auth_user_id"
+	AuthUserRoleKey = "auth_user_role"
+)
+
 type IAuthMiddleware interface {
 	Authenticate(echo.HandlerFunc) echo.HandlerFunc
 }
@@ -48,7 +53,7 @@ func (m *authMiddleware) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusUnauthorized)
 		}
 
-		userID, tokenVersion, err := m.tokenService.VerifyAccessToken(
+		userID, tokenRole, tokenVersion, err := m.tokenService.VerifyAccessToken(
 			strings.TrimPrefix(authorization, "Bearer "),
 			time.Now().UTC(),
 		)
@@ -72,8 +77,12 @@ func (m *authMiddleware) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 			}
 		}
 
-		c.Set("auth_user_id", user.ID)
-		c.Set("auth_user_role", user.Role)
+		if !tokenRole.IsPersistable() || !user.Role.IsPersistable() || tokenRole != user.Role {
+			return echo.NewHTTPError(http.StatusUnauthorized, entity.ErrInvalidCredentials)
+		}
+
+		c.Set(AuthUserIDKey, user.ID)
+		c.Set(AuthUserRoleKey, user.Role)
 		return next(c)
 	}
 }

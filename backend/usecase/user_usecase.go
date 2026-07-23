@@ -193,6 +193,9 @@ func (u *userUsecase) Login(ctx context.Context, input LoginInput) (*LoginResult
 	if err := u.tokenService.ComparePassword(user.PasswordHash, input.Password); err != nil {
 		return nil, entity.ErrInvalidCredentials
 	}
+	if !user.Role.IsPersistable() {
+		return nil, entity.ErrInvalidCredentials
+	}
 	if user.Status == entity.UserStatusSuspended {
 		return nil, entity.ErrUserSuspended
 	}
@@ -307,6 +310,9 @@ func (u *userUsecase) CurrentUser(ctx context.Context, userID uuid.UUID) (*Curre
 		}
 		return nil, entity.ErrInternal
 	}
+	if !user.Role.IsPersistable() {
+		return nil, entity.ErrInvalidCredentials
+	}
 	if user.Status == entity.UserStatusSuspended {
 		return nil, entity.ErrUserSuspended
 	}
@@ -323,6 +329,9 @@ func (u *userUsecase) ValidateTokenVersion(ctx context.Context, userID uuid.UUID
 	user, err := u.userRepository.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
+	}
+	if !user.Role.IsPersistable() {
+		return nil, entity.ErrInvalidCredentials
 	}
 	if user.Status == entity.UserStatusSuspended {
 		return nil, entity.ErrUserSuspended

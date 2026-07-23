@@ -72,6 +72,27 @@ describe("request authentication recovery", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the access token and auth state on 403", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: 403, code: "FORBIDDEN", message: "forbidden", request_id: "" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+    const listener = vi.fn();
+    client.setAuthStateListener(listener);
+    client.setAccessToken("token");
+
+    await expect(client.request("/api/system/users", { method: "GET" })).rejects.toMatchObject({
+      response: { status: 403, code: "FORBIDDEN" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(client.hasAccessToken()).toBe(true);
+    expect(listener).not.toHaveBeenCalledWith(null, "expired");
+  });
+
   it("initializes expired auth state once when concurrent refresh fails", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);

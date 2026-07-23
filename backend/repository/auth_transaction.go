@@ -74,3 +74,26 @@ func (m *authTransactionManager) WithinTransaction(ctx context.Context, fn func(
 		return fn(&gormTransaction{db: tx})
 	})
 }
+
+type IRoleTransactionManager interface {
+	ChangeUserRole(ctx context.Context, userID uuid.UUID, role entity.Role, now time.Time) error
+}
+
+func (m *authTransactionManager) ChangeUserRole(ctx context.Context, userID uuid.UUID, role entity.Role, now time.Time) error {
+	if userID == uuid.Nil || !role.IsPersistable() {
+		return entity.ErrInvalidInput
+	}
+	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(
+			"UPDATE users SET role = ?, token_version = token_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+			role, now, userID,
+		)
+		if result.Error != nil {
+			return entity.ErrInternal
+		}
+		if result.RowsAffected == 0 {
+			return entity.ErrUserNotFound
+		}
+		return nil
+	})
+}

@@ -3,6 +3,7 @@ import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAut
 import { getCSRFCookie } from "../api/csrf";
 import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi } from "../api/user";
 import type { AuthUser, LoginInput, SignUpInput, WithdrawInput } from "../types/user";
+import { isUserRole } from "../constants/role";
 
 interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<void>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAccessToken(refreshed.access_token);
         setClientAccessToken(refreshed.access_token);
         const currentUser = await getCurrentUser();
+        if (!isUserRole(currentUser.role)) throw new Error("invalid role");
         if (active) setUser(currentUser);
       } catch (error: unknown) {
         if (active) {
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthExpired(false);
       setAccessToken(response.access_token);
       setClientAccessToken(response.access_token);
+      if (!isUserRole(response.user.role)) throw new Error("invalid role");
       setUser(response.user);
     } catch (error: unknown) {
       clearAuth();
@@ -70,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthExpired(false);
       setAccessToken(response.access_token);
       setClientAccessToken(response.access_token);
-      setUser(await getCurrentUser());
+      const currentUser = await getCurrentUser();
+      if (!isUserRole(currentUser.role)) throw new Error("invalid role");
+      setUser(currentUser);
     } catch (error: unknown) {
       clearAuth();
       throw error;
