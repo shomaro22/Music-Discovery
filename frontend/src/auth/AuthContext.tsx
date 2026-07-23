@@ -5,7 +5,7 @@ import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refr
 import type { AuthUser, LoginInput, SignUpInput, WithdrawInput } from "../types/user";
 import { isUserRole } from "../constants/role";
 
-interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<void>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
+interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<AuthUser>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (input: LoginInput): Promise<void> => {
+  const login = async (input: LoginInput): Promise<AuthUser> => {
     setIsLoading(true);
     try {
       const response = await loginApi(input);
@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUser = await getCurrentUser();
       if (!isUserRole(currentUser.role)) throw new Error("invalid role");
       setUser(currentUser);
+      return currentUser;
     } catch (error: unknown) {
       clearAuth();
       throw error;
