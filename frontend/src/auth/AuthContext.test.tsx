@@ -74,6 +74,17 @@ describe("AuthProvider restore", () => {
     render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
   });
+
+
+  it.each(["", "guest", "owner"])("clears authentication when current-user returns invalid role %p", async (role) => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role, status: "active" });
+
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await waitFor(() => expect(screen.getByText("anonymous")).toBeInTheDocument());
+    expect(screen.queryByText("taro@example.com")).not.toBeInTheDocument();
+  });
 });
 
 
