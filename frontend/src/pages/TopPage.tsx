@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiRequestError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { Navigation } from "../components/navigation/Navigation";
+import { ROLE } from "../constants/role";
 
 export function TopPage() {
   const { user, logout } = useAuth();
@@ -26,7 +28,7 @@ export function TopPage() {
   };
 
   return (
-    <main className="top-page">
+    <><Navigation /><main className="top-page">
       <section className="top-card" aria-labelledby="top-title">
         <p className="top-kicker">Music Discovery</p>
         <h1 id="top-title">ようこそ、{user?.name}さん</h1>
@@ -44,13 +46,13 @@ export function TopPage() {
         </dl>
 
         <div className="top-actions">
-          <button
+          {user?.role === ROLE.USER && <button
             className="top-withdraw-button"
             type="button"
             onClick={() => navigate("/withdraw")}
           >
             退会手続きへ
-          </button>
+          </button>}
           <button
             className="top-logout-button"
             type="button"
@@ -61,6 +63,6 @@ export function TopPage() {
           </button>
         </div>
       </section>
-    </main>
+    </main></>
   );
 }

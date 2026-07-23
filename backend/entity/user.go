@@ -7,12 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type UserRole string
+type UserRole = Role
 
 const (
-	UserRoleUser         UserRole = "user"
-	UserRoleContentAdmin UserRole = "content_admin"
-	UserRoleSystemAdmin  UserRole = "system_admin"
+	UserRoleUser         = RoleUser
+	UserRoleContentAdmin = RoleContentAdmin
+	UserRoleSystemAdmin  = RoleSystemAdmin
 )
 
 type UserStatus string

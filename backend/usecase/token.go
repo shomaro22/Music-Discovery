@@ -27,7 +27,7 @@ type ITokenService interface {
 	GenerateCSRFToken() (string, error)
 	GenerateFamilyID() uuid.UUID
 	RefreshTokenTTL() time.Duration
-	VerifyAccessToken(token string, now time.Time) (uuid.UUID, uint64, error)
+	VerifyAccessToken(token string, now time.Time) (uuid.UUID, entity.Role, uint64, error)
 }
 
 type accessTokenClaims struct {
@@ -88,7 +88,7 @@ func (s *tokenService) ComparePassword(hash, password string) error {
 }
 
 func (s *tokenService) GenerateAccessToken(user *entity.User, now time.Time) (string, int64, error) {
-	if user == nil {
+	if user == nil || !user.Role.IsPersistable() {
 		return "", 0, entity.ErrInternal
 	}
 	exp := now.Add(s.accessTTL)
@@ -135,34 +135,35 @@ func (s *tokenService) GenerateCSRFToken() (string, error) { return secureToken(
 func (s *tokenService) GenerateFamilyID() uuid.UUID        { return uuid.New() }
 func (s *tokenService) RefreshTokenTTL() time.Duration     { return s.refreshTTL }
 
-func (s *tokenService) VerifyAccessToken(token string, now time.Time) (uuid.UUID, uint64, error) {
+func (s *tokenService) VerifyAccessToken(token string, now time.Time) (uuid.UUID, entity.Role, uint64, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return uuid.Nil, 0, entity.ErrInvalidCredentials
+		return uuid.Nil, "", 0, entity.ErrInvalidCredentials
 	}
 	mac := hmac.New(sha256.New, s.secret)
 	_, _ = mac.Write([]byte(parts[0] + "." + parts[1]))
 	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil || !hmac.Equal(signature, mac.Sum(nil)) {
-		return uuid.Nil, 0, entity.ErrInvalidCredentials
+		return uuid.Nil, "", 0, entity.ErrInvalidCredentials
 	}
 	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return uuid.Nil, 0, entity.ErrInvalidCredentials
+		return uuid.Nil, "", 0, entity.ErrInvalidCredentials
 	}
 	var payload struct {
-		Subject      string  `json:"sub"`
-		TokenVersion *uint64 `json:"tv"`
-		ExpiresAt    int64   `json:"exp"`
-		Issuer       string  `json:"iss"`
-		Audience     string  `json:"aud"`
+		Subject      string      `json:"sub"`
+		Role         entity.Role `json:"role"`
+		TokenVersion *uint64     `json:"tv"`
+		ExpiresAt    int64       `json:"exp"`
+		Issuer       string      `json:"iss"`
+		Audience     string      `json:"aud"`
 	}
-	if json.Unmarshal(payloadBytes, &payload) != nil || payload.TokenVersion == nil || payload.Issuer != s.issuer || payload.Audience != s.audience || now.Unix() >= payload.ExpiresAt {
-		return uuid.Nil, 0, entity.ErrInvalidCredentials
+	if json.Unmarshal(payloadBytes, &payload) != nil || payload.TokenVersion == nil || payload.Issuer != s.issuer || payload.Audience != s.audience || !payload.Role.IsPersistable() || now.Unix() >= payload.ExpiresAt {
+		return uuid.Nil, "", 0, entity.ErrInvalidCredentials
 	}
 	userID, err := uuid.Parse(payload.Subject)
 	if err != nil {
-		return uuid.Nil, 0, entity.ErrInvalidCredentials
+		return uuid.Nil, "", 0, entity.ErrInvalidCredentials
 	}
-	return userID, *payload.TokenVersion, nil
+	return userID, payload.Role, *payload.TokenVersion, nil
 }

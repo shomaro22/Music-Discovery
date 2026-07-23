@@ -102,8 +102,8 @@ func (s *withdrawTokenServiceStub) HashRefreshToken(string) string              
 func (s *withdrawTokenServiceStub) GenerateCSRFToken() (string, error)            { return "", nil }
 func (s *withdrawTokenServiceStub) GenerateFamilyID() uuid.UUID                   { return uuid.New() }
 func (s *withdrawTokenServiceStub) RefreshTokenTTL() time.Duration                { return time.Hour }
-func (s *withdrawTokenServiceStub) VerifyAccessToken(string, time.Time) (uuid.UUID, uint64, error) {
-	return uuid.Nil, 0, nil
+func (s *withdrawTokenServiceStub) VerifyAccessToken(string, time.Time) (uuid.UUID, entity.Role, uint64, error) {
+	return uuid.Nil, entity.RoleUser, 0, nil
 }
 
 func newWithdrawUsecaseForTest(
@@ -128,6 +128,7 @@ func activeWithdrawUser() *entity.User {
 	return &entity.User{
 		ID:           uuid.New(),
 		PasswordHash: "hashed-password",
+		Role:         entity.RoleUser,
 		Status:       entity.UserStatusActive,
 	}
 }
