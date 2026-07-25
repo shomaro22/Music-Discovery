@@ -17,6 +17,7 @@ type IRateLimitMiddleware interface {
 	Login(echo.HandlerFunc) echo.HandlerFunc
 	Refresh(echo.HandlerFunc) echo.HandlerFunc
 	Withdraw(echo.HandlerFunc) echo.HandlerFunc
+	QuestionAnswers(echo.HandlerFunc) echo.HandlerFunc
 }
 
 type rateLimitMiddleware struct{ usecase usecase.IRateLimitUsecase }
@@ -35,6 +36,9 @@ func (m *rateLimitMiddleware) Refresh(next echo.HandlerFunc) echo.HandlerFunc {
 }
 func (m *rateLimitMiddleware) Withdraw(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.apply("withdraw", next)
+}
+func (m *rateLimitMiddleware) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.apply("question_answers", next)
 }
 
 func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.HandlerFunc {

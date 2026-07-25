@@ -4,6 +4,7 @@ import { getCSRFCookie } from "../api/csrf";
 import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi } from "../api/user";
 import type { AuthUser, LoginInput, SignUpInput, WithdrawInput } from "../types/user";
 import { isUserRole } from "../constants/role";
+import { clearQuestionAnswers } from "../utils/questionAnswers";
 
 interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<AuthUser>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -91,9 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
+    const currentUserId = user?.id;
     try {
       await logoutApi();
     } finally {
+      if (currentUserId) clearQuestionAnswers(currentUserId);
       clearAuth();
     }
   };

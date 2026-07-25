@@ -26,6 +26,18 @@ func (s *routerUserControllerStub) Logout(c echo.Context) error      { return s.
 func (s *routerUserControllerStub) CurrentUser(c echo.Context) error { return s.hit("current", c) }
 func (s *routerUserControllerStub) Withdraw(c echo.Context) error    { return s.hit("withdraw", c) }
 
+type routerQuestionControllerStub struct{}
+
+func (routerQuestionControllerStub) ListQuestions(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerQuestionControllerStub) SaveAnswers(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerQuestionControllerStub) GetLatestAnswers(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+
 type routerAdminManagementControllerStub struct{ placeholder, changeRole int }
 
 func (s *routerAdminManagementControllerStub) hit(c echo.Context) error {
@@ -63,10 +75,11 @@ func (s *routerAdminManagementControllerStub) GetSystemLog(c echo.Context) error
 
 type passRateLimit struct{}
 
-func (passRateLimit) SignUp(next echo.HandlerFunc) echo.HandlerFunc   { return next }
-func (passRateLimit) Login(next echo.HandlerFunc) echo.HandlerFunc    { return next }
-func (passRateLimit) Refresh(next echo.HandlerFunc) echo.HandlerFunc  { return next }
-func (passRateLimit) Withdraw(next echo.HandlerFunc) echo.HandlerFunc { return next }
+func (passRateLimit) SignUp(next echo.HandlerFunc) echo.HandlerFunc          { return next }
+func (passRateLimit) Login(next echo.HandlerFunc) echo.HandlerFunc           { return next }
+func (passRateLimit) Refresh(next echo.HandlerFunc) echo.HandlerFunc         { return next }
+func (passRateLimit) Withdraw(next echo.HandlerFunc) echo.HandlerFunc        { return next }
+func (passRateLimit) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc { return next }
 
 type testAuthMiddleware struct{ calls int }
 
@@ -90,6 +103,7 @@ func newRoleTestRouter() (*echo.Echo, *routerUserControllerStub, *routerAdminMan
 	e := NewRouter(
 		slog.New(slog.NewTextHandler(nilWriter{}, nil)),
 		users,
+		routerQuestionControllerStub{},
 		admins,
 		admins,
 		admins,

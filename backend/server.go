@@ -33,6 +33,9 @@ func start(ctx context.Context) error {
 	if err := migrate.CreateAdminTables(postgres); err != nil {
 		return fmt.Errorf("migrate admin tables: %w", err)
 	}
+	if err := migrate.CreateQuestionTables(postgres); err != nil {
+		return fmt.Errorf("migrate question tables: %w", err)
+	}
 	if os.Getenv("SEED_DEVELOPMENT_USERS") == "true" {
 		if err := migrate.SeedDevelopmentUsers(postgres); err != nil {
 			return fmt.Errorf("seed development users: %w", err)
@@ -66,6 +69,9 @@ func start(ctx context.Context) error {
 		clock,
 	)
 	userController := controller.NewUserController(userUsecase)
+	questionRepository := repository.NewQuestionRepository(postgres)
+	questionUsecase := usecase.NewQuestionUsecase(questionRepository, userRepository, clock)
+	questionController := controller.NewQuestionController(questionUsecase)
 	adminRepository := repository.NewAdminRepository(postgres)
 	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
 	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
@@ -84,6 +90,7 @@ func start(ctx context.Context) error {
 	e := router.NewRouter(
 		logger,
 		userController,
+		questionController,
 		artistAdminController,
 		songAdminController,
 		tagAdminController,

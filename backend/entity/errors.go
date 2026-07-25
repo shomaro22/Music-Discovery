@@ -22,6 +22,16 @@ var (
 	ErrAlreadySuspended         = errors.New("user already suspended")
 	ErrLastSystemAdmin          = errors.New("last active system admin")
 	ErrReasonRequired           = errors.New("reason required")
+	ErrQuestionConfiguration    = errors.New("question configuration invalid")
+	ErrRequiredQuestionMissing  = errors.New("required question missing")
+	ErrDuplicateQuestion        = errors.New("duplicate question")
+	ErrInvalidSelectionCount    = errors.New("invalid selection count")
+	ErrDuplicateChoice          = errors.New("duplicate choice")
+	ErrQuestionNotFound         = errors.New("question not found")
+	ErrChoiceNotFound           = errors.New("choice not found")
+	ErrQuestionChoiceMismatch   = errors.New("question choice mismatch")
+	ErrAnswerSaveFailed         = errors.New("answer save failed")
+	ErrProfileCreateFailed      = errors.New("profile create failed")
 )
 
 type APIErrorResponse struct {
