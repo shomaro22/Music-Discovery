@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"music-discovery/backend/entity"
@@ -48,7 +47,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity
 	return &user, nil
 }
 func (r *userRepository) Create(ctx context.Context, user *entity.User) (*entity.User, error) {
-	if err := validateUserForCreate(user); err != nil {
+	if err := assertUserForCreate(user); err != nil {
 		return nil, err
 	}
 	result := r.db.WithContext(ctx).Create(user)
@@ -115,14 +114,10 @@ func (r *userRepository) IncrementTokenVersion(ctx context.Context, tx ITransact
 	}
 	return nil
 }
-func validateUserForCreate(user *entity.User) error {
+func assertUserForCreate(user *entity.User) error {
+	// This is a defensive repository precondition, not request validation.
+	// Format, required-field and business validation belong to Validator/Usecase.
 	if user == nil {
-		return entity.ErrInvalidUserForCreate
-	}
-	if strings.TrimSpace(user.Email) == "" || strings.TrimSpace(user.PasswordHash) == "" {
-		return entity.ErrInvalidUserForCreate
-	}
-	if user.Role == "" || user.Status == "" {
 		return entity.ErrInvalidUserForCreate
 	}
 	return nil
