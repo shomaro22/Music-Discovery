@@ -115,8 +115,7 @@ func (r *userRepository) IncrementTokenVersion(ctx context.Context, tx ITransact
 	return nil
 }
 func assertUserForCreate(user *entity.User) error {
-	// This is a defensive repository precondition, not request validation.
-	// Format, required-field and business validation belong to Validator/Usecase.
+	// 形式、必須項目、およびビジネスロジックに関するバリデーションは、ValidatorやUsecaseの責務です。
 	if user == nil {
 		return entity.ErrInvalidUserForCreate
 	}

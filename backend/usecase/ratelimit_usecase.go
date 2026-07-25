@@ -77,6 +77,8 @@ func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 		return []rateLimitPolicy{{name: "refresh_ip", key: fmt.Sprintf("rate_limit:refresh:ip:%s", ip), capacity: 30, rate: 30.0 / 300.0}}, nil
 	case "withdraw":
 		return []rateLimitPolicy{{name: "withdraw_ip", key: fmt.Sprintf("rate_limit:withdraw:ip:%s", ip), capacity: 5, rate: 5.0 / 600.0}}, nil
+	case "question_answers":
+		return []rateLimitPolicy{{name: "question_answers_ip", key: fmt.Sprintf("rate_limit:question_answers:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}, nil
 	default:
 		return nil, fmt.Errorf("unknown rate limit scope: %s", input.Scope)
 	}
