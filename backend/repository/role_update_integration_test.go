@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
-
-	"gorm.io/gorm"
 )
 
 func TestChangeUserRoleUpdatesRoleVersionAndTimestamp(t *testing.T) {
@@ -20,7 +18,7 @@ func TestChangeUserRoleUpdatesRoleVersionAndTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 7, 23, 4, 0, 0, 0, time.UTC)
-	manager := NewAuthTransactionManager(db).(IRoleTransactionManager)
+	manager := NewAuthTransactionManager(db)
 	if err := manager.ChangeUserRole(context.Background(), user.ID, entity.RoleContentAdmin, now); err != nil {
 		t.Fatal(err)
 	}
@@ -43,16 +41,34 @@ func TestChangeUserRoleRollsBackOnTransactionFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	originalUpdatedAt := user.UpdatedAt
-	err := db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Exec("UPDATE users SET role = ?, token_version = token_version + 1, updated_at = ? WHERE id = ?", entity.RoleContentAdmin, time.Now().UTC(), user.ID)
-		if result.Error != nil {
-			return result.Error
-		}
-		return entity.ErrInternal
-	})
-	if err == nil {
-		t.Fatal("expected rollback error")
+
+	if err := db.Exec(`
+		CREATE OR REPLACE FUNCTION fail_role_update() RETURNS trigger AS $$
+		BEGIN
+			RAISE EXCEPTION 'forced role update failure';
+		END;
+		$$ LANGUAGE plpgsql;
+	`).Error; err != nil {
+		t.Fatal(err)
 	}
+	if err := db.Exec(`
+		CREATE TRIGGER users_fail_role_update
+		AFTER UPDATE OF role ON users
+		FOR EACH ROW EXECUTE FUNCTION fail_role_update();
+	`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = db.Exec("DROP TRIGGER IF EXISTS users_fail_role_update ON users").Error
+		_ = db.Exec("DROP FUNCTION IF EXISTS fail_role_update()").Error
+	})
+
+	manager := NewAuthTransactionManager(db)
+	err := manager.ChangeUserRole(context.Background(), user.ID, entity.RoleContentAdmin, time.Now().UTC())
+	if err == nil {
+		t.Fatal("expected role update failure")
+	}
+
 	var stored entity.User
 	if err := db.First(&stored, "id = ?", user.ID).Error; err != nil {
 		t.Fatal(err)

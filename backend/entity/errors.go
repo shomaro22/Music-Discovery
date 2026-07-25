@@ -16,6 +16,12 @@ var (
 	ErrCurrentPasswordMismatch  = errors.New("current password mismatch")
 	ErrInvalidRoleConfiguration = errors.New("invalid role configuration")
 	ErrForbidden                = errors.New("forbidden")
+	ErrNotFound                 = errors.New("not found")
+	ErrConflict                 = errors.New("conflict")
+	ErrAlreadyActive            = errors.New("user already active")
+	ErrAlreadySuspended         = errors.New("user already suspended")
+	ErrLastSystemAdmin          = errors.New("last active system admin")
+	ErrReasonRequired           = errors.New("reason required")
 )
 
 type APIErrorResponse struct {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 
 	"github.com/google/uuid"
@@ -114,7 +115,8 @@ func (c *userController) Login(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
 	}
-	result, err := c.userUsecase.Login(ctx.Request().Context(), usecase.LoginInput{Email: request.Email, Password: request.Password})
+	result, err := c.userUsecase.Login(ctx.Request().Context(),
+		usecase.LoginInput{Email: request.Email, Password: request.Password})
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrInvalidCredentials):
@@ -149,6 +151,9 @@ func (c *userController) Refresh(ctx echo.Context) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrRefreshTokenReused):
+			ctx.Set(middleware.SystemLogEventKey, "refresh_token_reuse_detected")
+			ctx.Set(middleware.SystemLogErrorCodeKey, "REFRESH_TOKEN_REUSED")
+			ctx.Set(middleware.SystemLogMessageKey, "refresh token reuse detected")
 			clearAuthCookies(ctx)
 			return writeAPIError(ctx, http.StatusUnauthorized, "REFRESH_TOKEN_REUSED", "Refresh Tokenの再利用を検知しました")
 		case errors.Is(err, entity.ErrInvalidRefreshToken):
@@ -231,11 +236,15 @@ func cookieName(envName, fallback string) string {
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
-	return ctx.JSON(status, entity.APIErrorResponse{Status: status, Code: code, Message: message, RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID)})
+	return ctx.JSON(status, entity.APIErrorResponse{
+		Status:    status,
+		Code:      code,
+		Message:   message,
+		RequestID: ctx.Response().Header().Get(echo.HeaderXRequestID)})
 }
 
 func (c *userController) CurrentUser(ctx echo.Context) error {
-	userID, ok := ctx.Get("auth_user_id").(uuid.UUID)
+	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
 	if !ok || userID == uuid.Nil {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
@@ -252,11 +261,16 @@ func (c *userController) CurrentUser(ctx echo.Context) error {
 		}
 	}
 
-	return ctx.JSON(http.StatusOK, LoginUserResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status})
+	return ctx.JSON(http.StatusOK, LoginUserResponse{
+		ID:     user.ID,
+		Name:   user.Name,
+		Email:  user.Email,
+		Role:   user.Role,
+		Status: user.Status})
 }
 
 func (c *userController) Withdraw(ctx echo.Context) error {
-	userID, ok := ctx.Get("auth_user_id").(uuid.UUID)
+	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
 	if !ok || userID == uuid.Nil {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}

@@ -22,6 +22,9 @@ func CreateUsers(db *gorm.DB) error {
 			deleted_at TIMESTAMPTZ NULL
 		)`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ NULL`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason VARCHAR(500) NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_by UUID NULL`,
 		`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
 		`CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at)`,
 	}

@@ -32,6 +32,8 @@ services:
       target: backend-runtime
     env_file:
       - backend/.env
+    environment:
+      SEED_DEVELOPMENT_USERS: "true"
     ports:
       - "8080:8080"
     depends_on:

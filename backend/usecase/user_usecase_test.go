@@ -562,7 +562,7 @@ func TestCurrentUserRejectsInvalidOrUnavailableUser(t *testing.T) {
 	}{
 		{name: "nil user id", userID: uuid.Nil, repo: &fakeUserRepository{}, wantErr: entity.ErrInvalidCredentials},
 		{name: "not found", userID: uuid.New(), repo: &fakeUserRepository{findErr: entity.ErrUserNotFound}, wantErr: entity.ErrInvalidCredentials},
-		{name: "suspended", userID: uuid.New(), repo: &fakeUserRepository{findUser: &entity.User{Status: entity.UserStatusSuspended}}, wantErr: entity.ErrUserSuspended},
+		{name: "suspended", userID: uuid.New(), repo: &fakeUserRepository{findUser: &entity.User{Role: entity.RoleUser, Status: entity.UserStatusSuspended}}, wantErr: entity.ErrUserSuspended},
 		{name: "repository error", userID: uuid.New(), repo: &fakeUserRepository{findErr: errors.New("db error")}, wantErr: entity.ErrInternal},
 	}
 

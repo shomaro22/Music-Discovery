@@ -19,11 +19,16 @@ type IAuthTransactionManager interface {
 	RevokeFamilyAndIncrementTokenVersion(ctx context.Context, familyID, userID uuid.UUID, now time.Time) error
 }
 
+type IApplicationTransactionManager interface {
+	IAuthTransactionManager
+	IRoleTransactionManager
+}
+
 type authTransactionManager struct{ db *gorm.DB }
 
-var _ IAuthTransactionManager = (*authTransactionManager)(nil)
+var _ IApplicationTransactionManager = (*authTransactionManager)(nil)
 
-func NewAuthTransactionManager(db *gorm.DB) IAuthTransactionManager {
+func NewAuthTransactionManager(db *gorm.DB) IApplicationTransactionManager {
 	return &authTransactionManager{db: db}
 }
 
@@ -93,6 +98,9 @@ func (m *authTransactionManager) ChangeUserRole(ctx context.Context, userID uuid
 		}
 		if result.RowsAffected == 0 {
 			return entity.ErrUserNotFound
+		}
+		if err := tx.Model(&entity.RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", userID).Update("revoked_at", now).Error; err != nil {
+			return entity.ErrInternal
 		}
 		return nil
 	})

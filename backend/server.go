@@ -30,6 +30,14 @@ func start(ctx context.Context) error {
 	if err := migrate.CreateRefreshTokens(postgres); err != nil {
 		return fmt.Errorf("migrate refresh tokens: %w", err)
 	}
+	if err := migrate.CreateAdminTables(postgres); err != nil {
+		return fmt.Errorf("migrate admin tables: %w", err)
+	}
+	if os.Getenv("SEED_DEVELOPMENT_USERS") == "true" {
+		if err := migrate.SeedDevelopmentUsers(postgres); err != nil {
+			return fmt.Errorf("seed development users: %w", err)
+		}
+	}
 
 	redisClient, err := db.NewRedis(ctx)
 	if err != nil {
@@ -58,15 +66,34 @@ func start(ctx context.Context) error {
 		clock,
 	)
 	userController := controller.NewUserController(userUsecase)
-	adminUsecase := usecase.NewAdminUsecase(userRepository, authTransactionManager, clock)
-	adminController := controller.NewAdminController(adminUsecase)
+	adminRepository := repository.NewAdminRepository(postgres)
+	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
+	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
+	artistAdminController := controller.NewArtistAdminController(adminManagementUsecase)
+	songAdminController := controller.NewSongAdminController(adminManagementUsecase)
+	tagAdminController := controller.NewTagAdminController(adminManagementUsecase)
+	userAdminController := controller.NewUserAdminController(adminManagementUsecase)
+	roleAdminController := controller.NewRoleAdminController(adminManagementUsecase)
+	logAdminController := controller.NewLogAdminController(adminManagementUsecase)
 
 	rateLimitRepository := repository.NewRateLimitRepository(redisClient)
 	rateLimitUsecase := usecase.NewRateLimitUsecase(rateLimitRepository, clock)
 	rateLimit := appMiddleware.NewRateLimitMiddleware(rateLimitUsecase)
 	authMiddleware := appMiddleware.NewAuthMiddleware(tokenService, userUsecase)
 
-	e := router.NewRouter(logger, userController, adminController, rateLimit, authMiddleware)
+	e := router.NewRouter(
+		logger,
+		userController,
+		artistAdminController,
+		songAdminController,
+		tagAdminController,
+		userAdminController,
+		roleAdminController,
+		logAdminController,
+		rateLimit,
+		authMiddleware,
+	)
+	e.Use(appMiddleware.NewSystemLogMiddleware(systemLogUsecase))
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

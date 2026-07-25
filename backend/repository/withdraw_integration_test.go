@@ -40,7 +40,7 @@ func TestWithdrawTransactionUsesOneTimestampAndDoesNotAffectOtherUser(t *testing
 
 	userRepo := NewUserRepository(db)
 	refreshRepo := NewRefreshTokenRepository(db)
-	txManager := NewAuthTransactionManager(db).(ITransactionManager)
+	txManager := NewAuthTransactionManager(db)
 	now := time.Date(2026, 7, 22, 12, 34, 56, 123000000, time.UTC)
 	err := txManager.WithinTransaction(context.Background(), func(tx ITransaction) error {
 		if err := userRepo.SoftDelete(context.Background(), tx, target.ID, now); err != nil {

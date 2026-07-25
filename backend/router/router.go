@@ -22,7 +22,12 @@ const withdrawBodyLimit = "8K"
 func NewRouter(
 	logger *slog.Logger,
 	userController controller.IUserController,
-	adminController controller.IAdminController,
+	artistAdminController controller.IArtistAdminController,
+	songAdminController controller.ISongAdminController,
+	tagAdminController controller.ITagAdminController,
+	userAdminController controller.IUserAdminController,
+	roleAdminController controller.IRoleAdminController,
+	logAdminController controller.ILogAdminController,
 	rateLimit appMiddleware.IRateLimitMiddleware,
 	authMiddleware appMiddleware.IAuthMiddleware,
 ) *echo.Echo {
@@ -41,22 +46,24 @@ func NewRouter(
 	userOnly := mustRoleMiddleware(logger, entity.RoleUser)
 	contentAdminOnly := mustRoleMiddleware(logger, entity.RoleContentAdmin)
 	systemAdminOnly := mustRoleMiddleware(logger, entity.RoleSystemAdmin)
+	csrf := appMiddleware.NewCSRFMiddleware(os.Getenv("CSRF_COOKIE_NAME"))
+	requireJSON := appMiddleware.NewRequireJSONMiddleware()
 
 	publicAuth := e.Group("/api/auth")
-	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, appMiddleware.RequireJSON)
-	publicAuth.POST("/login", userController.Login, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, appMiddleware.RequireJSON)
-	publicAuth.POST("/refresh", userController.Refresh, echoMiddleware.BodyLimit(refreshBodyLimit), rateLimit.Refresh, appMiddleware.CSRF)
+	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, requireJSON)
+	publicAuth.POST("/login", userController.Login, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
+	publicAuth.POST("/refresh", userController.Refresh, echoMiddleware.BodyLimit(refreshBodyLimit), rateLimit.Refresh, csrf)
 
 	authenticated := e.Group("/api", authMiddleware.Authenticate)
 	authenticated.GET("/users/me", userController.CurrentUser, allAuthenticated.Authorize)
-	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), appMiddleware.CSRF, allAuthenticated.Authorize)
-	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, appMiddleware.CSRF, appMiddleware.RequireJSON, userOnly.Authorize)
+	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
+	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 
 	content := e.Group("/api/admin", authMiddleware.Authenticate, contentAdminOnly.Authorize)
-	registerContentAdminRoutes(content, adminController)
+	registerContentAdminRoutes(content, artistAdminController, songAdminController, tagAdminController)
 
 	system := e.Group("/api/system", authMiddleware.Authenticate, systemAdminOnly.Authorize)
-	registerSystemAdminRoutes(system, adminController)
+	registerSystemAdminRoutes(system, userAdminController, roleAdminController, logAdminController)
 
 	return e
 }
@@ -69,29 +76,48 @@ func mustRoleMiddleware(logger *slog.Logger, roles ...entity.Role) appMiddleware
 	return middleware
 }
 
-func registerContentAdminRoutes(group *echo.Group, adminController controller.IAdminController) {
-	resources := []struct {
-		path    string
-		paramID string
-	}{
-		{path: "artists", paramID: "artistId"},
-		{path: "songs", paramID: "songId"},
-		{path: "tags", paramID: "tagId"},
-	}
-	for _, resource := range resources {
-		group.GET("/"+resource.path, adminController.ProtectedPlaceholder)
-		group.POST("/"+resource.path, adminController.ProtectedPlaceholder)
-		group.PATCH("/"+resource.path+"/:"+resource.paramID, adminController.ProtectedPlaceholder)
-		group.DELETE("/"+resource.path+"/:"+resource.paramID, adminController.ProtectedPlaceholder)
-	}
+func registerContentAdminRoutes(
+	group *echo.Group,
+	artistController controller.IArtistAdminController,
+	songController controller.ISongAdminController,
+	tagController controller.ITagAdminController,
+) {
+	group.GET("/artists", artistController.ListArtists)
+	group.GET("/artists/:artistId", artistController.GetArtist)
+	group.POST("/artists", artistController.CreateArtist, appMiddleware.RequireJSON)
+	group.PATCH("/artists/:artistId", artistController.UpdateArtist, appMiddleware.RequireJSON)
+	group.DELETE("/artists/:artistId", artistController.DeleteArtist)
+
+	group.GET("/songs", songController.ListSongs)
+	group.GET("/songs/:songId", songController.GetSong)
+	group.POST("/songs", songController.CreateSong, appMiddleware.RequireJSON)
+	group.PATCH("/songs/:songId", songController.UpdateSong, appMiddleware.RequireJSON)
+	group.DELETE("/songs/:songId", songController.DeleteSong)
+
+	group.GET("/tags", tagController.ListTags)
+	group.GET("/tags/options", tagController.ListTagOptions)
+	group.GET("/tags/:tagId", tagController.GetTag)
+	group.POST("/tags", tagController.CreateTag, appMiddleware.RequireJSON)
+	group.PATCH("/tags/:tagId", tagController.UpdateTag, appMiddleware.RequireJSON)
+	group.DELETE("/tags/:tagId", tagController.DeleteTag)
 }
 
-func registerSystemAdminRoutes(group *echo.Group, adminController controller.IAdminController) {
-	group.GET("/users", adminController.ProtectedPlaceholder)
-	group.PATCH("/users/:userId/status", adminController.ProtectedPlaceholder)
-	group.PATCH("/users/:userId/role", adminController.ChangeRole, appMiddleware.RequireJSON)
-	group.GET("/audit-logs", adminController.ProtectedPlaceholder)
-	group.GET("/logs", adminController.ProtectedPlaceholder)
+func registerSystemAdminRoutes(
+	group *echo.Group,
+	userController controller.IUserAdminController,
+	roleController controller.IRoleAdminController,
+	logController controller.ILogAdminController,
+) {
+	group.GET("/users", userController.ListUsers)
+	group.GET("/users/:userId", userController.GetUser)
+	group.PATCH("/users/:userId/status", userController.SetUserStatus, appMiddleware.RequireJSON)
+
+	group.GET("/roles", roleController.ListRoles)
+	group.PATCH("/users/:userId/role", roleController.ChangeRole, appMiddleware.RequireJSON)
+	group.GET("/audit-logs", logController.ListAuditLogs)
+	group.GET("/audit-logs/:auditLogId", logController.GetAuditLog)
+	group.GET("/logs", logController.ListSystemLogs)
+	group.GET("/logs/:logId", logController.GetSystemLog)
 }
 
 func loadAllowedOrigins() []string {
