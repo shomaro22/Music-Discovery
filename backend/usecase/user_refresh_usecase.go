@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/google/uuid"
 	"music-discovery/backend/entity"
+
+	"github.com/google/uuid"
 )
 
 func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshResult, error) {
@@ -20,8 +21,7 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 		}
 		return nil, entity.ErrInternal
 	}
-	// Fast pre-check avoids unnecessary rotation work for an already consumed token.
-	// Rotate performs the authoritative row-locked check to close concurrent reuse races.
+
 	if current.IsRevoked() || current.IsUsed() {
 		if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
 			return nil, entity.ErrInternal
