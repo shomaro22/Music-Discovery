@@ -46,7 +46,7 @@ export function TopPage() {
         </dl>
 
         <div className="top-actions">
-          {user?.role === ROLE.USER && <button className="top-primary-button" type="button" onClick={() => navigate("/questions")}>質問に答えて音楽を探す</button>}
+          {user && <button className="top-primary-button" type="button" onClick={() => navigate("/questions")}>質問に答えて音楽を探す</button>}
           {user?.role === ROLE.USER && <button
             className="top-withdraw-button"
             type="button"

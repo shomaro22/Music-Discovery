@@ -38,25 +38,49 @@ func CreateQuestionTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&entity.Question{}, &entity.QuestionChoice{}, &entity.QuestionAnswerSession{}, &entity.UserAnswer{}, &entity.UserAnswerChoice{}, &entity.UserProfile{}, &entity.UserGenreWeight{}, &entity.UserElementWeight{}, &entity.UserAtmosphereWeight{}); err != nil {
 		return err
 	}
+	if err := migrateExistingQuestionWeights(db); err != nil {
+		return err
+	}
 	return seedQuestions(db)
+}
+
+func migrateExistingQuestionWeights(db *gorm.DB) error {
+	tables := []string{"user_genre_weights", "user_element_weights", "user_atmosphere_weights"}
+	for _, table := range tables {
+		query := fmt.Sprintf(`UPDATE %s SET question_weight = weight WHERE question_weight = 0 AND feedback_weight = 0 AND weight <> 0`, table)
+		if err := db.Exec(query).Error; err != nil {
+			return fmt.Errorf("migrate existing question weight for %s: %w", table, err)
+		}
+	}
+	return nil
 }
 
 func seedQuestions(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
+		activeQuestionCodes := make([]string, 0, len(questionSeeds))
 		for _, seed := range questionSeeds {
+			activeQuestionCodes = append(activeQuestionCodes, seed.Code)
 			question := entity.Question{Code: seed.Code, Title: seed.Title, AnswerType: seed.AnswerType, MinSelections: seed.MinSelections, MaxSelections: seed.MaxSelections, SortOrder: seed.SortOrder, IsActive: true}
-			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"title", "answer_type", "min_selections", "max_selections", "sort_order", "is_active", "updated_at"})}).Create(&question).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"title", "answer_type", "min_selections", "max_selections", "sort_order", "updated_at"})}).Create(&question).Error; err != nil {
 				return fmt.Errorf("seed question %s: %w", seed.Code, err)
 			}
 			if err := tx.Where("code = ?", seed.Code).First(&question).Error; err != nil {
 				return err
 			}
+			activeCodes := make([]string, 0, len(seed.Choices))
 			for _, item := range seed.Choices {
+				activeCodes = append(activeCodes, item.Code)
 				choice := entity.QuestionChoice{QuestionID: question.ID, Code: item.Code, Label: item.Label, SortOrder: item.SortOrder, IsActive: true}
-				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"question_id", "label", "sort_order", "is_active", "updated_at"})}).Create(&choice).Error; err != nil {
+				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoUpdates: clause.AssignmentColumns([]string{"question_id", "label", "sort_order", "updated_at"})}).Create(&choice).Error; err != nil {
 					return fmt.Errorf("seed choice %s: %w", item.Code, err)
 				}
 			}
+			if err := tx.Model(&entity.QuestionChoice{}).Where("question_id = ? AND code NOT IN ?", question.ID, activeCodes).Update("is_active", false).Error; err != nil {
+				return fmt.Errorf("deactivate removed choices for %s: %w", seed.Code, err)
+			}
+		}
+		if err := tx.Model(&entity.Question{}).Where("code NOT IN ?", activeQuestionCodes).Update("is_active", false).Error; err != nil {
+			return fmt.Errorf("deactivate removed questions: %w", err)
 		}
 		return nil
 	})

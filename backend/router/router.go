@@ -58,9 +58,9 @@ func NewRouter(
 
 	authenticated := e.Group("/api", authMiddleware.Authenticate)
 	authenticated.GET("/users/me", userController.CurrentUser, allAuthenticated.Authorize)
-	authenticated.GET("/questions", questionController.ListQuestions, userOnly.Authorize)
-	authenticated.GET("/user-answers/latest", questionController.GetLatestAnswers, userOnly.Authorize)
-	authenticated.POST("/user-answers", questionController.SaveAnswers, echoMiddleware.BodyLimit(questionAnswersBodyLimit), rateLimit.QuestionAnswers, requireJSON, userOnly.Authorize)
+	authenticated.GET("/questions", questionController.ListQuestions, allAuthenticated.Authorize)
+	authenticated.GET("/user-answers/latest", questionController.GetLatestAnswers, allAuthenticated.Authorize)
+	authenticated.POST("/user-answers", questionController.SaveAnswers, echoMiddleware.BodyLimit(questionAnswersBodyLimit), rateLimit.QuestionAnswers, requireJSON, allAuthenticated.Authorize)
 	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 
