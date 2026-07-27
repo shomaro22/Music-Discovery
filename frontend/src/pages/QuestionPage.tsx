@@ -8,7 +8,7 @@ import { QuestionProgress } from "../components/question/QuestionProgress";
 import type { Question, QuestionAnswers } from "../types/question";
 import { isQuestionAnswerValid, loadQuestionAnswers, saveQuestionAnswersToSession } from "../utils/questionAnswers";
 
-interface QuestionLocationState { editQuestionId?: string; loadLatest?: boolean; }
+interface QuestionLocationState { editQuestionId?: string; loadLatest?: boolean; returnToConfirm?: boolean; }
 
 export function QuestionPage() {
   const { user } = useAuth();
@@ -55,6 +55,6 @@ export function QuestionPage() {
     <p className="question-code">Q{currentIndex + 1}</p><h1>{question.title}</h1>
     <p className="question-rule">{question.answer_type === "single" ? "1つ選択してください" : question.max_selections === null ? `${question.min_selections}つ以上選択してください` : `${question.min_selections}〜${question.max_selections}つ選択してください`}</p>
     <ChoiceList question={question} selectedIds={selectedIds} onChange={(ids) => setAnswers((current) => ({ ...current, [question.id]: ids }))} />
-    <div className="question-actions"><button type="button" disabled={currentIndex === 0} onClick={() => setCurrentIndex((value) => value - 1)}>戻る</button><button type="button" className="primary" disabled={!isValid} onClick={() => isLast ? navigate("/questions/confirm", { state: { questions, answers } }) : setCurrentIndex((value) => value + 1)}>{isLast ? "回答を確認" : "次へ"}</button></div>
+    <div className="question-actions"><button type="button" disabled={currentIndex === 0 && !state?.returnToConfirm} onClick={() => state?.returnToConfirm ? navigate("/questions/confirm", { state: { questions, answers } }) : setCurrentIndex((value) => value - 1)}>戻る</button><button type="button" className="primary" disabled={!isValid} onClick={() => state?.returnToConfirm ? navigate("/questions/confirm", { state: { questions, answers } }) : isLast ? navigate("/questions/confirm", { state: { questions, answers } }) : setCurrentIndex((value) => value + 1)}>{state?.returnToConfirm ? "確認画面へ戻る" : isLast ? "回答を確認" : "次へ"}</button></div>
   </section></main>;
 }

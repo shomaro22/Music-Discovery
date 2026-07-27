@@ -24,7 +24,7 @@ export function AnswerConfirmPage() {
   };
   return <main className="question-page"><section className="question-card confirm-card"><p className="question-code">Confirm</p><h1>回答内容の確認</h1>
     {error && <p role="alert" className="question-error">{error}</p>}
-    <div className="answer-summary">{state.questions.map((question) => <article key={question.id}><div><h2>{question.title}</h2><p>{(state.answers[question.id] ?? []).map((id) => question.choices.find((choice) => choice.id === id)?.label).filter(Boolean).join("、")}</p></div><button type="button" onClick={() => navigate("/questions", { state: { editQuestionId: question.id } })}>修正</button></article>)}</div>
+    <div className="answer-summary">{state.questions.map((question) => <article key={question.id}><div><h2>{question.title}</h2><p>{(state.answers[question.id] ?? []).map((id) => question.choices.find((choice) => choice.id === id)?.label).filter(Boolean).join("、")}</p></div><button type="button" onClick={() => navigate("/questions", { state: { editQuestionId: question.id, returnToConfirm: true } })}>修正</button></article>)}</div>
     <div className="question-actions"><button type="button" onClick={() => navigate("/questions")}>戻る</button><button type="button" className="primary" disabled={isSaving} onClick={() => void save()}>{isSaving ? "保存中..." : "この回答で保存"}</button></div>
   </section></main>;
 }

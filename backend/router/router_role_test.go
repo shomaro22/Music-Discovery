@@ -176,11 +176,38 @@ func TestRouterRoleProtectionAndMiddlewareOrder(t *testing.T) {
 
 func TestRouterDoesNotExposeLegacyAdminRoutes(t *testing.T) {
 	e, _, _, _ := newRoleTestRouter()
-	paths := []string{"/api/admin/protected", "/api/admin/users/" + uuid.NewString() + "/role"}
-	for _, path := range paths {
-		rec := performRoleRequest(e, http.MethodPatch, path, entity.RoleSystemAdmin)
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("path=%s status=%d want=%d", path, rec.Code, http.StatusNotFound)
+	legacyRoutes := map[string]struct{}{
+		http.MethodPatch + " /api/admin/protected":      {},
+		http.MethodPatch + " /api/admin/users/:id/role": {},
+	}
+
+	for _, route := range e.Routes() {
+		key := route.Method + " " + route.Path
+		if _, exists := legacyRoutes[key]; exists {
+			t.Fatalf("legacy route is exposed: %s", key)
+		}
+	}
+}
+
+func TestQuestionRoutesAllowAllAuthenticatedRoles(t *testing.T) {
+	roles := []entity.Role{entity.RoleUser, entity.RoleContentAdmin, entity.RoleSystemAdmin}
+	paths := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/questions"},
+		{http.MethodGet, "/api/user-answers/latest"},
+		{http.MethodPost, "/api/user-answers"},
+	}
+	for _, role := range roles {
+		for _, route := range paths {
+			t.Run(string(role)+"_"+route.method+"_"+route.path, func(t *testing.T) {
+				e, _, _, _ := newRoleTestRouter()
+				rec := performRoleRequest(e, route.method, route.path, role)
+				if rec.Code != http.StatusNoContent {
+					t.Fatalf("role=%s method=%s path=%s status=%d body=%s", role, route.method, route.path, rec.Code, rec.Body.String())
+				}
+			})
 		}
 	}
 }
