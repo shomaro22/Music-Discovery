@@ -89,16 +89,16 @@ func (r *userProfileRepository) ResetQuestionWeights(ctx context.Context, tx ITr
 }
 
 func (r *userProfileRepository) UpsertGenreWeights(ctx context.Context, tx ITransaction, values []entity.UserGenreWeight) error {
-	return upsertQuestionWeights(ctx, tx, values)
+	return upsertQuestionWeights(ctx, tx, "user_genre_weights", values)
 }
 func (r *userProfileRepository) UpsertElementWeights(ctx context.Context, tx ITransaction, values []entity.UserElementWeight) error {
-	return upsertQuestionWeights(ctx, tx, values)
+	return upsertQuestionWeights(ctx, tx, "user_element_weights", values)
 }
 func (r *userProfileRepository) UpsertAtmosphereWeights(ctx context.Context, tx ITransaction, values []entity.UserAtmosphereWeight) error {
-	return upsertQuestionWeights(ctx, tx, values)
+	return upsertQuestionWeights(ctx, tx, "user_atmosphere_weights", values)
 }
 
-func upsertQuestionWeights[T entity.UserGenreWeight | entity.UserElementWeight | entity.UserAtmosphereWeight](ctx context.Context, tx ITransaction, values []T) error {
+func upsertQuestionWeights[T entity.UserGenreWeight | entity.UserElementWeight | entity.UserAtmosphereWeight](ctx context.Context, tx ITransaction, tableName string, values []T) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -110,7 +110,7 @@ func upsertQuestionWeights[T entity.UserGenreWeight | entity.UserElementWeight |
 		Columns: []clause.Column{{Name: "profile_id"}, {Name: "choice_id"}},
 		DoUpdates: clause.Set{
 			{Column: clause.Column{Name: "question_weight"}, Value: gorm.Expr("excluded.question_weight")},
-			{Column: clause.Column{Name: "weight"}, Value: gorm.Expr("feedback_weight + excluded.question_weight")},
+			{Column: clause.Column{Name: "weight"}, Value: gorm.Expr(tableName + ".feedback_weight + excluded.question_weight")},
 			{Column: clause.Column{Name: "updated_at"}, Value: gorm.Expr("excluded.updated_at")},
 		},
 	}

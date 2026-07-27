@@ -9,7 +9,7 @@ import (
 type QuestionAnswerSession struct {
 	ID         uuid.UUID    `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	UserID     uuid.UUID    `json:"user_id" gorm:"type:uuid;not null;index"`
-	User       User         `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
+	User       User         `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
 	AnsweredAt time.Time    `json:"answered_at" gorm:"not null;index"`
 	Answers    []UserAnswer `json:"answers,omitempty" gorm:"foreignKey:AnswerSessionID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 	CreatedAt  time.Time    `json:"created_at"`
