@@ -34,7 +34,9 @@ func (r *userProfileRepository) FindByUserID(ctx context.Context, tx ITransactio
 		return nil, entity.ErrInvalidInput
 	}
 	var profile entity.UserProfile
-	err := db.WithContext(ctx).Where("user_id = ?", userID).First(&profile).Error
+	err := db.WithContext(ctx).Where("user_id = ?", userID).
+		Preload("GenreWeights").Preload("ElementWeights").Preload("AtmosphereWeights").
+		First(&profile).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, entity.ErrNotFound
 	}

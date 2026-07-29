@@ -40,3 +40,15 @@ type APIErrorResponse struct {
 	Message   string `json:"message"`
 	RequestID string `json:"request_id"`
 }
+
+var (
+	ErrQuestionAnswerRequired           = errors.New("question answer required")
+	ErrUserProfileRequired              = errors.New("user profile required")
+	ErrInvalidRecommendationID          = errors.New("invalid recommendation id")
+	ErrRecommendationAccessDenied       = errors.New("recommendation access denied")
+	ErrRecommendationNotFound           = errors.New("recommendation not found")
+	ErrRecommendationAlreadyGenerated   = errors.New("recommendation already generated")
+	ErrRecommendationCandidatesNotFound = errors.New("recommendation candidates not found")
+	ErrRecommendationGenerateFailed     = errors.New("recommendation generate failed")
+	ErrRecommendationSaveFailed         = errors.New("recommendation save failed")
+)

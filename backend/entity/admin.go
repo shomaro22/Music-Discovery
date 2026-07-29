@@ -23,6 +23,7 @@ type Artist struct {
 type Song struct {
 	ID             uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	ArtistID       uuid.UUID      `json:"artist_id" gorm:"type:uuid;not null;index"`
+	Artist         Artist         `json:"artist,omitempty" gorm:"foreignKey:ArtistID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
 	SpotifyTrackID string         `json:"spotify_track_id" gorm:"size:64;not null;uniqueIndex"`
 	Name           string         `json:"name" gorm:"size:200;not null;index"`
 	AlbumName      string         `json:"album_name" gorm:"size:200;not null"`

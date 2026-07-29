@@ -18,7 +18,7 @@ export function AnswerConfirmPage() {
     setIsSaving(true); setError("");
     try {
       await saveQuestionAnswers(state.questions.map((question) => ({ question_id: question.id, choice_ids: state.answers[question.id] ?? [] })));
-      clearQuestionAnswers(user.id); navigate("/recommendations", { replace: true });
+      clearQuestionAnswers(user.id); navigate("/recommendations", { replace: true, state: { generate: true } });
     } catch (caught: unknown) { setError(caught instanceof ApiRequestError ? caught.message : "回答を保存できませんでした"); }
     finally { setIsSaving(false); }
   };

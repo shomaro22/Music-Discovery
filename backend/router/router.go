@@ -24,6 +24,7 @@ func NewRouter(
 	logger *slog.Logger,
 	userController controller.IUserController,
 	questionController controller.IQuestionController,
+	recommendationController controller.IRecommendationController,
 	artistAdminController controller.IArtistAdminController,
 	songAdminController controller.ISongAdminController,
 	tagAdminController controller.ITagAdminController,
@@ -61,6 +62,9 @@ func NewRouter(
 	authenticated.GET("/questions", questionController.ListQuestions, allAuthenticated.Authorize)
 	authenticated.GET("/user-answers/latest", questionController.GetLatestAnswers, allAuthenticated.Authorize)
 	authenticated.POST("/user-answers", questionController.SaveAnswers, echoMiddleware.BodyLimit(questionAnswersBodyLimit), rateLimit.QuestionAnswers, requireJSON, allAuthenticated.Authorize)
+	authenticated.POST("/recommendations", recommendationController.Generate, rateLimit.Recommendations, allAuthenticated.Authorize)
+	authenticated.GET("/recommendations/latest", recommendationController.GetLatest, allAuthenticated.Authorize)
+	authenticated.GET("/recommendations/:recommendationId", recommendationController.GetByID, allAuthenticated.Authorize)
 	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 
