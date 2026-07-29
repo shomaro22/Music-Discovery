@@ -13,6 +13,7 @@ import (
 	"music-discovery/backend/migrate"
 	"music-discovery/backend/repository"
 	"music-discovery/backend/router"
+	"music-discovery/backend/spotify"
 	"music-discovery/backend/usecase"
 	"music-discovery/backend/validator"
 )
@@ -78,12 +79,25 @@ func start(ctx context.Context) error {
 	userProfileRepository := repository.NewUserProfileRepository(postgres)
 	questionUsecase := usecase.NewQuestionUsecase(questionRepository, questionAnswerRepository, userProfileRepository, authTransactionManager, userRepository, clock)
 	questionController := controller.NewQuestionController(questionUsecase)
+
 	recommendationRepository := repository.NewRecommendationRepository(postgres)
 	recommendationLockRepository := repository.NewRecommendationLockRepository(redisClient)
 	recommendationConfig := loadRecommendationConfig()
 	recommendationCalculator := usecase.NewRecommendationCalculator(recommendationConfig.ScoreWeights)
-	recommendationUsecase := usecase.NewRecommendationUsecase(userRepository, questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, recommendationLockRepository, authTransactionManager, recommendationCalculator, clock, recommendationConfig)
+	recommendationUsecase := usecase.NewRecommendationUsecase(
+		userRepository,
+		questionRepository,
+		questionAnswerRepository,
+		userProfileRepository,
+		recommendationRepository,
+		recommendationLockRepository,
+		authTransactionManager,
+		recommendationCalculator,
+		clock,
+		recommendationConfig,
+	)
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
+
 	adminRepository := repository.NewAdminRepository(postgres)
 	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
 	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
@@ -93,6 +107,16 @@ func start(ctx context.Context) error {
 	userAdminController := controller.NewUserAdminController(adminManagementUsecase)
 	roleAdminController := controller.NewRoleAdminController(adminManagementUsecase)
 	logAdminController := controller.NewLogAdminController(adminManagementUsecase)
+
+	spotifyClient, err := spotify.NewClient(spotify.Config{
+		ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
+		ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+	})
+	if err != nil {
+		return fmt.Errorf("spotify client: %w", err)
+	}
+	spotifyAdminUsecase := usecase.NewSpotifyAdminUsecase(spotifyClient)
+	spotifyAdminController := controller.NewSpotifyAdminController(spotifyAdminUsecase)
 
 	rateLimitRepository := repository.NewRateLimitRepository(redisClient)
 	rateLimitUsecase := usecase.NewRateLimitUsecase(rateLimitRepository, clock)
@@ -104,6 +128,7 @@ func start(ctx context.Context) error {
 		userController,
 		questionController,
 		recommendationController,
+		spotifyAdminController,
 		artistAdminController,
 		songAdminController,
 		tagAdminController,
@@ -114,7 +139,7 @@ func start(ctx context.Context) error {
 		authMiddleware,
 	)
 	e.Use(appMiddleware.NewSystemLogMiddleware(systemLogUsecase))
-	port := os.Getenv("PORT")
+	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
 	}
@@ -129,19 +154,31 @@ func envPositiveInt(name string, fallback int) int {
 	}
 	return value
 }
+
 func loadRecommendationConfig() usecase.RecommendationConfig {
 	return usecase.RecommendationConfig{
 		CandidateLimit:    envPositiveInt("RECOMMENDATION_CANDIDATE_LIMIT", 100),
 		DuplicateDays:     envPositiveInt("RECOMMENDATION_DUPLICATE_DAYS", 30),
+		RecencyDays:       envPositiveInt("RECOMMENDATION_RECENCY_DAYS", 30),
 		GenerationWindow:  envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10),
 		LockTTLSeconds:    envPositiveInt("RECOMMENDATION_LOCK_TTL_SECONDS", 120),
 		AlgorithmVersion:  "recommendation-v1",
 		MinimumMatchScore: 2,
 		ScoreWeights: usecase.RecommendationScoreWeights{
-			YourMatch:       usecase.RecommendationTypeScoreWeights{Mood: 3, Element: 1.5, Atmosphere: 1.5, Genre: 3, Artist: 1, Song: 1, Discovery: .25},
-			NewFavorite:     usecase.RecommendationTypeScoreWeights{Mood: 1.5, Element: 1, Atmosphere: 1, Genre: 2, Artist: 1, Song: 1, Discovery: 2},
-			TrySomethingNew: usecase.RecommendationTypeScoreWeights{Mood: 1, Element: 1, Atmosphere: 1, Genre: .5, Artist: .5, Song: .5, Discovery: 4},
-			ArtistRecency:   .15, SongRecency: .3,
+			YourMatch: usecase.RecommendationTypeScoreWeights{
+				Mood: 3, Element: 1.5, Atmosphere: 1.5, Genre: 3,
+				Artist: 1, Song: 1, Discovery: .25,
+			},
+			NewFavorite: usecase.RecommendationTypeScoreWeights{
+				Mood: 1.5, Element: 1, Atmosphere: 1, Genre: 2,
+				Artist: 1, Song: 1, Discovery: 2,
+			},
+			TrySomethingNew: usecase.RecommendationTypeScoreWeights{
+				Mood: 1, Element: 1, Atmosphere: 1, Genre: .5,
+				Artist: .5, Song: .5, Discovery: 4,
+			},
+			ArtistRecency: .15,
+			GenreRecency:  .3,
 		},
 	}
 }

@@ -87,6 +87,12 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
 	}
+	recency, err := u.recommendations.FindRecentDisplayCounts(ctx, userID, now.AddDate(0, 0, -u.config.RecencyDays))
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	condition.RecentArtistCounts = recency.ArtistCounts
+	condition.RecentGenreCounts = recency.GenreCounts
 	firstRecommendation := len(artistCounts) == 0 && len(songCounts) == 0
 
 	details, err := u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
@@ -107,7 +113,7 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 	kinds := []entity.RecommendationType{entity.RecommendationTypeYourMatch, entity.RecommendationTypeNewFavorite, entity.RecommendationTypeTrySomethingNew}
 	for position, kind := range kinds {
 		ranked := u.calculator.Calculate(condition, candidates, kind, artistCounts, songCounts)
-		candidate, ok := u.pickCandidate(ranked, kind, condition, artistCounts, selectedSongs, selectedArtists, first)
+		candidate, ok := u.pickCandidate(ranked, kind, condition, artistCounts, songCounts, selectedSongs, selectedArtists, first)
 		if !ok {
 			return nil, entity.ErrRecommendationCandidatesNotFound
 		}
@@ -118,7 +124,7 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 	return result, nil
 }
 
-func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, bool) {
+func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, bool) {
 	// Strict -> relaxed -> fallback. Song duplication and the Try Something New
 	// mood/element/atmosphere bridge are never relaxed.
 	for stage := 0; stage < 3; stage++ {
@@ -131,6 +137,9 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
 			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
 			if kind == entity.RecommendationTypeTrySomethingNew {
+				if selectedArtists[candidate.Data.Artist.ID] {
+					continue
+				}
 				if contact <= 0 || !matchesDiscoveryStage(candidate.Data, condition, seenArtist, stage) {
 					continue
 				}
@@ -147,19 +156,31 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 				}
 				return candidate, true
 			}
+			seenSong := songCounts[candidate.Data.Song.ID] > 0
 			switch kind {
 			case entity.RecommendationTypeYourMatch:
-				if stage == 0 && (!genreMatch || selectedArtists[candidate.Data.Artist.ID]) {
+				// 2回目以降は、回答Genreに一致し、履歴上未推薦のArtistを優先する。
+				if stage == 0 && (!genreMatch || seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
 					continue
 				}
-				if stage == 1 && !genreMatch {
+				if stage == 1 && (!genreMatch || selectedArtists[candidate.Data.Artist.ID]) {
 					continue
 				}
 			case entity.RecommendationTypeNewFavorite:
-				if stage == 0 && !likedArtist {
+				// 高評価Artistのうち、過去に推薦していない別Songを最優先する。
+				if stage == 0 && (!likedArtist || seenSong || selectedArtists[candidate.Data.Artist.ID]) {
 					continue
 				}
-				if stage == 1 && !genreMatch {
+				if stage == 1 && (!likedArtist || seenSong) {
+					continue
+				}
+			case entity.RecommendationTypeTrySomethingNew:
+				// 履歴上も今回の3枠内でも、Genre・Artistが異なる候補を優先する。
+				seenGenre := candidateHasRecommendedGenre(candidate.Data, condition.RecommendedGenres)
+				if stage == 0 && (seenGenre || seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+				if stage == 1 && (seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
 					continue
 				}
 			}
@@ -170,14 +191,7 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 }
 
 func candidateGenreKeys(value entity.RecommendationSongCandidate) []string {
-	keys := make([]string, 0)
-	for _, tag := range append(value.SongTags, value.ArtistTags...) {
-		if normalized(tag.Category) != "genre" {
-			continue
-		}
-		keys = append(keys, normalized(tag.Slug), normalized(tag.Name))
-	}
-	return keys
+	return songGenreKeys(value)
 }
 
 func candidateMatchesGenres(value entity.RecommendationSongCandidate, genres []string) bool {

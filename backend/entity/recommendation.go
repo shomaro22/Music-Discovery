@@ -32,7 +32,6 @@ const (
 type Recommendation struct {
 	ID               uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	UserID           uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;index"`
-	User             User                   `json:"-" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Source           RecommendationSource   `json:"source" gorm:"size:32;not null;index"`
 	RecommendedAt    time.Time              `json:"recommended_at" gorm:"not null;index"`
 	AlgorithmVersion string                 `json:"algorithm_version" gorm:"size:64;not null"`
@@ -44,7 +43,7 @@ type RecommendationDetail struct {
 	ID               uuid.UUID          `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	RecommendationID uuid.UUID          `json:"recommendation_id" gorm:"type:uuid;not null;index;uniqueIndex:uq_recommendation_type;uniqueIndex:uq_recommendation_position;uniqueIndex:uq_recommendation_song"`
 	SongID           uuid.UUID          `json:"song_id" gorm:"type:uuid;not null;index;uniqueIndex:uq_recommendation_song"`
-	Type             RecommendationType `json:"recommendation_type" gorm:"size:32;not null;uniqueIndex:uq_recommendation_type"`
+	Type             RecommendationType `json:"recommendation_type" gorm:"column:recommendation_type;size:32;not null;uniqueIndex:uq_recommendation_type"`
 	Score            float64            `json:"score" gorm:"not null"`
 	Position         int                `json:"position" gorm:"not null;uniqueIndex:uq_recommendation_position"`
 	Reason           string             `json:"reason" gorm:"size:500;not null"`

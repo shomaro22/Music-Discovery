@@ -20,6 +20,8 @@ type RecommendationCondition struct {
 	ArtistFeedbackPenalties map[uuid.UUID]float64
 	SongFeedbackPenalties   map[uuid.UUID]float64
 	RecommendedGenres       map[string]bool
+	RecentArtistCounts      map[uuid.UUID]int64
+	RecentGenreCounts       map[string]int64
 }
 
 type RecommendationScoreWeights struct {
@@ -27,7 +29,7 @@ type RecommendationScoreWeights struct {
 	NewFavorite     RecommendationTypeScoreWeights
 	TrySomethingNew RecommendationTypeScoreWeights
 	ArtistRecency   float64
-	SongRecency     float64
+	GenreRecency    float64
 }
 
 type RecommendationTypeScoreWeights struct {
@@ -37,6 +39,7 @@ type RecommendationTypeScoreWeights struct {
 type RecommendationConfig struct {
 	CandidateLimit    int
 	DuplicateDays     int
+	RecencyDays       int
 	GenerationWindow  int
 	LockTTLSeconds    int
 	AlgorithmVersion  string
@@ -82,13 +85,25 @@ func matches(values []string, tags map[string]bool) float64 {
 	}
 	return score
 }
-func genreValues(candidate entity.RecommendationSongCandidate) []string {
-	result := []string{}
-	for _, tag := range append(candidate.SongTags, candidate.ArtistTags...) {
-		if normalized(tag.Category) == "genre" {
-			result = append(result, tag.Slug, tag.Name)
+func songGenreKeys(candidate entity.RecommendationSongCandidate) []string {
+	keys := make(map[string]struct{})
+	for _, tag := range candidate.SongTags {
+		if normalized(tag.Category) != "genre" {
+			continue
+		}
+		key := normalized(tag.Slug)
+		if key == "" {
+			key = normalized(tag.Name)
+		}
+		if key != "" {
+			keys[key] = struct{}{}
 		}
 	}
+	result := make([]string, 0, len(keys))
+	for key := range keys {
+		result = append(result, key)
+	}
+	sort.Strings(result)
 	return result
 }
 func scoreWeightsFor(weights RecommendationScoreWeights, kind entity.RecommendationType) RecommendationTypeScoreWeights {
@@ -106,7 +121,7 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 	weights := scoreWeightsFor(c.weights, kind)
 	for _, value := range values {
 		tags := tagSet(value)
-		genres := genreValues(value)
+		genres := songGenreKeys(value)
 		score := RecommendationScore{Mood: matches(condition.Mood, tags), Element: matches(condition.Elements, tags), Atmosphere: matches(condition.Atmospheres, tags)}
 		for _, genre := range genres {
 			key := normalized(genre)
@@ -142,7 +157,10 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 			}
 		}
 		score.FeedbackPenalty = condition.ArtistFeedbackPenalties[value.Artist.ID] + condition.SongFeedbackPenalties[value.Song.ID]
-		score.RecencyPenalty = float64(artistCounts[value.Artist.ID])*c.weights.ArtistRecency + float64(songCounts[value.Song.ID])*c.weights.SongRecency
+		score.RecencyPenalty = float64(condition.RecentArtistCounts[value.Artist.ID]) * c.weights.ArtistRecency
+		for _, genre := range genres {
+			score.RecencyPenalty += float64(condition.RecentGenreCounts[normalized(genre)]) * c.weights.GenreRecency
+		}
 		score.Total = score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery - score.FeedbackPenalty - score.RecencyPenalty
 		result = append(result, SongCandidate{Data: value, Score: score})
 	}
