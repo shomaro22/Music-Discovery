@@ -1,5 +1,5 @@
 import { request } from "./client";
-import type { AdminUser, Artist, AuditLog, PageResponse, Song, SystemLog, Tag, TagRef } from "../types/admin";
+import type { AdminUser, Artist, AuditLog, PageResponse, Song, SpotifyArtistSearchItem, SpotifySearchResponse, SpotifyTrackSearchItem, SystemLog, Tag, TagRef } from "../types/admin";
 
 export type ArtistSaveRequest = Omit<Partial<Artist>, "tags"> & { tag_ids?: string[] };
 export type SongSaveRequest = Omit<Partial<Song>, "tags" | "artist"> & { tags?: { tag_id: string; weight: number }[] };
@@ -27,3 +27,16 @@ export const listAuditLogs=(keyword="",page=1,query:Query={})=>list<AuditLog>("/
 export const getAuditLog=(id:string)=>request<AuditLog>(`/api/system/audit-logs/${id}`,{method:"GET"});
 export const listSystemLogs=(keyword="",page=1,query:Query={})=>list<SystemLog>("/api/system/logs",{keyword,page,...query});
 export const getSystemLog=(id:string)=>request<SystemLog>(`/api/system/logs/${id}`,{method:"GET"});
+
+
+export const searchSpotifyArtists = (query: string, limit = 20) =>
+  request<SpotifySearchResponse<SpotifyArtistSearchItem>>(
+    `/api/admin/spotify/artists?${qs({ q: query, limit })}`,
+    { method: "GET" },
+  );
+
+export const searchSpotifyTracks = (query: string, limit = 20) =>
+  request<SpotifySearchResponse<SpotifyTrackSearchItem>>(
+    `/api/admin/spotify/tracks?${qs({ q: query, limit })}`,
+    { method: "GET" },
+  );
