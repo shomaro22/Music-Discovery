@@ -39,7 +39,7 @@ func TestTrySomethingNewLowPrefersUnknownArtistInSameGenre(t *testing.T) {
 		discoveryCandidate(knownArtist, uuid.New(), "jazz"),
 		discoveryCandidate(unknownArtist, uuid.New(), "rock"),
 	}
-	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
+	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
 	if !ok || got.Data.Artist.ID != unknownArtist {
 		t.Fatalf("low discovery selected artist=%v, want unknown artist in same genre", got.Data.Artist.ID)
 	}
@@ -57,7 +57,7 @@ func TestTrySomethingNewMediumPrefersNearbyGenre(t *testing.T) {
 		discoveryCandidate(unrelatedArtist, uuid.New(), "jazz"),
 		discoveryCandidate(nearArtist, uuid.New(), "alternative"),
 	}
-	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
+	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
 	if !ok || got.Data.Artist.ID != nearArtist {
 		t.Fatalf("medium discovery selected artist=%v, want nearby genre", got.Data.Artist.ID)
 	}
@@ -75,7 +75,7 @@ func TestTrySomethingNewHighUsesRecommendationHistoryForUnknownGenre(t *testing.
 		discoveryCandidate(seenGenreArtist, uuid.New(), "jazz"),
 		discoveryCandidate(newGenreArtist, uuid.New(), "classical"),
 	}
-	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
+	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
 	if !ok || got.Data.Artist.ID != newGenreArtist {
 		t.Fatalf("high discovery selected artist=%v, want artist with unseen genre", got.Data.Artist.ID)
 	}
@@ -90,13 +90,13 @@ func TestTrySomethingNewRelaxesConditionsButKeepsContact(t *testing.T) {
 		RecommendedGenres: map[string]bool{"rock": true},
 	}
 	candidate := discoveryCandidate(artist, uuid.New(), "jazz")
-	got, ok := selectionUsecase().pickCandidate([]SongCandidate{candidate}, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
+	got, ok := selectionUsecase().pickCandidate([]SongCandidate{candidate}, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
 	if !ok || got.Data.Song.ID != candidate.Data.Song.ID {
 		t.Fatal("expected stage-two fallback to select the candidate")
 	}
 
 	candidate.Score.Mood = 0
-	if _, ok := selectionUsecase().pickCandidate([]SongCandidate{candidate}, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false); ok {
+	if _, ok := selectionUsecase().pickCandidate([]SongCandidate{candidate}, entity.RecommendationTypeTrySomethingNew, condition, map[uuid.UUID]int64{}, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false); ok {
 		t.Fatal("fallback must not relax the mood/element/atmosphere contact requirement")
 	}
 }
@@ -114,7 +114,7 @@ func TestTrySomethingNewUsesRecommendationHistoryForUnknownArtist(t *testing.T) 
 		discoveryCandidate(unseenArtist, uuid.New(), "rock"),
 	}
 	artistCounts := map[uuid.UUID]int64{seenArtist: 1}
-	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, artistCounts, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
+	got, ok := selectionUsecase().pickCandidate(ranked, entity.RecommendationTypeTrySomethingNew, condition, artistCounts, map[uuid.UUID]int64{}, map[uuid.UUID]bool{}, map[uuid.UUID]bool{}, false)
 	if !ok || got.Data.Artist.ID != unseenArtist {
 		t.Fatalf("selected artist=%v, want artist absent from recommendation history", got.Data.Artist.ID)
 	}
@@ -132,5 +132,38 @@ func TestNearbyGenresAreSymmetricAndCoverQuestionGenres(t *testing.T) {
 				t.Fatalf("genre relation must be symmetric: %s -> %s", genre, neighbor)
 			}
 		}
+	}
+}
+
+func TestTrySomethingNewNeverSelectsCurrentRecommendationArtist(t *testing.T) {
+	selectedArtist := uuid.New()
+	otherArtist := uuid.New()
+	condition := RecommendationCondition{
+		Genres:            []string{"rock"},
+		DiscoveryLevel:    "high",
+		ArtistWeights:     map[uuid.UUID]float64{},
+		RecommendedGenres: map[string]bool{"rock": true, "jazz": true},
+	}
+	ranked := []SongCandidate{
+		discoveryCandidate(selectedArtist, uuid.New(), "jazz"),
+		discoveryCandidate(otherArtist, uuid.New(), "classical"),
+	}
+	selectedArtists := map[uuid.UUID]bool{selectedArtist: true}
+
+	got, ok := selectionUsecase().pickCandidate(
+		ranked,
+		entity.RecommendationTypeTrySomethingNew,
+		condition,
+		map[uuid.UUID]int64{},
+		map[uuid.UUID]int64{},
+		map[uuid.UUID]bool{},
+		selectedArtists,
+		false,
+	)
+	if !ok {
+		t.Fatal("expected a candidate from another artist")
+	}
+	if got.Data.Artist.ID != otherArtist {
+		t.Fatalf("selected artist=%v want=%v", got.Data.Artist.ID, otherArtist)
 	}
 }

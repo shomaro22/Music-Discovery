@@ -11,7 +11,7 @@ import { TopPage } from "../pages/TopPage";
 import { WithdrawPage } from "../pages/WithdrawPage";
 import { QuestionPage } from "../pages/QuestionPage";
 import { AnswerConfirmPage } from "../pages/AnswerConfirmPage";
-import { RecommendationPlaceholderPage } from "../pages/RecommendationPlaceholderPage";
+import { RecommendationPage } from "../pages/RecommendationPage";
 import { AdminRoute } from "./AdminRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -23,7 +23,7 @@ export function AppRouter() {
     <Route path={ROUTES.withdraw} element={<AdminRoute allowedRoles={[ROLE.USER]}><WithdrawPage /></AdminRoute>} />
     <Route path={ROUTES.questions} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><QuestionPage /></AdminRoute>} />
     <Route path={ROUTES.questionConfirm} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><AnswerConfirmPage /></AdminRoute>} />
-    <Route path={ROUTES.recommendations} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><RecommendationPlaceholderPage /></AdminRoute>} />
+    <Route path={ROUTES.recommendations} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><RecommendationPage /></AdminRoute>} />
     <Route path={ROUTES.contentAdmin} element={<AdminRoute allowedRoles={[ROLE.CONTENT_ADMIN]}><ContentAdminPage /></AdminRoute>} />
     <Route path={ROUTES.systemUsers} element={<AdminRoute allowedRoles={[ROLE.SYSTEM_ADMIN]}><SystemAdminPage /></AdminRoute>} />
     <Route path={ROUTES.top} element={<ProtectedRoute><TopPage /></ProtectedRoute>} />

@@ -17,6 +17,11 @@ type RecommendationFeedbackSignals struct {
 	SongPenalties   map[uuid.UUID]float64
 }
 
+type RecommendationRecencyCounts struct {
+	ArtistCounts map[uuid.UUID]int64
+	GenreCounts  map[string]int64
+}
+
 type RecommendationCandidateCondition struct {
 	ExcludedSongIDs []uuid.UUID
 	Limit           int
@@ -33,6 +38,7 @@ type IRecommendationRepository interface {
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) (RecommendationFeedbackSignals, error)
 	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
+	FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error)
 }
 
 type recommendationRepository struct{ db *gorm.DB }
@@ -222,4 +228,42 @@ func (r *recommendationRepository) FindRecommendedGenres(ctx context.Context, us
 		return nil, entity.ErrInternal
 	}
 	return values, nil
+}
+
+func (r *recommendationRepository) FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error) {
+	type artistRow struct {
+		ArtistID uuid.UUID
+		Count    int64
+	}
+	type genreRow struct {
+		Genre string
+		Count int64
+	}
+	var artists []artistRow
+	if err := r.db.WithContext(ctx).Table("recommendation_details rd").
+		Select("s.artist_id, COUNT(*) count").
+		Joins("JOIN recommendations r ON r.id = rd.recommendation_id").
+		Joins("JOIN songs s ON s.id = rd.song_id").
+		Where("r.user_id = ? AND r.recommended_at >= ?", userID, since).
+		Group("s.artist_id").Scan(&artists).Error; err != nil {
+		return RecommendationRecencyCounts{}, entity.ErrInternal
+	}
+	var genres []genreRow
+	if err := r.db.WithContext(ctx).Table("recommendation_details rd").
+		Select("LOWER(t.slug) genre, COUNT(*) count").
+		Joins("JOIN recommendations r ON r.id = rd.recommendation_id").
+		Joins("JOIN song_tags st ON st.song_id = rd.song_id").
+		Joins("JOIN tags t ON t.id = st.tag_id AND t.deleted_at IS NULL").
+		Where("r.user_id = ? AND r.recommended_at >= ? AND LOWER(t.category) = ?", userID, since, "genre").
+		Group("LOWER(t.slug)").Scan(&genres).Error; err != nil {
+		return RecommendationRecencyCounts{}, entity.ErrInternal
+	}
+	result := RecommendationRecencyCounts{ArtistCounts: map[uuid.UUID]int64{}, GenreCounts: map[string]int64{}}
+	for _, row := range artists {
+		result.ArtistCounts[row.ArtistID] = row.Count
+	}
+	for _, row := range genres {
+		result.GenreCounts[row.Genre] = row.Count
+	}
+	return result, nil
 }

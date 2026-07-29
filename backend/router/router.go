@@ -8,6 +8,7 @@ import (
 
 	"music-discovery/backend/controller"
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	appMiddleware "music-discovery/backend/middleware"
 
 	"github.com/labstack/echo/v4"
@@ -25,14 +26,15 @@ func NewRouter(
 	userController controller.IUserController,
 	questionController controller.IQuestionController,
 	recommendationController controller.IRecommendationController,
+	spotifyAdminController controller.ISpotifyAdminController,
 	artistAdminController controller.IArtistAdminController,
 	songAdminController controller.ISongAdminController,
 	tagAdminController controller.ITagAdminController,
 	userAdminController controller.IUserAdminController,
 	roleAdminController controller.IRoleAdminController,
 	logAdminController controller.ILogAdminController,
-	rateLimit appMiddleware.IRateLimitMiddleware,
-	authMiddleware appMiddleware.IAuthMiddleware,
+	rateLimit middleware.IRateLimitMiddleware,
+	authMiddleware middleware.IAuthMiddleware,
 ) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
@@ -69,7 +71,7 @@ func NewRouter(
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 
 	content := e.Group("/api/admin", authMiddleware.Authenticate, contentAdminOnly.Authorize)
-	registerContentAdminRoutes(content, artistAdminController, songAdminController, tagAdminController)
+	registerContentAdminRoutes(content, artistAdminController, songAdminController, tagAdminController, spotifyAdminController)
 
 	system := e.Group("/api/system", authMiddleware.Authenticate, systemAdminOnly.Authorize)
 	registerSystemAdminRoutes(system, userAdminController, roleAdminController, logAdminController)
@@ -90,6 +92,7 @@ func registerContentAdminRoutes(
 	artistController controller.IArtistAdminController,
 	songController controller.ISongAdminController,
 	tagController controller.ITagAdminController,
+	spotifyController controller.ISpotifyAdminController,
 ) {
 	group.GET("/artists", artistController.ListArtists)
 	group.GET("/artists/:artistId", artistController.GetArtist)
@@ -109,6 +112,9 @@ func registerContentAdminRoutes(
 	group.POST("/tags", tagController.CreateTag, appMiddleware.RequireJSON)
 	group.PATCH("/tags/:tagId", tagController.UpdateTag, appMiddleware.RequireJSON)
 	group.DELETE("/tags/:tagId", tagController.DeleteTag)
+
+	group.GET("/spotify/artists", spotifyController.SearchArtists)
+	group.GET("/spotify/tracks", spotifyController.SearchTracks)
 }
 
 func registerSystemAdminRoutes(
