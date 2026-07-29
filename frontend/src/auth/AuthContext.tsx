@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
 import { getCSRFCookie } from "../api/csrf";
 import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi } from "../api/user";
@@ -14,13 +14,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authExpired, setAuthExpired] = useState(false);
+  const currentUserIDRef = useRef<string | null>(null);
 
-  const clearAuth = (): void => { setAccessToken(null); setClientAccessToken(null); setUser(null); };
+  const updateUser = useCallback((nextUser: AuthUser | null): void => {
+    currentUserIDRef.current = nextUser?.id ?? null;
+    setUser(nextUser);
+  }, []);
+
+  const clearLocalAuth = useCallback((): void => {
+    const currentUserID = currentUserIDRef.current;
+    if (currentUserID) clearQuestionAnswers(currentUserID);
+    currentUserIDRef.current = null;
+    setAccessToken(null);
+    setUser(null);
+  }, []);
+
+  const clearAuth = useCallback((): void => {
+    clearLocalAuth();
+    setClientAccessToken(null);
+  }, [clearLocalAuth]);
 
   useEffect(() => {
     setAuthStateListener((token, reason) => {
       setAccessToken(token);
-      if (token === null) setUser(null);
+      if (token === null) clearLocalAuth();
       if (reason === "expired") setAuthExpired(true);
     });
     let active = true;
@@ -36,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setClientAccessToken(refreshed.access_token);
         const currentUser = await getCurrentUser();
         if (!isUserRole(currentUser.role)) throw new Error("invalid role");
-        if (active) setUser(currentUser);
+        if (active) updateUser(currentUser);
       } catch (error: unknown) {
         if (active) {
           clearAuth();
@@ -48,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     void restore();
     return () => { active = false; setAuthStateListener(null); };
-  }, []);
+  }, [clearAuth, clearLocalAuth, updateUser]);
 
   const signUp = async (input: SignUpInput): Promise<void> => {
     setIsLoading(true);
@@ -58,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(response.access_token);
       setClientAccessToken(response.access_token);
       if (!isUserRole(response.user.role)) throw new Error("invalid role");
-      setUser(response.user);
+      updateUser(response.user);
     } catch (error: unknown) {
       clearAuth();
       throw error;
@@ -76,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setClientAccessToken(response.access_token);
       const currentUser = await getCurrentUser();
       if (!isUserRole(currentUser.role)) throw new Error("invalid role");
-      setUser(currentUser);
+      updateUser(currentUser);
       return currentUser;
     } catch (error: unknown) {
       clearAuth();
@@ -92,16 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
-    const currentUserId = user?.id;
     try {
       await logoutApi();
     } finally {
-      if (currentUserId) clearQuestionAnswers(currentUserId);
       clearAuth();
     }
   };
 
-  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, withdraw, clearAuth }), [user, accessToken, isLoading, authExpired]);
+  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, withdraw, clearAuth }), [user, accessToken, isLoading, authExpired, clearAuth]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

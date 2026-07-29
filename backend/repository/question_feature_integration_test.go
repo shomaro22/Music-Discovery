@@ -167,4 +167,8 @@ func TestQuestionForeignKeysRejectUnknownReferences(t *testing.T) {
 	if err := db.Create(&answer).Error; err == nil {
 		t.Fatal("expected user_answers foreign-key violation")
 	}
+	choice := entity.QuestionChoice{ID: uuid.New(), QuestionID: uuid.New(), Code: "UNKNOWN_QUESTION_CHOICE", Label: "Unknown", SortOrder: 999, IsActive: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&choice).Error; err == nil {
+		t.Fatal("expected question_choices.question_id foreign-key violation")
+	}
 }

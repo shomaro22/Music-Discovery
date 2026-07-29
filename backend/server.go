@@ -131,7 +131,12 @@ func envPositiveInt(name string, fallback int) int {
 }
 func loadRecommendationConfig() usecase.RecommendationConfig {
 	return usecase.RecommendationConfig{
-		CandidateLimit: envPositiveInt("RECOMMENDATION_CANDIDATE_LIMIT", 100), DuplicateDays: envPositiveInt("RECOMMENDATION_DUPLICATE_DAYS", 30), GenerationWindow: envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10), AlgorithmVersion: "recommendation-v1", MinimumMatchScore: 2,
+		CandidateLimit:    envPositiveInt("RECOMMENDATION_CANDIDATE_LIMIT", 100),
+		DuplicateDays:     envPositiveInt("RECOMMENDATION_DUPLICATE_DAYS", 30),
+		GenerationWindow:  envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10),
+		LockTTLSeconds:    envPositiveInt("RECOMMENDATION_LOCK_TTL_SECONDS", 120),
+		AlgorithmVersion:  "recommendation-v1",
+		MinimumMatchScore: 2,
 		ScoreWeights: usecase.RecommendationScoreWeights{
 			YourMatch:       usecase.RecommendationTypeScoreWeights{Mood: 3, Element: 1.5, Atmosphere: 1.5, Genre: 3, Artist: 1, Song: 1, Discovery: .25},
 			NewFavorite:     usecase.RecommendationTypeScoreWeights{Mood: 1.5, Element: 1, Atmosphere: 1, Genre: 2, Artist: 1, Song: 1, Discovery: 2},

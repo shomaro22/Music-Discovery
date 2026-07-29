@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ const refreshMock = vi.fn();
 const getCurrentUserMock = vi.fn();
 const logoutMock = vi.fn();
 const withdrawMock = vi.fn();
+let authStateListener: ((token: string | null, reason?: "expired") => void) | null = null;
 
 vi.mock("../api/csrf", () => ({ getCSRFCookie: () => "csrf" }));
 vi.mock("../api/user", () => ({
@@ -24,7 +25,7 @@ vi.mock("../api/client", async (importOriginal) => {
   return {
     ...actual,
     setAccessToken: vi.fn(),
-    setAuthStateListener: vi.fn(),
+    setAuthStateListener: vi.fn((listener: ((token: string | null, reason?: "expired") => void) | null) => { authStateListener = listener; }),
   };
 });
 
@@ -39,6 +40,8 @@ beforeEach(() => {
   getCurrentUserMock.mockReset();
   logoutMock.mockReset();
   withdrawMock.mockReset();
+  authStateListener = null;
+  sessionStorage.clear();
 });
 
 describe("AuthProvider restore", () => {
@@ -61,6 +64,21 @@ describe("AuthProvider restore", () => {
     refreshMock.mockRejectedValue(new ApiRequestError({ status: 401, code: "INVALID_REFRESH_TOKEN", message: "expired", request_id: "" }));
     render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => expect(screen.getByText("expired")).toBeInTheDocument());
+  });
+
+
+  it("clears user-scoped question answers when authentication expires", async () => {
+    refreshMock.mockResolvedValue({ access_token: "token", token_type: "Bearer", expires_in: 300 });
+    getCurrentUserMock.mockResolvedValue({ id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" });
+    sessionStorage.setItem("MUSIC_DISCOVERY_QUESTION_ANSWERS:u1", JSON.stringify({ q1: ["c1"] }));
+
+    render(<AuthProvider><Probe /></AuthProvider>);
+    await waitFor(() => expect(screen.getByText("taro@example.com")).toBeInTheDocument());
+
+    act(() => { authStateListener?.(null, "expired"); });
+
+    await waitFor(() => expect(screen.getByText("expired")).toBeInTheDocument());
+    expect(sessionStorage.getItem("MUSIC_DISCOVERY_QUESTION_ANSWERS:u1")).toBeNull();
   });
 
   it("does not mark authentication expired for a restoration server error", async () => {

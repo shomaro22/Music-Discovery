@@ -35,7 +35,11 @@ func NewRecommendationUsecase(users repository.IUserRepository, questions reposi
 }
 
 func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
-	token, acquired, err := u.locks.Acquire(ctx, userID, time.Duration(u.config.GenerationWindow)*time.Second)
+	lockTTLSeconds := u.config.LockTTLSeconds
+	if lockTTLSeconds <= 0 {
+		lockTTLSeconds = 120
+	}
+	token, acquired, err := u.locks.Acquire(ctx, userID, time.Duration(lockTTLSeconds)*time.Second)
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
 	}
@@ -103,7 +107,7 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 	kinds := []entity.RecommendationType{entity.RecommendationTypeYourMatch, entity.RecommendationTypeNewFavorite, entity.RecommendationTypeTrySomethingNew}
 	for position, kind := range kinds {
 		ranked := u.calculator.Calculate(condition, candidates, kind, artistCounts, songCounts)
-		candidate, ok := u.pickCandidate(ranked, kind, condition, selectedSongs, selectedArtists, first)
+		candidate, ok := u.pickCandidate(ranked, kind, condition, artistCounts, selectedSongs, selectedArtists, first)
 		if !ok {
 			return nil, entity.ErrRecommendationCandidatesNotFound
 		}
@@ -114,18 +118,22 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 	return result, nil
 }
 
-func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, bool) {
-	// Strict -> relaxed -> fallback. The 30-day and session song exclusions are never relaxed.
+func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, bool) {
+	// Strict -> relaxed -> fallback. Song duplication and the Try Something New
+	// mood/element/atmosphere bridge are never relaxed.
 	for stage := 0; stage < 3; stage++ {
 		for _, candidate := range ranked {
 			if selectedSongs[candidate.Data.Song.ID] {
 				continue
 			}
 			contact := candidate.Score.Mood + candidate.Score.Element + candidate.Score.Atmosphere
-			genreMatch := candidate.Score.Genre > 0
-			knownArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
-			if kind == entity.RecommendationTypeTrySomethingNew && contact <= 0 {
-				continue
+			genreMatch := candidateMatchesGenres(candidate.Data, condition.Genres)
+			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
+			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
+			if kind == entity.RecommendationTypeTrySomethingNew {
+				if contact <= 0 || !matchesDiscoveryStage(candidate.Data, condition, seenArtist, stage) {
+					continue
+				}
 			}
 			if candidate.Score.FeedbackPenalty >= 3 && stage < 2 {
 				continue
@@ -137,14 +145,10 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 				if kind != entity.RecommendationTypeTrySomethingNew && stage == 0 && candidate.Score.Mood+candidate.Score.Element+candidate.Score.Atmosphere+candidate.Score.Genre < u.config.MinimumMatchScore {
 					continue
 				}
-				if kind == entity.RecommendationTypeTrySomethingNew && stage == 0 && genreMatch && knownArtist {
-					continue
-				}
 				return candidate, true
 			}
 			switch kind {
 			case entity.RecommendationTypeYourMatch:
-				// Second and later: same/related genre, but a different artist where possible.
 				if stage == 0 && (!genreMatch || selectedArtists[candidate.Data.Artist.ID]) {
 					continue
 				}
@@ -152,19 +156,10 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 					continue
 				}
 			case entity.RecommendationTypeNewFavorite:
-				// Second and later: a different song from a positively learned artist.
-				if stage == 0 && !knownArtist {
+				if stage == 0 && !likedArtist {
 					continue
 				}
 				if stage == 1 && !genreMatch {
-					continue
-				}
-			case entity.RecommendationTypeTrySomethingNew:
-				// Keep a mood/element/atmosphere bridge while preferring both a new genre and artist.
-				if stage == 0 && (genreMatch || knownArtist) {
-					continue
-				}
-				if stage == 1 && knownArtist {
 					continue
 				}
 			}
@@ -172,6 +167,100 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 		}
 	}
 	return SongCandidate{}, false
+}
+
+func candidateGenreKeys(value entity.RecommendationSongCandidate) []string {
+	keys := make([]string, 0)
+	for _, tag := range append(value.SongTags, value.ArtistTags...) {
+		if normalized(tag.Category) != "genre" {
+			continue
+		}
+		keys = append(keys, normalized(tag.Slug), normalized(tag.Name))
+	}
+	return keys
+}
+
+func candidateMatchesGenres(value entity.RecommendationSongCandidate, genres []string) bool {
+	wanted := make(map[string]bool, len(genres))
+	for _, genre := range genres {
+		wanted[normalized(genre)] = true
+	}
+	for _, genre := range candidateGenreKeys(value) {
+		if wanted[genre] {
+			return true
+		}
+	}
+	return false
+}
+
+func candidateHasRecommendedGenre(value entity.RecommendationSongCandidate, recommended map[string]bool) bool {
+	for _, genre := range candidateGenreKeys(value) {
+		if recommended[genre] {
+			return true
+		}
+	}
+	return false
+}
+
+var nearbyGenres = map[string]map[string]bool{
+	// Chapter 10 genre-distance table. Every selectable genre is represented,
+	// and all relationships are intentionally symmetric.
+	"pop":         {"electronic": true, "k-pop": true, "anime": true, "hip-hop": true},
+	"rock":        {"alternative": true, "metal": true},
+	"alternative": {"rock": true, "metal": true},
+	"metal":       {"rock": true, "alternative": true},
+	"hip-hop":     {"pop": true, "k-pop": true, "electronic": true, "jazz": true},
+	"jazz":        {"hip-hop": true, "classical": true},
+	"electronic":  {"pop": true, "k-pop": true, "anime": true, "hip-hop": true},
+	"classical":   {"jazz": true, "anime": true},
+	"anime":       {"pop": true, "electronic": true, "k-pop": true, "classical": true},
+	"k-pop":       {"pop": true, "electronic": true, "hip-hop": true, "anime": true},
+}
+
+func candidateIsNearbyGenre(value entity.RecommendationSongCandidate, genres []string) bool {
+	for _, current := range genres {
+		current = normalized(current)
+		for _, candidate := range candidateGenreKeys(value) {
+			if nearbyGenres[current][candidate] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition RecommendationCondition, seenArtist bool, stage int) bool {
+	sameGenre := candidateMatchesGenres(value, condition.Genres)
+	nearGenre := candidateIsNearbyGenre(value, condition.Genres)
+	seenGenre := candidateHasRecommendedGenre(value, condition.RecommendedGenres)
+	unknownArtist := !seenArtist
+
+	switch normalized(condition.DiscoveryLevel) {
+	case "low":
+		if stage == 0 {
+			return sameGenre && unknownArtist
+		}
+		if stage == 1 {
+			return (sameGenre || nearGenre) && unknownArtist
+		}
+		return sameGenre || nearGenre || unknownArtist
+	case "high":
+		if stage == 0 {
+			return !seenGenre && !sameGenre && unknownArtist
+		}
+		if stage == 1 {
+			return !sameGenre && unknownArtist
+		}
+		return !sameGenre || unknownArtist
+	default: // medium
+		if stage == 0 {
+			return nearGenre && unknownArtist
+		}
+		if stage == 1 {
+			return nearGenre || (!seenGenre && unknownArtist)
+		}
+		return !sameGenre || unknownArtist
+	}
 }
 
 func reasonFor(kind entity.RecommendationType, value entity.RecommendationSongCandidate) string {
@@ -267,6 +356,14 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	condition.SongWeights = signals.SongWeights
 	condition.ArtistFeedbackPenalties = signals.ArtistPenalties
 	condition.SongFeedbackPenalties = signals.SongPenalties
+	historyGenres, err := u.recommendations.FindRecommendedGenres(ctx, userID)
+	if err != nil {
+		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
+	}
+	condition.RecommendedGenres = make(map[string]bool, len(historyGenres))
+	for _, genre := range historyGenres {
+		condition.RecommendedGenres[normalized(genre)] = true
+	}
 	return condition, nil
 }
 func (u *recommendationUsecase) GetLatest(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {

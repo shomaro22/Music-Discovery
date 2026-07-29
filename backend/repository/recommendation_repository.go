@@ -32,6 +32,7 @@ type IRecommendationRepository interface {
 	CountByArtist(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) (RecommendationFeedbackSignals, error)
+	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
 }
 
 type recommendationRepository struct{ db *gorm.DB }
@@ -206,4 +207,19 @@ func (r *recommendationRepository) FindFeedbackSignals(ctx context.Context, user
 		}
 	}
 	return result, nil
+}
+
+func (r *recommendationRepository) FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	var values []string
+	err := r.db.WithContext(ctx).Table("recommendation_details rd").
+		Distinct("LOWER(t.slug)").
+		Joins("JOIN recommendations r ON r.id = rd.recommendation_id").
+		Joins("JOIN song_tags st ON st.song_id = rd.song_id").
+		Joins("JOIN tags t ON t.id = st.tag_id AND t.deleted_at IS NULL").
+		Where("r.user_id = ? AND LOWER(t.category) = ?", userID, "genre").
+		Pluck("LOWER(t.slug)", &values).Error
+	if err != nil {
+		return nil, entity.ErrInternal
+	}
+	return values, nil
 }

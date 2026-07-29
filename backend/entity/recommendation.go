@@ -32,6 +32,7 @@ const (
 type Recommendation struct {
 	ID               uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	UserID           uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;index"`
+	User             User                   `json:"-" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	Source           RecommendationSource   `json:"source" gorm:"size:32;not null;index"`
 	RecommendedAt    time.Time              `json:"recommended_at" gorm:"not null;index"`
 	AlgorithmVersion string                 `json:"algorithm_version" gorm:"size:64;not null"`
