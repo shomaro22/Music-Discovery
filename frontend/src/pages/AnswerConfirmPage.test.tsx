@@ -1,14 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { saveQuestionAnswers } from "../api/question";
+import { getQuestions, saveQuestionAnswers } from "../api/question";
 import { useAuth } from "../auth/AuthContext";
 import type { Question, QuestionAnswers } from "../types/question";
 import { AnswerConfirmPage } from "./AnswerConfirmPage";
 
-vi.mock("../api/question", () => ({ saveQuestionAnswers: vi.fn() }));
+vi.mock("../api/question", () => ({ getQuestions: vi.fn(), saveQuestionAnswers: vi.fn() }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: vi.fn() }));
 
+const getQuestionsMock = vi.mocked(getQuestions);
 const saveMock = vi.mocked(saveQuestionAnswers);
 const useAuthMock = vi.mocked(useAuth);
 
@@ -27,6 +28,8 @@ const answers: QuestionAnswers = { q1: ["c1"], q2: ["c2"], q3: ["c3"], q4: ["c4"
 beforeEach(() => {
   sessionStorage.clear();
   sessionStorage.setItem("MUSIC_DISCOVERY_QUESTION_ANSWERS:u1", JSON.stringify(answers));
+  getQuestionsMock.mockReset();
+  getQuestionsMock.mockResolvedValue({ questions });
   saveMock.mockReset();
   useAuthMock.mockReturnValue({
     user: { id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" },
@@ -43,6 +46,20 @@ beforeEach(() => {
 });
 
 describe("AnswerConfirmPage", () => {
+
+  it("restores questions and answers from Session Storage after a direct reload", async () => {
+    render(
+      <MemoryRouter initialEntries={["/questions/confirm"]}>
+        <Routes><Route path="/questions/confirm" element={<AnswerConfirmPage />} /></Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "回答内容の確認" })).toBeInTheDocument());
+    expect(getQuestionsMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Choice 1")).toBeInTheDocument();
+    expect(screen.getByText("Choice 5")).toBeInTheDocument();
+  });
+
   it("prevents duplicate submission and keeps answers when saving fails", async () => {
     let rejectSave: ((reason?: unknown) => void) | undefined;
     saveMock.mockReturnValue(new Promise((_, reject) => { rejectSave = reject; }));

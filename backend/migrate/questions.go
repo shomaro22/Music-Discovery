@@ -38,6 +38,8 @@ func CreateQuestionTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&entity.Question{}, &entity.QuestionChoice{}, &entity.QuestionAnswerSession{}, &entity.UserAnswer{}, &entity.UserAnswerChoice{}, &entity.UserProfile{}, &entity.UserGenreWeight{}, &entity.UserElementWeight{}, &entity.UserAtmosphereWeight{}); err != nil {
 		return err
 	}
+	// This guarded backfill intentionally runs at startup because this project does not use
+	// versioned migration files. Its WHERE clause makes repeated execution idempotent.
 	if err := migrateExistingQuestionWeights(db); err != nil {
 		return err
 	}

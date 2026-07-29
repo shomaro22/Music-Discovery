@@ -19,6 +19,7 @@ type RecommendationCondition struct {
 	SongWeights             map[uuid.UUID]float64
 	ArtistFeedbackPenalties map[uuid.UUID]float64
 	SongFeedbackPenalties   map[uuid.UUID]float64
+	RecommendedGenres       map[string]bool
 }
 
 type RecommendationScoreWeights struct {
@@ -37,6 +38,7 @@ type RecommendationConfig struct {
 	CandidateLimit    int
 	DuplicateDays     int
 	GenerationWindow  int
+	LockTTLSeconds    int
 	AlgorithmVersion  string
 	MinimumMatchScore float64
 	ScoreWeights      RecommendationScoreWeights
