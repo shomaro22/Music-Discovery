@@ -9,7 +9,7 @@ import (
 	"music-discovery/backend/repository"
 )
 
-type RateLimitInput struct{ Scope, IP, Email string }
+type RateLimitInput struct{ Scope, IP, Email, UserID string }
 
 type RateLimitDecision struct {
 	Allowed    bool
@@ -60,6 +60,7 @@ type rateLimitPolicy struct {
 func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 	ip := strings.TrimSpace(input.IP)
 	email := strings.ToLower(strings.TrimSpace(input.Email))
+	userID := strings.TrimSpace(input.UserID)
 	switch input.Scope {
 	case "signup":
 		policies := []rateLimitPolicy{{name: "signup_ip", key: fmt.Sprintf("rate_limit:signup:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}
@@ -79,6 +80,12 @@ func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 		return []rateLimitPolicy{{name: "withdraw_ip", key: fmt.Sprintf("rate_limit:withdraw:ip:%s", ip), capacity: 5, rate: 5.0 / 600.0}}, nil
 	case "question_answers":
 		return []rateLimitPolicy{{name: "question_answers_ip", key: fmt.Sprintf("rate_limit:question_answers:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}, nil
+	case "recommendations":
+		policies := []rateLimitPolicy{{name: "recommendations_ip", key: fmt.Sprintf("rate_limit:recommendations:ip:%s", ip), capacity: 5, rate: 5.0 / 60.0}}
+		if userID != "" {
+			policies = append(policies, rateLimitPolicy{name: "recommendations_user", key: fmt.Sprintf("rate_limit:recommendations:user:%s", userID), capacity: 5, rate: 5.0 / 60.0})
+		}
+		return policies, nil
 	default:
 		return nil, fmt.Errorf("unknown rate limit scope: %s", input.Scope)
 	}

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"music-discovery/backend/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -18,6 +20,7 @@ type IRateLimitMiddleware interface {
 	Refresh(echo.HandlerFunc) echo.HandlerFunc
 	Withdraw(echo.HandlerFunc) echo.HandlerFunc
 	QuestionAnswers(echo.HandlerFunc) echo.HandlerFunc
+	Recommendations(echo.HandlerFunc) echo.HandlerFunc
 }
 
 type rateLimitMiddleware struct{ usecase usecase.IRateLimitUsecase }
@@ -40,6 +43,9 @@ func (m *rateLimitMiddleware) Withdraw(next echo.HandlerFunc) echo.HandlerFunc {
 func (m *rateLimitMiddleware) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.apply("question_answers", next)
 }
+func (m *rateLimitMiddleware) Recommendations(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.apply("recommendations", next)
+}
 
 func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -57,7 +63,11 @@ func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.Ha
 				email = input.Email
 			}
 		}
-		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), Email: email})
+		userID := ""
+		if value, ok := c.Get(AuthUserIDKey).(uuid.UUID); ok {
+			userID = value.String()
+		}
+		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), Email: email, UserID: userID})
 		if err != nil {
 			return echo.NewHTTPError(http.StatusServiceUnavailable, "Rate Limit service is unavailable").SetInternal(err)
 		}

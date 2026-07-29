@@ -38,6 +38,18 @@ func (routerQuestionControllerStub) GetLatestAnswers(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+type routerRecommendationControllerStub struct{}
+
+func (routerRecommendationControllerStub) Generate(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerRecommendationControllerStub) GetLatest(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerRecommendationControllerStub) GetByID(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+
 type routerAdminManagementControllerStub struct{ placeholder, changeRole int }
 
 func (s *routerAdminManagementControllerStub) hit(c echo.Context) error {
@@ -80,6 +92,7 @@ func (passRateLimit) Login(next echo.HandlerFunc) echo.HandlerFunc           { r
 func (passRateLimit) Refresh(next echo.HandlerFunc) echo.HandlerFunc         { return next }
 func (passRateLimit) Withdraw(next echo.HandlerFunc) echo.HandlerFunc        { return next }
 func (passRateLimit) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc { return next }
+func (passRateLimit) Recommendations(next echo.HandlerFunc) echo.HandlerFunc { return next }
 
 type testAuthMiddleware struct{ calls int }
 
@@ -104,6 +117,7 @@ func newRoleTestRouter() (*echo.Echo, *routerUserControllerStub, *routerAdminMan
 		slog.New(slog.NewTextHandler(nilWriter{}, nil)),
 		users,
 		routerQuestionControllerStub{},
+		routerRecommendationControllerStub{},
 		admins,
 		admins,
 		admins,
@@ -198,6 +212,26 @@ func TestQuestionRoutesAllowAllAuthenticatedRoles(t *testing.T) {
 		{http.MethodGet, "/api/questions"},
 		{http.MethodGet, "/api/user-answers/latest"},
 		{http.MethodPost, "/api/user-answers"},
+	}
+	for _, role := range roles {
+		for _, route := range paths {
+			t.Run(string(role)+"_"+route.method+"_"+route.path, func(t *testing.T) {
+				e, _, _, _ := newRoleTestRouter()
+				rec := performRoleRequest(e, route.method, route.path, role)
+				if rec.Code != http.StatusNoContent {
+					t.Fatalf("role=%s method=%s path=%s status=%d body=%s", role, route.method, route.path, rec.Code, rec.Body.String())
+				}
+			})
+		}
+	}
+}
+
+func TestRecommendationRoutesAllowAllAuthenticatedRoles(t *testing.T) {
+	roles := []entity.Role{entity.RoleUser, entity.RoleContentAdmin, entity.RoleSystemAdmin}
+	paths := []struct{ method, path string }{
+		{http.MethodPost, "/api/recommendations"},
+		{http.MethodGet, "/api/recommendations/latest"},
+		{http.MethodGet, "/api/recommendations/" + uuid.NewString()},
 	}
 	for _, role := range roles {
 		for _, route := range paths {
