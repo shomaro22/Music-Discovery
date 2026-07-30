@@ -20,12 +20,14 @@ const loginBodyLimit = "8K"
 const refreshBodyLimit = "1K"
 const withdrawBodyLimit = "8K"
 const questionAnswersBodyLimit = "32K"
+const feedbackBodyLimit = "4K"
 
 func NewRouter(
 	logger *slog.Logger,
 	userController controller.IUserController,
 	questionController controller.IQuestionController,
 	recommendationController controller.IRecommendationController,
+	feedbackController controller.IFeedbackController,
 	spotifyAdminController controller.ISpotifyAdminController,
 	artistAdminController controller.IArtistAdminController,
 	songAdminController controller.ISongAdminController,
@@ -67,6 +69,8 @@ func NewRouter(
 	authenticated.POST("/recommendations", recommendationController.Generate, rateLimit.Recommendations, allAuthenticated.Authorize)
 	authenticated.GET("/recommendations/latest", recommendationController.GetLatest, allAuthenticated.Authorize)
 	authenticated.GET("/recommendations/:recommendationId", recommendationController.GetByID, allAuthenticated.Authorize)
+	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), requireJSON, userOnly.Authorize)
+	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, userOnly.Authorize)
 	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
-	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 
 	"github.com/google/uuid"
@@ -81,8 +80,8 @@ func (c *questionController) ListQuestions(ctx echo.Context) error {
 }
 
 func (c *questionController) SaveAnswers(ctx echo.Context) error {
-	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
-	if !ok || userID == uuid.Nil {
+	userID, ok := authUserID(ctx)
+	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 	var request SaveQuestionAnswersRequest
@@ -101,8 +100,8 @@ func (c *questionController) SaveAnswers(ctx echo.Context) error {
 }
 
 func (c *questionController) GetLatestAnswers(ctx echo.Context) error {
-	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
-	if !ok || userID == uuid.Nil {
+	userID, ok := authUserID(ctx)
+	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 	result, err := c.questionUsecase.GetLatestAnswers(ctx.Request().Context(), userID)

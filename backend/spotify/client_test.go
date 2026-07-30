@@ -45,7 +45,7 @@ func TestClientSearchArtistsUsesClientCredentialsAndCachesToken(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		result, err := value.SearchArtists(context.Background(), "Muse", 20)
+		result, err := value.SearchArtists(context.Background(), "Muse", 10)
 		if err != nil {
 			t.Fatalf("SearchArtists: %v", err)
 		}

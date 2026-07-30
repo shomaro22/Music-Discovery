@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"music-discovery/backend/entity"
-	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 )
 
@@ -41,12 +40,8 @@ type recommendationController struct {
 func NewRecommendationController(value usecase.IRecommendationUsecase) IRecommendationController {
 	return &recommendationController{usecase: value}
 }
-func userID(ctx echo.Context) (uuid.UUID, bool) {
-	value, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
-	return value, ok && value != uuid.Nil
-}
 func (c *recommendationController) Generate(ctx echo.Context) error {
-	id, ok := userID(ctx)
+	id, ok := authUserID(ctx)
 	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
@@ -57,7 +52,7 @@ func (c *recommendationController) Generate(ctx echo.Context) error {
 	return ctx.JSON(http.StatusCreated, toRecommendationResponse(value))
 }
 func (c *recommendationController) GetLatest(ctx echo.Context) error {
-	id, ok := userID(ctx)
+	id, ok := authUserID(ctx)
 	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
@@ -68,7 +63,7 @@ func (c *recommendationController) GetLatest(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, toRecommendationResponse(value))
 }
 func (c *recommendationController) GetByID(ctx echo.Context) error {
-	id, ok := userID(ctx)
+	id, ok := authUserID(ctx)
 	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
@@ -105,6 +100,10 @@ func (c *recommendationController) handleError(ctx echo.Context, err error) erro
 		return writeAPIError(ctx, 404, "RECOMMENDATION_NOT_FOUND", "推薦結果が見つかりません")
 	case errors.Is(err, entity.ErrRecommendationAlreadyGenerated):
 		return writeAPIError(ctx, 409, "RECOMMENDATION_ALREADY_GENERATED", "推薦結果はすでに生成されています")
+	case errors.Is(err, entity.ErrRecommendationCandidatesImportedPendingReview):
+		return writeAPIError(ctx, 422, "RECOMMENDATION_CANDIDATES_IMPORTED_PENDING_REVIEW", "Spotifyから候補を取り込みました。管理者によるTag確認後に推薦できます")
+	case errors.Is(err, entity.ErrSpotifyCandidateImportFailed):
+		return writeAPIError(ctx, 503, "SPOTIFY_CANDIDATE_IMPORT_FAILED", "Spotifyから推薦候補を取得できませんでした")
 	case errors.Is(err, entity.ErrRecommendationCandidatesNotFound):
 		return writeAPIError(ctx, 422, "RECOMMENDATION_CANDIDATES_NOT_FOUND", "推薦候補が不足しています")
 	case errors.Is(err, entity.ErrRecommendationSaveFailed):

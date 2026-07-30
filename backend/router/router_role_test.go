@@ -50,6 +50,15 @@ func (routerRecommendationControllerStub) GetByID(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+type routerFeedbackControllerStub struct{}
+
+func (routerFeedbackControllerStub) Save(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerFeedbackControllerStub) Get(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+
 type routerSpotifyAdminControllerStub struct{}
 
 func (routerSpotifyAdminControllerStub) SearchArtists(c echo.Context) error {
@@ -128,6 +137,7 @@ func newRoleTestRouter() (*echo.Echo, *routerUserControllerStub, *routerAdminMan
 		users,
 		routerQuestionControllerStub{},
 		routerRecommendationControllerStub{},
+		routerFeedbackControllerStub{},
 		routerSpotifyAdminControllerStub{},
 		admins,
 		admins,

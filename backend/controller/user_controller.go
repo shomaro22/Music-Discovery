@@ -244,8 +244,8 @@ func writeAPIError(ctx echo.Context, status int, code, message string) error {
 }
 
 func (c *userController) CurrentUser(ctx echo.Context) error {
-	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
-	if !ok || userID == uuid.Nil {
+	userID, ok := authUserID(ctx)
+	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 
@@ -270,8 +270,8 @@ func (c *userController) CurrentUser(ctx echo.Context) error {
 }
 
 func (c *userController) Withdraw(ctx echo.Context) error {
-	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
-	if !ok || userID == uuid.Nil {
+	userID, ok := authUserID(ctx)
+	if !ok {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 	var request WithdrawRequest

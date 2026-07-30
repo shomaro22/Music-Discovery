@@ -124,7 +124,7 @@ func (c *client) search(ctx context.Context, query, kind string, limit int, targ
 	if query == "" {
 		return fmt.Errorf("empty query")
 	}
-	if limit < 1 || limit > 50 {
+	if limit < 1 || limit > 10 {
 		return fmt.Errorf("invalid limit")
 	}
 	token, err := c.accessToken(ctx)
