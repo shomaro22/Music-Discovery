@@ -14,6 +14,7 @@ type RecommendationCondition struct {
 	Atmospheres             []string
 	Genres                  []string
 	DiscoveryLevel          string
+	DiscoveryAdjustment     float64
 	GenreWeights            map[string]float64
 	ArtistWeights           map[uuid.UUID]float64
 	SongWeights             map[uuid.UUID]float64
@@ -52,8 +53,16 @@ type SongCandidate struct {
 	Data  entity.RecommendationSongCandidate
 	Score RecommendationScore
 }
+type RecommendationFeedbackScores struct {
+	ArtistWeights   map[uuid.UUID]float64
+	SongWeights     map[uuid.UUID]float64
+	ArtistPenalties map[uuid.UUID]float64
+	SongPenalties   map[uuid.UUID]float64
+}
+
 type IRecommendationCalculator interface {
 	Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate
+	CalculateFeedbackScores(values []entity.RecommendationFeedbackSignal) RecommendationFeedbackScores
 }
 type recommendationCalculator struct{ weights RecommendationScoreWeights }
 
@@ -116,6 +125,33 @@ func scoreWeightsFor(weights RecommendationScoreWeights, kind entity.Recommendat
 		return weights.TrySomethingNew
 	}
 }
+
+func (c *recommendationCalculator) CalculateFeedbackScores(values []entity.RecommendationFeedbackSignal) RecommendationFeedbackScores {
+	result := RecommendationFeedbackScores{
+		ArtistWeights:   map[uuid.UUID]float64{},
+		SongWeights:     map[uuid.UUID]float64{},
+		ArtistPenalties: map[uuid.UUID]float64{},
+		SongPenalties:   map[uuid.UUID]float64{},
+	}
+	for _, value := range values {
+		count := float64(value.Count)
+		switch value.Status {
+		case entity.FeedbackStatusLike:
+			result.ArtistWeights[value.ArtistID] += count
+			result.SongWeights[value.SongID] += count
+		case entity.FeedbackStatusMaybe:
+			result.ArtistWeights[value.ArtistID] += count * 0.25
+			result.SongWeights[value.SongID] += count * 0.25
+		case entity.FeedbackStatusSkip:
+			result.ArtistWeights[value.ArtistID] -= count * 0.5
+			result.SongWeights[value.SongID] -= count * 0.5
+			result.ArtistPenalties[value.ArtistID] += count
+			result.SongPenalties[value.SongID] += count * 1.5
+		}
+	}
+	return result
+}
+
 func (c *recommendationCalculator) Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
 	result := make([]SongCandidate, 0, len(values))
 	weights := scoreWeightsFor(c.weights, kind)
@@ -136,7 +172,7 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 		score.Song = condition.SongWeights[value.Song.ID]
 		knownArtist := artistCounts[value.Artist.ID] > 0
 		knownSong := songCounts[value.Song.ID] > 0
-		switch normalized(condition.DiscoveryLevel) {
+		switch effectiveDiscoveryLevel(condition.DiscoveryLevel, condition.DiscoveryAdjustment) {
 		case "high":
 			if !knownArtist {
 				score.Discovery += 2
@@ -171,4 +207,28 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 		return result[i].Score.Total > result[j].Score.Total
 	})
 	return result
+}
+
+func effectiveDiscoveryLevel(level string, adjustment float64) string {
+	current := normalized(level)
+	index := 1
+	switch current {
+	case "low":
+		index = 0
+	case "high":
+		index = 2
+	}
+	if adjustment >= 0.75 {
+		index++
+	}
+	if adjustment <= -0.75 {
+		index--
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index > 2 {
+		index = 2
+	}
+	return []string{"low", "medium", "high"}[index]
 }

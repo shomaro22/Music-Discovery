@@ -125,3 +125,28 @@ func TestRecommendationCalculatorIgnoresArtistGenreTags(t *testing.T) {
 		t.Fatalf("artist genre tag must not contribute to genre recency: %v", ranked[0].Score.RecencyPenalty)
 	}
 }
+
+func TestRecommendationCalculatorConvertsRawFeedbackSignalsToScores(t *testing.T) {
+	artistID := uuid.New()
+	songID := uuid.New()
+	values := []entity.RecommendationFeedbackSignal{
+		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusLike, Count: 2},
+		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusMaybe, Count: 4},
+		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusSkip, Count: 2},
+	}
+
+	result := NewRecommendationCalculator(RecommendationScoreWeights{}).CalculateFeedbackScores(values)
+
+	if got := result.ArtistWeights[artistID]; got != 2 {
+		t.Fatalf("artist weight=%v want=2", got)
+	}
+	if got := result.SongWeights[songID]; got != 2 {
+		t.Fatalf("song weight=%v want=2", got)
+	}
+	if got := result.ArtistPenalties[artistID]; got != 2 {
+		t.Fatalf("artist penalty=%v want=2", got)
+	}
+	if got := result.SongPenalties[songID]; got != 3 {
+		t.Fatalf("song penalty=%v want=3", got)
+	}
+}

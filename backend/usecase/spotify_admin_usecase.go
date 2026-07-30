@@ -20,7 +20,7 @@ func NewSpotifyAdminUsecase(client spotify.IClient) ISpotifyAdminUsecase {
 }
 
 func (u *spotifyAdminUsecase) SearchArtists(ctx context.Context, query string, limit int) (spotify.SearchArtistsResult, error) {
-	if strings.TrimSpace(query) == "" || limit < 1 || limit > 50 {
+	if strings.TrimSpace(query) == "" || limit < 1 || limit > 10 {
 		return spotify.SearchArtistsResult{}, entity.ErrInvalidInput
 	}
 	value, err := u.client.SearchArtists(ctx, query, limit)
@@ -31,7 +31,7 @@ func (u *spotifyAdminUsecase) SearchArtists(ctx context.Context, query string, l
 }
 
 func (u *spotifyAdminUsecase) SearchTracks(ctx context.Context, query string, limit int) (spotify.SearchTracksResult, error) {
-	if strings.TrimSpace(query) == "" || limit < 1 || limit > 50 {
+	if strings.TrimSpace(query) == "" || limit < 1 || limit > 10 {
 		return spotify.SearchTracksResult{}, entity.ErrInvalidInput
 	}
 	value, err := u.client.SearchTracks(ctx, query, limit)

@@ -32,7 +32,7 @@ func spotifySearchInput(ctx echo.Context) (string, int, error) {
 		}
 		limit = value
 	}
-	if query == "" || limit < 1 || limit > 50 {
+	if query == "" || limit < 1 || limit > 10 {
 		return "", 0, entity.ErrInvalidInput
 	}
 	return query, limit, nil

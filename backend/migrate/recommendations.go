@@ -106,6 +106,11 @@ func renameLegacyRecommendationTypeColumn(db *gorm.DB) error {
 }
 
 func createRecommendationUserForeignKey(db *gorm.DB) error {
+	// RecommendationではUser情報を関連取得しない。
+	// User関連フィールドをEntityへ追加すると、将来のPreloadによって
+	// EmailやPasswordHashなど、推薦処理に不要な認証情報まで読み込む
+	// 可能性がある。そのためEntityにはUserIDのみを保持し、
+	// DBの参照整合性に必要な外部キーはMigrationで明示的に作成する。
 	const statement = `
 		DO $$
 		BEGIN

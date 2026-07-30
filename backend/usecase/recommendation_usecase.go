@@ -26,12 +26,13 @@ type recommendationUsecase struct {
 	locks           repository.IRecommendationLockRepository
 	tx              repository.ITransactionManager
 	calculator      IRecommendationCalculator
+	candidateImport ISpotifyCandidateImportUsecase
 	clock           IClock
 	config          RecommendationConfig
 }
 
-func NewRecommendationUsecase(users repository.IUserRepository, questions repository.IQuestionRepository, answers repository.IQuestionAnswerRepository, profiles repository.IUserProfileRepository, recommendations repository.IRecommendationRepository, locks repository.IRecommendationLockRepository, tx repository.ITransactionManager, calculator IRecommendationCalculator, clock IClock, config RecommendationConfig) IRecommendationUsecase {
-	return &recommendationUsecase{users: users, questions: questions, answers: answers, profiles: profiles, recommendations: recommendations, locks: locks, tx: tx, calculator: calculator, clock: clock, config: config}
+func NewRecommendationUsecase(users repository.IUserRepository, questions repository.IQuestionRepository, answers repository.IQuestionAnswerRepository, profiles repository.IUserProfileRepository, recommendations repository.IRecommendationRepository, locks repository.IRecommendationLockRepository, tx repository.ITransactionManager, calculator IRecommendationCalculator, candidateImport ISpotifyCandidateImportUsecase, clock IClock, config RecommendationConfig) IRecommendationUsecase {
+	return &recommendationUsecase{users: users, questions: questions, answers: answers, profiles: profiles, recommendations: recommendations, locks: locks, tx: tx, calculator: calculator, candidateImport: candidateImport, clock: clock, config: config}
 }
 
 func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
@@ -75,6 +76,23 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	candidates, err := u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	if len(candidates) < 3 && u.candidateImport != nil {
+		imported, importErr := u.candidateImport.Import(ctx, condition.Genres)
+		if importErr != nil {
+			return nil, importErr
+		}
+		if imported > 0 {
+			// Spotify取込直後のSongには独自Tagを付与しない。管理者による
+			// Tag確認が完了するまで推薦対象外として扱う。
+			candidates, err = u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
+			if err != nil {
+				return nil, entity.ErrRecommendationGenerateFailed
+			}
+			if len(candidates) < 3 {
+				return nil, entity.ErrRecommendationCandidatesImportedPendingReview
+			}
+		}
 	}
 	if len(candidates) < 3 {
 		return nil, entity.ErrRecommendationCandidatesNotFound
@@ -223,8 +241,8 @@ var nearbyGenres = map[string]map[string]bool{
 	"rock":        {"alternative": true, "metal": true},
 	"alternative": {"rock": true, "metal": true},
 	"metal":       {"rock": true, "alternative": true},
-	"hip-hop":     {"pop": true, "k-pop": true, "electronic": true, "jazz": true},
-	"jazz":        {"hip-hop": true, "classical": true},
+	"hip-hop":     {"pop": true, "k-pop": true, "electronic": true},
+	"jazz":        {"classical": true},
 	"electronic":  {"pop": true, "k-pop": true, "anime": true, "hip-hop": true},
 	"classical":   {"jazz": true, "anime": true},
 	"anime":       {"pop": true, "electronic": true, "k-pop": true, "classical": true},
@@ -249,7 +267,7 @@ func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition R
 	seenGenre := candidateHasRecommendedGenre(value, condition.RecommendedGenres)
 	unknownArtist := !seenArtist
 
-	switch normalized(condition.DiscoveryLevel) {
+	switch effectiveDiscoveryLevel(condition.DiscoveryLevel, condition.DiscoveryAdjustment) {
 	case "low":
 		if stage == 0 {
 			return sameGenre && unknownArtist
@@ -347,6 +365,7 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
 	condition.DiscoveryLevel = profile.DiscoveryLevel
+	condition.DiscoveryAdjustment = profile.DiscoveryAdjustment
 	allChoiceIDs := []uuid.UUID{}
 	for _, v := range profile.GenreWeights {
 		allChoiceIDs = append(allChoiceIDs, v.ChoiceID)
@@ -362,10 +381,11 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	for _, v := range profile.GenreWeights {
 		condition.GenreWeights[codeByID[v.ChoiceID]] = v.Weight
 	}
-	signals, err := u.recommendations.FindFeedbackSignals(ctx, userID)
+	rawSignals, err := u.recommendations.FindFeedbackSignals(ctx, userID)
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
+	signals := u.calculator.CalculateFeedbackScores(rawSignals)
 	condition.ArtistWeights = signals.ArtistWeights
 	condition.SongWeights = signals.SongWeights
 	condition.ArtistFeedbackPenalties = signals.ArtistPenalties

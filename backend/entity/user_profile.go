@@ -7,15 +7,16 @@ import (
 )
 
 type UserProfile struct {
-	ID                uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID            uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;uniqueIndex"`
-	User              User                   `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
-	DiscoveryLevel    string                 `json:"discovery_level" gorm:"size:64;not null"`
-	GenreWeights      []UserGenreWeight      `json:"genre_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	ElementWeights    []UserElementWeight    `json:"element_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	AtmosphereWeights []UserAtmosphereWeight `json:"atmosphere_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
+	ID                  uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	UserID              uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;uniqueIndex"`
+	User                User                   `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
+	DiscoveryLevel      string                 `json:"discovery_level" gorm:"size:64;not null"`
+	DiscoveryAdjustment float64                `json:"discovery_adjustment" gorm:"not null;default:0"`
+	GenreWeights        []UserGenreWeight      `json:"genre_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	ElementWeights      []UserElementWeight    `json:"element_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	AtmosphereWeights   []UserAtmosphereWeight `json:"atmosphere_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
+	CreatedAt           time.Time              `json:"created_at"`
+	UpdatedAt           time.Time              `json:"updated_at"`
 }
 
 type UserGenreWeight struct {

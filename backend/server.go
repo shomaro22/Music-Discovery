@@ -41,6 +41,9 @@ func start(ctx context.Context) error {
 	if err := migrate.CreateRecommendationTables(postgres); err != nil {
 		return fmt.Errorf("migrate recommendation tables: %w", err)
 	}
+	if err := migrate.CreateFeedbackTables(postgres); err != nil {
+		return fmt.Errorf("migrate feedback tables: %w", err)
+	}
 	if os.Getenv("SEED_DEVELOPMENT_USERS") == "true" {
 		if err := migrate.SeedDevelopmentUsers(postgres); err != nil {
 			return fmt.Errorf("seed development users: %w", err)
@@ -80,6 +83,23 @@ func start(ctx context.Context) error {
 	questionUsecase := usecase.NewQuestionUsecase(questionRepository, questionAnswerRepository, userProfileRepository, authTransactionManager, userRepository, clock)
 	questionController := controller.NewQuestionController(questionUsecase)
 
+	spotifyClient, err := spotify.NewClient(spotify.Config{
+		ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
+		ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+	})
+	if err != nil {
+		return fmt.Errorf("spotify client: %w", err)
+	}
+	spotifyCandidateRepository := repository.NewSpotifyCandidateRepository(postgres)
+	spotifyCandidateImportUsecase := usecase.NewSpotifyCandidateImportUsecase(
+		spotifyClient,
+		spotifyCandidateRepository,
+		usecase.SpotifyCandidateImportConfig{
+			SearchLimit: envPositiveInt("SPOTIFY_CANDIDATE_SEARCH_LIMIT", 10),
+			MaxQueries:  envPositiveInt("SPOTIFY_CANDIDATE_MAX_QUERIES", 3),
+		},
+	)
+
 	recommendationRepository := repository.NewRecommendationRepository(postgres)
 	recommendationLockRepository := repository.NewRecommendationLockRepository(redisClient)
 	recommendationConfig := loadRecommendationConfig()
@@ -93,10 +113,14 @@ func start(ctx context.Context) error {
 		recommendationLockRepository,
 		authTransactionManager,
 		recommendationCalculator,
+		spotifyCandidateImportUsecase,
 		clock,
 		recommendationConfig,
 	)
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
+	feedbackRepository := repository.NewFeedbackRepository(postgres)
+	feedbackUsecase := usecase.NewFeedbackUsecase(userRepository, feedbackRepository, authTransactionManager, clock, loadFeedbackConfig())
+	feedbackController := controller.NewFeedbackController(feedbackUsecase)
 
 	adminRepository := repository.NewAdminRepository(postgres)
 	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
@@ -108,13 +132,6 @@ func start(ctx context.Context) error {
 	roleAdminController := controller.NewRoleAdminController(adminManagementUsecase)
 	logAdminController := controller.NewLogAdminController(adminManagementUsecase)
 
-	spotifyClient, err := spotify.NewClient(spotify.Config{
-		ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
-		ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
-	})
-	if err != nil {
-		return fmt.Errorf("spotify client: %w", err)
-	}
 	spotifyAdminUsecase := usecase.NewSpotifyAdminUsecase(spotifyClient)
 	spotifyAdminController := controller.NewSpotifyAdminController(spotifyAdminUsecase)
 
@@ -128,6 +145,7 @@ func start(ctx context.Context) error {
 		userController,
 		questionController,
 		recommendationController,
+		feedbackController,
 		spotifyAdminController,
 		artistAdminController,
 		songAdminController,
@@ -162,23 +180,26 @@ func loadRecommendationConfig() usecase.RecommendationConfig {
 		RecencyDays:       envPositiveInt("RECOMMENDATION_RECENCY_DAYS", 30),
 		GenerationWindow:  envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10),
 		LockTTLSeconds:    envPositiveInt("RECOMMENDATION_LOCK_TTL_SECONDS", 120),
-		AlgorithmVersion:  "recommendation-v1",
-		MinimumMatchScore: 2,
-		ScoreWeights: usecase.RecommendationScoreWeights{
-			YourMatch: usecase.RecommendationTypeScoreWeights{
-				Mood: 3, Element: 1.5, Atmosphere: 1.5, Genre: 3,
-				Artist: 1, Song: 1, Discovery: .25,
-			},
-			NewFavorite: usecase.RecommendationTypeScoreWeights{
-				Mood: 1.5, Element: 1, Atmosphere: 1, Genre: 2,
-				Artist: 1, Song: 1, Discovery: 2,
-			},
-			TrySomethingNew: usecase.RecommendationTypeScoreWeights{
-				Mood: 1, Element: 1, Atmosphere: 1, Genre: .5,
-				Artist: .5, Song: .5, Discovery: 4,
-			},
-			ArtistRecency: .15,
-			GenreRecency:  .3,
-		},
+		AlgorithmVersion:  usecase.RecommendationAlgorithmVersion,
+		MinimumMatchScore: usecase.RecommendationMinimumMatchScore,
+		ScoreWeights:      usecase.RecommendationV1ScoreWeights(),
+	}
+}
+
+func envFloat(name string, fallback float64) float64 {
+	value, err := strconv.ParseFloat(os.Getenv(name), 64)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+func loadFeedbackConfig() usecase.FeedbackConfig {
+	return usecase.FeedbackConfig{
+		Like:          usecase.FeedbackDelta{Genre: envFloat("FEEDBACK_LIKE_GENRE_DELTA", 0.5), Artist: envFloat("FEEDBACK_LIKE_ARTIST_DELTA", 2), Song: envFloat("FEEDBACK_LIKE_SONG_DELTA", 3), Profile: envFloat("FEEDBACK_LIKE_PROFILE_DELTA", 0.5), Discovery: envFloat("FEEDBACK_LIKE_DISCOVERY_DELTA", 0.5)},
+		Maybe:         usecase.FeedbackDelta{Genre: envFloat("FEEDBACK_MAYBE_GENRE_DELTA", 0.2), Artist: envFloat("FEEDBACK_MAYBE_ARTIST_DELTA", 0.5), Song: envFloat("FEEDBACK_MAYBE_SONG_DELTA", 0.5), Profile: envFloat("FEEDBACK_MAYBE_PROFILE_DELTA", 0.2), Discovery: envFloat("FEEDBACK_MAYBE_DISCOVERY_DELTA", 0.2)},
+		Skip:          usecase.FeedbackDelta{Genre: envFloat("FEEDBACK_SKIP_GENRE_DELTA", -0.2), Artist: envFloat("FEEDBACK_SKIP_ARTIST_DELTA", -1), Song: envFloat("FEEDBACK_SKIP_SONG_DELTA", -3), Profile: envFloat("FEEDBACK_SKIP_PROFILE_DELTA", -0.2), Discovery: envFloat("FEEDBACK_SKIP_DISCOVERY_DELTA", -0.5)},
+		MinimumWeight: envFloat("FEEDBACK_WEIGHT_MIN", -10), MaximumWeight: envFloat("FEEDBACK_WEIGHT_MAX", 10),
+		MinimumDiscoveryAdjustment: envFloat("DISCOVERY_ADJUSTMENT_MIN", -3), MaximumDiscoveryAdjustment: envFloat("DISCOVERY_ADJUSTMENT_MAX", 3),
 	}
 }

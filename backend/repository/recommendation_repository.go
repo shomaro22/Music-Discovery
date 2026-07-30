@@ -10,13 +10,6 @@ import (
 	"music-discovery/backend/entity"
 )
 
-type RecommendationFeedbackSignals struct {
-	ArtistWeights   map[uuid.UUID]float64
-	SongWeights     map[uuid.UUID]float64
-	ArtistPenalties map[uuid.UUID]float64
-	SongPenalties   map[uuid.UUID]float64
-}
-
 type RecommendationRecencyCounts struct {
 	ArtistCounts map[uuid.UUID]int64
 	GenreCounts  map[string]int64
@@ -36,7 +29,7 @@ type IRecommendationRepository interface {
 	HasRecentNormal(ctx context.Context, userID uuid.UUID, since time.Time) (bool, error)
 	CountByArtist(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
-	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) (RecommendationFeedbackSignals, error)
+	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) ([]entity.RecommendationFeedbackSignal, error)
 	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
 	FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error)
 }
@@ -137,6 +130,9 @@ func (r *recommendationRepository) FindLatest(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, entity.ErrInternal
 	}
+	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+		return nil, err
+	}
 	return &value, nil
 }
 func (r *recommendationRepository) FindByID(ctx context.Context, id uuid.UUID) (*entity.Recommendation, error) {
@@ -148,7 +144,36 @@ func (r *recommendationRepository) FindByID(ctx context.Context, id uuid.UUID) (
 	if err != nil {
 		return nil, entity.ErrInternal
 	}
+	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+		return nil, err
+	}
 	return &value, nil
+}
+func (r *recommendationRepository) loadFeedbackStatuses(ctx context.Context, value *entity.Recommendation) error {
+	if value == nil || len(value.Details) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, 0, len(value.Details))
+	for _, detail := range value.Details {
+		ids = append(ids, detail.ID)
+	}
+	var feedbacks []entity.Feedback
+	if err := r.db.WithContext(ctx).Where("recommendation_detail_id IN ?", ids).Find(&feedbacks).Error; err != nil {
+		return entity.ErrInternal
+	}
+	statusByID := make(map[uuid.UUID]entity.FeedbackStatus, len(feedbacks))
+	for _, feedback := range feedbacks {
+		statusByID[feedback.RecommendationDetailID] = entity.FeedbackStatus(feedback.Type)
+	}
+	for index := range value.Details {
+		if status, ok := statusByID[value.Details[index].ID]; ok {
+			current := status
+			value.Details[index].FeedbackStatus = &current
+		} else {
+			value.Details[index].FeedbackStatus = nil
+		}
+	}
+	return nil
 }
 func (r *recommendationRepository) HasRecentNormal(ctx context.Context, userID uuid.UUID, since time.Time) (bool, error) {
 	var count int64
@@ -182,35 +207,17 @@ func (r *recommendationRepository) CountBySong(ctx context.Context, userID uuid.
 	return result, err
 }
 
-func (r *recommendationRepository) FindFeedbackSignals(ctx context.Context, userID uuid.UUID) (RecommendationFeedbackSignals, error) {
-	type row struct {
-		ArtistID, SongID uuid.UUID
-		Status           entity.FeedbackStatus
-	}
-	var rows []row
+func (r *recommendationRepository) FindFeedbackSignals(ctx context.Context, userID uuid.UUID) ([]entity.RecommendationFeedbackSignal, error) {
+	var result []entity.RecommendationFeedbackSignal
 	err := r.db.WithContext(ctx).Table("recommendation_details rd").
-		Select("s.artist_id, rd.song_id, rd.feedback_status status").
+		Select("f.artist_id, f.song_id, f.feedback_type status, COUNT(*) count").
+		Joins("JOIN feedbacks f ON f.recommendation_detail_id = rd.id").
 		Joins("JOIN recommendations r ON r.id = rd.recommendation_id").
-		Joins("JOIN songs s ON s.id = rd.song_id").
-		Where("r.user_id = ? AND rd.feedback_status IS NOT NULL", userID).Scan(&rows).Error
+		Where("r.user_id = ?", userID).
+		Group("f.artist_id, f.song_id, f.feedback_type").
+		Scan(&result).Error
 	if err != nil {
-		return RecommendationFeedbackSignals{}, entity.ErrInternal
-	}
-	result := RecommendationFeedbackSignals{ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}, ArtistPenalties: map[uuid.UUID]float64{}, SongPenalties: map[uuid.UUID]float64{}}
-	for _, value := range rows {
-		switch value.Status {
-		case entity.FeedbackStatusLike:
-			result.ArtistWeights[value.ArtistID] += 1
-			result.SongWeights[value.SongID] += 1
-		case entity.FeedbackStatusMaybe:
-			result.ArtistWeights[value.ArtistID] += .25
-			result.SongWeights[value.SongID] += .25
-		case entity.FeedbackStatusSkip:
-			result.ArtistWeights[value.ArtistID] -= .5
-			result.SongWeights[value.SongID] -= .5
-			result.ArtistPenalties[value.ArtistID] += 1
-			result.SongPenalties[value.SongID] += 1.5
-		}
+		return nil, entity.ErrInternal
 	}
 	return result, nil
 }
