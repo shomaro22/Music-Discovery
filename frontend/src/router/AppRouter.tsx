@@ -9,6 +9,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { SignupPage } from "../pages/SignupPage";
 import { TopPage } from "../pages/TopPage";
 import { WithdrawPage } from "../pages/WithdrawPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { QuestionPage } from "../pages/QuestionPage";
 import { AnswerConfirmPage } from "../pages/AnswerConfirmPage";
 import { RecommendationPage } from "../pages/RecommendationPage";
@@ -20,6 +21,7 @@ export function AppRouter() {
     <Route path={ROUTES.signup} element={<SignupPage />} />
     <Route path={ROUTES.login} element={<LoginPage />} />
     <Route path={ROUTES.forbidden} element={<ProtectedRoute><ForbiddenPage /></ProtectedRoute>} />
+    <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
     <Route path={ROUTES.withdraw} element={<AdminRoute allowedRoles={[ROLE.USER]}><WithdrawPage /></AdminRoute>} />
     <Route path={ROUTES.questions} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><QuestionPage /></AdminRoute>} />
     <Route path={ROUTES.questionConfirm} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><AnswerConfirmPage /></AdminRoute>} />

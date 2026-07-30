@@ -255,6 +255,10 @@ func TestWithdrawMapsTransactionFailuresToInternalError(t *testing.T) {
 	}
 }
 
+func (s *withdrawUserRepositoryStub) UpdateProfile(_ context.Context, _ uuid.UUID, _, _ string, _ time.Time) (*entity.User, error) {
+	return s.user, nil
+}
+
 var _ repository.IUserRepository = (*withdrawUserRepositoryStub)(nil)
 var _ repository.IRefreshTokenRepository = (*withdrawRefreshRepositoryStub)(nil)
 var _ repository.IAuthTransactionManager = (*withdrawTransactionManagerStub)(nil)

@@ -13,3 +13,5 @@ export interface RefreshResponse { access_token: string; token_type: "Bearer"; e
 
 export interface WithdrawInput { current_password: string; }
 export interface WithdrawResponse { message: string; }
+
+export interface UpdateProfileInput { name: string; email: string; }

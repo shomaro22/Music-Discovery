@@ -50,7 +50,7 @@ export function QuestionPage() {
 
   const isValid = isQuestionAnswerValid(question, selectedIds);
   const isLast = currentIndex === questions.length - 1;
-  return <main className="question-page"><section className="question-card">
+  return <main className="question-page"><div className="question-page-toolbar"><button type="button" className="question-top-button" onClick={() => navigate("/")}>TOPページへ戻る</button></div><section className="question-card">
     <QuestionProgress current={currentIndex + 1} total={questions.length} />
     <p className="question-code">Q{currentIndex + 1}</p><h1>{question.title}</h1>
     <p className="question-rule">{question.answer_type === "single" ? "1つ選択してください" : question.max_selections === null ? `${question.min_selections}つ以上選択してください` : `${question.min_selections}〜${question.max_selections}つ選択してください`}</p>

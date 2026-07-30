@@ -19,7 +19,7 @@ beforeEach(() => {
   mockedUseAuth.mockReturnValue({
     user: { id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" },
     accessToken: "token", isAuthenticated: true, isLoading: false, authExpired: false,
-    signUp: vi.fn(), login: vi.fn(), logout: vi.fn(), withdraw: withdrawMock, clearAuth: vi.fn(),
+    signUp: vi.fn(), login: vi.fn(), logout: vi.fn(), withdraw: withdrawMock, updateProfile: vi.fn(), clearAuth: vi.fn(),
   });
 });
 

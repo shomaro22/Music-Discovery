@@ -24,7 +24,10 @@ func (s *routerUserControllerStub) Login(c echo.Context) error       { return s.
 func (s *routerUserControllerStub) Refresh(c echo.Context) error     { return s.hit("refresh", c) }
 func (s *routerUserControllerStub) Logout(c echo.Context) error      { return s.hit("logout", c) }
 func (s *routerUserControllerStub) CurrentUser(c echo.Context) error { return s.hit("current", c) }
-func (s *routerUserControllerStub) Withdraw(c echo.Context) error    { return s.hit("withdraw", c) }
+func (s *routerUserControllerStub) UpdateProfile(c echo.Context) error {
+	return s.hit("update_profile", c)
+}
+func (s *routerUserControllerStub) Withdraw(c echo.Context) error { return s.hit("withdraw", c) }
 
 type routerQuestionControllerStub struct{}
 

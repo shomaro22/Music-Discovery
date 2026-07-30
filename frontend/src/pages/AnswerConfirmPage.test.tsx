@@ -41,6 +41,7 @@ beforeEach(() => {
     login: vi.fn(),
     logout: vi.fn(),
     withdraw: vi.fn(),
+    updateProfile: vi.fn(),
     clearAuth: vi.fn(),
   });
 });

@@ -115,6 +115,16 @@ func (questionUserRepositoryStub) IncrementTokenVersion(context.Context, reposit
 	return nil
 }
 
+func (s questionUserRepositoryStub) UpdateProfile(_ context.Context, _ uuid.UUID, _, _ string, _ time.Time) (*entity.User, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.user == nil {
+		return nil, entity.ErrUserNotFound
+	}
+	return s.user, nil
+}
+
 type questionClock struct{ now time.Time }
 
 func (c questionClock) Now() time.Time { return c.now }

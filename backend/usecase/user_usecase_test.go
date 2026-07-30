@@ -115,6 +115,19 @@ func newUsecaseForTest(repo *fakeUserRepository, hasher *fakeHasher) IUserUsecas
 	return NewUserUsecase(repo, validator.NewUserValidator(), &fakeRefreshRepository{}, &fakeAuthTransactionManager{repo: repo}, hasher, &fakeTokenService{}, &fakeClock{now: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)})
 }
 
+func (f *fakeUserRepository) UpdateProfile(_ context.Context, _ uuid.UUID, name, email string, now time.Time) (*entity.User, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	if f.findUser == nil {
+		f.findUser = &entity.User{ID: uuid.New()}
+	}
+	f.findUser.Name = name
+	f.findUser.Email = email
+	f.findUser.UpdatedAt = now
+	return f.findUser, nil
+}
+
 var _ repository.IUserRepository = (*fakeUserRepository)(nil)
 
 func TestSignUpSuccessSetsInternalFields(t *testing.T) {

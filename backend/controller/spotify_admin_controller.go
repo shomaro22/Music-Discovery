@@ -24,7 +24,7 @@ func NewSpotifyAdminController(value usecase.ISpotifyAdminUsecase) ISpotifyAdmin
 
 func spotifySearchInput(ctx echo.Context) (string, int, error) {
 	query := strings.TrimSpace(ctx.QueryParam("q"))
-	limit := 20
+	limit := 10
 	if raw := strings.TrimSpace(ctx.QueryParam("limit")); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil {

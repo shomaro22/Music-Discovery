@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
 import { getCSRFCookie } from "../api/csrf";
-import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi } from "../api/user";
-import type { AuthUser, LoginInput, SignUpInput, WithdrawInput } from "../types/user";
+import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi, updateProfile as updateProfileApi } from "../api/user";
+import type { AuthUser, LoginInput, SignUpInput, WithdrawInput, UpdateProfileInput } from "../types/user";
 import { isUserRole } from "../constants/role";
 import { clearQuestionAnswers } from "../utils/questionAnswers";
 
-interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<AuthUser>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; clearAuth: () => void; }
+interface AuthContextValue { user: AuthUser | null; accessToken: string | null; isAuthenticated: boolean; isLoading: boolean; authExpired: boolean; signUp: (input: SignUpInput) => Promise<void>; login: (input: LoginInput) => Promise<AuthUser>; logout: () => Promise<void>; withdraw: (input: WithdrawInput) => Promise<string>; updateProfile: (input: UpdateProfileInput) => Promise<void>; clearAuth: () => void; }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -108,6 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.message;
   };
 
+
+  const updateProfile = async (input: UpdateProfileInput): Promise<void> => {
+    const updated = await updateProfileApi(input);
+    updateUser(updated);
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await logoutApi();
@@ -116,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, withdraw, clearAuth }), [user, accessToken, isLoading, authExpired, clearAuth]);
+  const value = useMemo(() => ({ user, accessToken, isAuthenticated: user !== null && accessToken !== null, isLoading, authExpired, signUp, login, logout, withdraw, updateProfile, clearAuth }), [user, accessToken, isLoading, authExpired, clearAuth]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

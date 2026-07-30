@@ -20,6 +20,10 @@ type SignUpRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+type UpdateProfileRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
 type WithdrawRequest struct {
 	CurrentPassword string `json:"current_password"`
 }
@@ -70,6 +74,7 @@ type IUserController interface {
 	Refresh(c echo.Context) error
 	Logout(c echo.Context) error
 	CurrentUser(c echo.Context) error
+	UpdateProfile(c echo.Context) error
 	Withdraw(c echo.Context) error
 }
 type userController struct{ userUsecase usecase.IUserUsecase }
@@ -244,8 +249,8 @@ func writeAPIError(ctx echo.Context, status int, code, message string) error {
 }
 
 func (c *userController) CurrentUser(ctx echo.Context) error {
-	userID, ok := authUserID(ctx)
-	if !ok {
+	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
+	if !ok || userID == uuid.Nil {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 
@@ -270,8 +275,8 @@ func (c *userController) CurrentUser(ctx echo.Context) error {
 }
 
 func (c *userController) Withdraw(ctx echo.Context) error {
-	userID, ok := authUserID(ctx)
-	if !ok {
+	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
+	if !ok || userID == uuid.Nil {
 		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
 	}
 	var request WithdrawRequest
@@ -293,4 +298,29 @@ func (c *userController) Withdraw(ctx echo.Context) error {
 	}
 	clearAuthCookies(ctx)
 	return ctx.JSON(http.StatusOK, WithdrawResponse{Message: result.Message})
+}
+
+func (c *userController) UpdateProfile(ctx echo.Context) error {
+	userID, ok := ctx.Get(middleware.AuthUserIDKey).(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		return writeAPIError(ctx, http.StatusUnauthorized, "UNAUTHORIZED", "認証が必要です")
+	}
+	var request UpdateProfileRequest
+	if err := ctx.Bind(&request); err != nil {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+	}
+	user, err := c.userUsecase.UpdateProfile(ctx.Request().Context(), userID, usecase.UpdateProfileInput{Name: request.Name, Email: request.Email})
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrEmailAlreadyExists):
+			return writeAPIError(ctx, http.StatusConflict, "EMAIL_ALREADY_EXISTS", "このメールアドレスは既に登録されています")
+		case errors.Is(err, entity.ErrInvalidInput):
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+		case errors.Is(err, entity.ErrUserNotFound):
+			return writeAPIError(ctx, http.StatusNotFound, "USER_NOT_FOUND", "ユーザーが見つかりません")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+		}
+	}
+	return ctx.JSON(http.StatusOK, LoginUserResponse{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status})
 }
