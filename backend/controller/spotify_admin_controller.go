@@ -18,6 +18,44 @@ type ISpotifyAdminController interface {
 
 type spotifyAdminController struct{ usecase usecase.ISpotifyAdminUsecase }
 
+type SpotifyArtistPreviewResponse struct {
+	SpotifyArtistID string   `json:"spotify_artist_id"`
+	Name            string   `json:"name"`
+	Genres          []string `json:"genres"`
+	ImageURL        string   `json:"image_url"`
+	SpotifyURL      string   `json:"spotify_url"`
+	Popularity      int      `json:"popularity"`
+}
+
+type SpotifyArtistSearchResponse struct {
+	Items []SpotifyArtistPreviewResponse `json:"items"`
+	Total int                            `json:"total"`
+}
+
+type SpotifyTrackArtistPreviewResponse struct {
+	SpotifyArtistID string `json:"spotify_artist_id"`
+	Name            string `json:"name"`
+}
+
+type SpotifyTrackPreviewResponse struct {
+	SpotifyTrackID string                              `json:"spotify_track_id"`
+	Name           string                              `json:"name"`
+	Artists        []SpotifyTrackArtistPreviewResponse `json:"artists"`
+	AlbumName      string                              `json:"album_name"`
+	ReleaseDate    string                              `json:"release_date"`
+	ImageURL       string                              `json:"image_url"`
+	DurationMS     int                                 `json:"duration_ms"`
+	Explicit       bool                                `json:"explicit"`
+	Popularity     int                                 `json:"popularity"`
+	PreviewURL     string                              `json:"preview_url"`
+	SpotifyURL     string                              `json:"spotify_url"`
+}
+
+type SpotifyTrackSearchResponse struct {
+	Items []SpotifyTrackPreviewResponse `json:"items"`
+	Total int                           `json:"total"`
+}
+
 func NewSpotifyAdminController(value usecase.ISpotifyAdminUsecase) ISpotifyAdminController {
 	return &spotifyAdminController{usecase: value}
 }
@@ -44,7 +82,7 @@ func (c *spotifyAdminController) SearchArtists(ctx echo.Context) error {
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.SearchArtists(ctx.Request().Context(), query, limit)
-	return adminJSON(ctx, http.StatusOK, value, err)
+	return adminJSON(ctx, http.StatusOK, spotifyArtistSearchResponse(value), err)
 }
 
 func (c *spotifyAdminController) SearchTracks(ctx echo.Context) error {
@@ -53,5 +91,47 @@ func (c *spotifyAdminController) SearchTracks(ctx echo.Context) error {
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.SearchTracks(ctx.Request().Context(), query, limit)
-	return adminJSON(ctx, http.StatusOK, value, err)
+	return adminJSON(ctx, http.StatusOK, spotifyTrackSearchResponse(value), err)
+}
+
+func spotifyArtistSearchResponse(value usecase.SpotifyArtistSearchResult) SpotifyArtistSearchResponse {
+	items := make([]SpotifyArtistPreviewResponse, 0, len(value.Items))
+	for _, item := range value.Items {
+		items = append(items, SpotifyArtistPreviewResponse{
+			SpotifyArtistID: item.SpotifyArtistID,
+			Name:            item.Name,
+			Genres:          append([]string(nil), item.Genres...),
+			ImageURL:        item.ImageURL,
+			SpotifyURL:      item.SpotifyURL,
+			Popularity:      item.Popularity,
+		})
+	}
+	return SpotifyArtistSearchResponse{Items: items, Total: value.Total}
+}
+
+func spotifyTrackSearchResponse(value usecase.SpotifyTrackSearchResult) SpotifyTrackSearchResponse {
+	items := make([]SpotifyTrackPreviewResponse, 0, len(value.Items))
+	for _, item := range value.Items {
+		artists := make([]SpotifyTrackArtistPreviewResponse, 0, len(item.Artists))
+		for _, artist := range item.Artists {
+			artists = append(artists, SpotifyTrackArtistPreviewResponse{
+				SpotifyArtistID: artist.SpotifyArtistID,
+				Name:            artist.Name,
+			})
+		}
+		items = append(items, SpotifyTrackPreviewResponse{
+			SpotifyTrackID: item.SpotifyTrackID,
+			Name:           item.Name,
+			Artists:        artists,
+			AlbumName:      item.AlbumName,
+			ReleaseDate:    item.ReleaseDate,
+			ImageURL:       item.ImageURL,
+			DurationMS:     item.DurationMS,
+			Explicit:       item.Explicit,
+			Popularity:     item.Popularity,
+			PreviewURL:     item.PreviewURL,
+			SpotifyURL:     item.SpotifyURL,
+		})
+	}
+	return SpotifyTrackSearchResponse{Items: items, Total: value.Total}
 }

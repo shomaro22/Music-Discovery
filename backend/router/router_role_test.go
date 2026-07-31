@@ -115,6 +115,7 @@ func (passRateLimit) Refresh(next echo.HandlerFunc) echo.HandlerFunc         { r
 func (passRateLimit) Withdraw(next echo.HandlerFunc) echo.HandlerFunc        { return next }
 func (passRateLimit) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc { return next }
 func (passRateLimit) Recommendations(next echo.HandlerFunc) echo.HandlerFunc { return next }
+func (passRateLimit) Feedback(next echo.HandlerFunc) echo.HandlerFunc        { return next }
 
 type testAuthMiddleware struct{ calls int }
 

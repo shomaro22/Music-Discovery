@@ -1,5 +1,5 @@
+import type { FeedbackType } from "./feedback";
 export type RecommendationType = "YOUR_MATCH" | "NEW_FAVORITE" | "TRY_SOMETHING_NEW";
-export type FeedbackStatus = "LIKE" | "MAYBE" | "SKIP";
 export interface RecommendationDetail {
   recommendation_detail_id: string;
   recommendation_type: RecommendationType;
@@ -10,7 +10,7 @@ export interface RecommendationDetail {
   artwork_url: string;
   spotify_url: string;
   reason: string;
-  feedback_status: FeedbackStatus | null;
+  feedback_status: FeedbackType | null;
 }
 export interface Recommendation {
   recommendation_id: string;

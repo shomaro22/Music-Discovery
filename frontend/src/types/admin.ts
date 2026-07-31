@@ -8,25 +8,29 @@ export interface AdminUser { id: string; name: string; email: string; role: "use
 export interface AuditLog { id: string; actor_user_id: string; actor_role: string; actor_name: string; actor_email: string; request_id: string; action: string; target_type: string; target_id: string; reason: string; before?: unknown; after?: unknown; summary: string; ip_address: string; user_agent: string; created_at: string }
 export interface SystemLog { id: string; level: string; category: string; event: string; error_code: string; message: string; request_id: string; user_id?: string; method: string; path: string; status_code: number; external_service?: string; duration_ms?: number; error_detail?: string; ip_address?: string; user_agent?: string; metadata?: unknown; stack_trace?: string; created_at: string }
 
-export interface SpotifyImage { url: string }
 export interface SpotifyArtistSearchItem {
-  id: string;
+  spotify_artist_id: string;
   name: string;
   genres: string[];
-  images: SpotifyImage[];
+  image_url: string;
+  spotify_url: string;
   popularity: number;
-  external_urls: Record<string, string>;
 }
-export interface SpotifyTrackArtist { id: string; name: string }
+export interface SpotifyTrackArtist {
+  spotify_artist_id: string;
+  name: string;
+}
 export interface SpotifyTrackSearchItem {
-  id: string;
+  spotify_track_id: string;
   name: string;
   artists: SpotifyTrackArtist[];
-  album: { name: string; release_date: string; images: SpotifyImage[] };
+  album_name: string;
+  release_date: string;
+  image_url: string;
   duration_ms: number;
   explicit: boolean;
   popularity: number;
-  preview_url: string | null;
-  external_urls: Record<string, string>;
+  preview_url: string;
+  spotify_url: string;
 }
 export interface SpotifySearchResponse<T> { items: T[]; total: number }

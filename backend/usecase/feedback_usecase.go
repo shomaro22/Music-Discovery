@@ -66,22 +66,18 @@ func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input Save
 	if err := u.validateUser(ctx, userID); err != nil {
 		return nil, err
 	}
-	target, err := u.feedback.FindTarget(ctx, input.RecommendationDetailID)
-	if err != nil {
-		return nil, err
-	}
-	if target.Recommendation.UserID != userID {
-		return nil, entity.ErrFeedbackAccessDenied
-	}
-	if target.Song.ID == uuid.Nil {
-		return nil, entity.ErrNotFound
-	}
-	if target.Artist.ID == uuid.Nil {
-		return nil, entity.ErrNotFound
-	}
-
 	var result FeedbackResult
-	err = u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
+	err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
+		if err := u.feedback.LockUserLearningState(ctx, tx, userID); err != nil {
+			return err
+		}
+		target, err := u.feedback.FindTargetForUpdate(ctx, tx, input.RecommendationDetailID)
+		if err != nil {
+			return err
+		}
+		if target.Recommendation.UserID != userID {
+			return entity.ErrFeedbackAccessDenied
+		}
 		existing, findErr := u.feedback.FindByDetailID(ctx, tx, input.RecommendationDetailID)
 		if findErr != nil && !errors.Is(findErr, entity.ErrNotFound) {
 			return findErr
@@ -91,26 +87,26 @@ func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input Save
 			result = FeedbackResult{Feedback: existing, Created: false}
 			return nil
 		}
-		if !created {
-			if applyErr := u.apply(ctx, tx, userID, target, existing.Type, -1); applyErr != nil {
-				return applyErr
-			}
-		}
-		if applyErr := u.apply(ctx, tx, userID, target, input.FeedbackType, 1); applyErr != nil {
-			return applyErr
-		}
 		now := u.clock.Now().UTC()
 		if created {
 			existing = &entity.Feedback{UserID: userID, RecommendationDetailID: input.RecommendationDetailID, SongID: target.Song.ID, ArtistID: target.Artist.ID, Type: input.FeedbackType, CreatedAt: now, UpdatedAt: now}
-			if createErr := u.feedback.Create(ctx, tx, existing); createErr != nil {
-				return createErr
+			if err := u.feedback.Create(ctx, tx, existing); err != nil {
+				return err
 			}
 		} else {
 			existing.Type = input.FeedbackType
 			existing.UpdatedAt = now
-			if updateErr := u.feedback.Update(ctx, tx, existing); updateErr != nil {
-				return updateErr
+			if err := u.feedback.Update(ctx, tx, existing); err != nil {
+				return err
 			}
+		}
+		deltas := map[entity.FeedbackType]repository.FeedbackWeightDelta{
+			entity.FeedbackTypeLike:  {Genre: u.config.Like.Genre, Artist: u.config.Like.Artist, Song: u.config.Like.Song, Profile: u.config.Like.Profile, Discovery: u.config.Like.Discovery},
+			entity.FeedbackTypeMaybe: {Genre: u.config.Maybe.Genre, Artist: u.config.Maybe.Artist, Song: u.config.Maybe.Song, Profile: u.config.Maybe.Profile, Discovery: u.config.Maybe.Discovery},
+			entity.FeedbackTypeSkip:  {Genre: u.config.Skip.Genre, Artist: u.config.Skip.Artist, Song: u.config.Skip.Song, Profile: u.config.Skip.Profile, Discovery: u.config.Skip.Discovery},
+		}
+		if err := u.feedback.RecalculateLearningWeights(ctx, tx, userID, deltas, u.config.MinimumWeight, u.config.MaximumWeight, u.config.MinimumDiscoveryAdjustment, u.config.MaximumDiscoveryAdjustment); err != nil {
+			return err
 		}
 		result = FeedbackResult{Feedback: existing, Created: created}
 		return nil
@@ -120,6 +116,7 @@ func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input Save
 	}
 	return &result, nil
 }
+
 func (u *feedbackUsecase) Get(ctx context.Context, userID, detailID uuid.UUID) (*FeedbackDetail, error) {
 	if detailID == uuid.Nil {
 		return nil, entity.ErrInvalidRecommendationDetailID

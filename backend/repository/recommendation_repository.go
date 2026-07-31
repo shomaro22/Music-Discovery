@@ -30,6 +30,8 @@ type IRecommendationRepository interface {
 	CountByArtist(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) ([]entity.RecommendationFeedbackSignal, error)
+	FindArtistWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error)
+	FindSongWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error)
 	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
 	FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error)
 }
@@ -271,6 +273,30 @@ func (r *recommendationRepository) FindRecentDisplayCounts(ctx context.Context, 
 	}
 	for _, row := range genres {
 		result.GenreCounts[row.Genre] = row.Count
+	}
+	return result, nil
+}
+
+func (r *recommendationRepository) FindArtistWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error) {
+	var values []entity.UserArtistWeight
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&values).Error; err != nil {
+		return nil, entity.ErrInternal
+	}
+	result := make(map[uuid.UUID]float64, len(values))
+	for _, value := range values {
+		result[value.ArtistID] = value.Weight
+	}
+	return result, nil
+}
+
+func (r *recommendationRepository) FindSongWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error) {
+	var values []entity.UserSongWeight
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&values).Error; err != nil {
+		return nil, entity.ErrInternal
+	}
+	result := make(map[uuid.UUID]float64, len(values))
+	for _, value := range values {
+		result[value.SongID] = value.Weight
 	}
 	return result, nil
 }

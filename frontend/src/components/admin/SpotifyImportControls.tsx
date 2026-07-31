@@ -43,8 +43,8 @@ export function SpotifyArtistImport({ onSelect }: { onSelect: (artist: SpotifyAr
       {state.error && <p className="spotify-import-error" role="alert">{state.error}</p>}
       <div className="spotify-import-results">
         {state.items.map((artist) => (
-          <article key={artist.id} className="spotify-import-card">
-            {artist.images[0]?.url ? <img src={artist.images[0].url} alt="" /> : <div className="spotify-import-placeholder">No image</div>}
+          <article key={artist.spotify_artist_id} className="spotify-import-card">
+            {artist.image_url ? <img src={artist.image_url} alt="" /> : <div className="spotify-import-placeholder">No image</div>}
             <div><strong>{artist.name}</strong><span>Popularity: {artist.popularity}</span><small>{artist.genres.join(", ") || "Genre情報なし"}</small></div>
             <button type="button" onClick={() => onSelect(artist)}>登録フォームへ</button>
           </article>
@@ -82,9 +82,9 @@ export function SpotifyTrackImport({ onSelect }: { onSelect: (track: SpotifyTrac
       {state.error && <p className="spotify-import-error" role="alert">{state.error}</p>}
       <div className="spotify-import-results">
         {state.items.map((track) => (
-          <article key={track.id} className="spotify-import-card">
-            {track.album.images[0]?.url ? <img src={track.album.images[0].url} alt="" /> : <div className="spotify-import-placeholder">No image</div>}
-            <div><strong>{track.name}</strong><span>{track.artists.map((artist) => artist.name).join(", ")}</span><small>{track.album.name}</small></div>
+          <article key={track.spotify_track_id} className="spotify-import-card">
+            {track.image_url ? <img src={track.image_url} alt="" /> : <div className="spotify-import-placeholder">No image</div>}
+            <div><strong>{track.name}</strong><span>{track.artists.map((artist) => artist.name).join(", ")}</span><small>{track.album_name}</small></div>
             <button type="button" onClick={() => onSelect(track)}>登録フォームへ</button>
           </article>
         ))}

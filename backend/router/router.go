@@ -70,7 +70,7 @@ func NewRouter(
 	authenticated.POST("/recommendations", recommendationController.Generate, rateLimit.Recommendations, allAuthenticated.Authorize)
 	authenticated.GET("/recommendations/latest", recommendationController.GetLatest, allAuthenticated.Authorize)
 	authenticated.GET("/recommendations/:recommendationId", recommendationController.GetByID, allAuthenticated.Authorize)
-	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), requireJSON, userOnly.Authorize)
+	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), rateLimit.Feedback, requireJSON, userOnly.Authorize)
 	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, userOnly.Authorize)
 	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)

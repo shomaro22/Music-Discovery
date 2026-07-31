@@ -3,6 +3,7 @@ package spotify
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -58,8 +59,15 @@ func TestClientSearchArtistsUsesClientCredentialsAndCachesToken(t *testing.T) {
 	}
 }
 
-func TestNewClientRejectsMissingCredentials(t *testing.T) {
-	if _, err := NewClient(Config{}); err == nil {
-		t.Fatal("expected an error")
+func TestNewClientWithoutCredentialsReturnsUnavailableClient(t *testing.T) {
+	value, err := NewClient(Config{})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if _, err := value.SearchArtists(context.Background(), "Muse", 10); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SearchArtists error = %v, want ErrUnavailable", err)
+	}
+	if _, err := value.SearchTracks(context.Background(), "Muse", 10); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("SearchTracks error = %v, want ErrUnavailable", err)
 	}
 }
