@@ -9,22 +9,20 @@ import (
 )
 
 type RecommendationCondition struct {
-	Mood                    []string
-	Elements                []string
-	Atmospheres             []string
-	Genres                  []string
-	DiscoveryLevel          string
-	DiscoveryAdjustment     float64
-	GenreWeights            map[string]float64
-	ElementWeights          map[string]float64
-	AtmosphereWeights       map[string]float64
-	ArtistWeights           map[uuid.UUID]float64
-	SongWeights             map[uuid.UUID]float64
-	ArtistFeedbackPenalties map[uuid.UUID]float64
-	SongFeedbackPenalties   map[uuid.UUID]float64
-	RecommendedGenres       map[string]bool
-	RecentArtistCounts      map[uuid.UUID]int64
-	RecentGenreCounts       map[string]int64
+	Mood                []string
+	Elements            []string
+	Atmospheres         []string
+	Genres              []string
+	DiscoveryLevel      string
+	DiscoveryAdjustment float64
+	GenreWeights        map[string]float64
+	ElementWeights      map[string]float64
+	AtmosphereWeights   map[string]float64
+	ArtistWeights       map[uuid.UUID]float64
+	SongWeights         map[uuid.UUID]float64
+	RecommendedGenres   map[string]bool
+	RecentArtistCounts  map[uuid.UUID]int64
+	RecentGenreCounts   map[string]int64
 }
 
 type RecommendationScoreWeights struct {
@@ -50,21 +48,14 @@ type RecommendationConfig struct {
 	ScoreWeights      RecommendationScoreWeights
 }
 
-type RecommendationScore struct{ Mood, Element, Atmosphere, Genre, Artist, Song, Discovery, FeedbackPenalty, RecencyPenalty, Total float64 }
+type RecommendationScore struct{ Mood, Element, Atmosphere, Genre, Artist, Song, Discovery, RecencyPenalty, Total float64 }
 type SongCandidate struct {
 	Data  entity.RecommendationSongCandidate
 	Score RecommendationScore
 }
-type RecommendationFeedbackScores struct {
-	ArtistWeights   map[uuid.UUID]float64
-	SongWeights     map[uuid.UUID]float64
-	ArtistPenalties map[uuid.UUID]float64
-	SongPenalties   map[uuid.UUID]float64
-}
 
 type IRecommendationCalculator interface {
 	Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate
-	CalculateFeedbackScores(values []entity.RecommendationFeedbackSignal) RecommendationFeedbackScores
 }
 type recommendationCalculator struct{ weights RecommendationScoreWeights }
 
@@ -128,32 +119,6 @@ func scoreWeightsFor(weights RecommendationScoreWeights, kind entity.Recommendat
 	}
 }
 
-func (c *recommendationCalculator) CalculateFeedbackScores(values []entity.RecommendationFeedbackSignal) RecommendationFeedbackScores {
-	result := RecommendationFeedbackScores{
-		ArtistWeights:   map[uuid.UUID]float64{},
-		SongWeights:     map[uuid.UUID]float64{},
-		ArtistPenalties: map[uuid.UUID]float64{},
-		SongPenalties:   map[uuid.UUID]float64{},
-	}
-	for _, value := range values {
-		count := float64(value.Count)
-		switch value.Status {
-		case entity.FeedbackStatusLike:
-			result.ArtistWeights[value.ArtistID] += count
-			result.SongWeights[value.SongID] += count
-		case entity.FeedbackStatusMaybe:
-			result.ArtistWeights[value.ArtistID] += count * 0.25
-			result.SongWeights[value.SongID] += count * 0.25
-		case entity.FeedbackStatusSkip:
-			result.ArtistWeights[value.ArtistID] -= count * 0.5
-			result.SongWeights[value.SongID] -= count * 0.5
-			result.ArtistPenalties[value.ArtistID] += count
-			result.SongPenalties[value.SongID] += count * 1.5
-		}
-	}
-	return result
-}
-
 func scoreTagWeights(tags map[string]bool, values map[string]float64) float64 {
 	total := 0.0
 	for key, weight := range values {
@@ -204,12 +169,11 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 				score.Discovery++
 			}
 		}
-		score.FeedbackPenalty = condition.ArtistFeedbackPenalties[value.Artist.ID] + condition.SongFeedbackPenalties[value.Song.ID]
 		score.RecencyPenalty = float64(condition.RecentArtistCounts[value.Artist.ID]) * c.weights.ArtistRecency
 		for _, genre := range genres {
 			score.RecencyPenalty += float64(condition.RecentGenreCounts[normalized(genre)]) * c.weights.GenreRecency
 		}
-		score.Total = score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery - score.FeedbackPenalty - score.RecencyPenalty
+		score.Total = score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery - score.RecencyPenalty
 		result = append(result, SongCandidate{Data: value, Score: score})
 	}
 	sort.SliceStable(result, func(i, j int) bool {

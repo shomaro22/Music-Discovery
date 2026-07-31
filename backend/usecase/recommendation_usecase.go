@@ -162,9 +162,6 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 					continue
 				}
 			}
-			if candidate.Score.FeedbackPenalty >= 3 && stage < 2 {
-				continue
-			}
 			if first {
 				if stage == 0 && selectedArtists[candidate.Data.Artist.ID] {
 					continue
@@ -334,7 +331,7 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
-	condition := RecommendationCondition{GenreWeights: map[string]float64{}, ElementWeights: map[string]float64{}, AtmosphereWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}, ArtistFeedbackPenalties: map[uuid.UUID]float64{}, SongFeedbackPenalties: map[uuid.UUID]float64{}}
+	condition := RecommendationCondition{GenreWeights: map[string]float64{}, ElementWeights: map[string]float64{}, AtmosphereWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}}
 	for _, choice := range choices {
 		switch answerQuestion[choice.ID] {
 		case entity.QuestionCodeMood:

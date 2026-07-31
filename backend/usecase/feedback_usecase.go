@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"music-discovery/backend/entity"
 	"music-discovery/backend/repository"
+
+	"github.com/google/uuid"
 )
 
 type FeedbackDelta struct{ Genre, Artist, Song, Profile, Discovery float64 }
@@ -46,6 +47,7 @@ type feedbackUsecase struct {
 func NewFeedbackUsecase(users repository.IUserRepository, feedback repository.IFeedbackRepository, tx repository.ITransactionManager, clock IClock, config FeedbackConfig) IFeedbackUsecase {
 	return &feedbackUsecase{users: users, feedback: feedback, tx: tx, clock: clock, config: config}
 }
+
 func (u *feedbackUsecase) validateUser(ctx context.Context, userID uuid.UUID) error {
 	user, err := u.users.FindByID(ctx, userID)
 	if err != nil {
@@ -56,6 +58,7 @@ func (u *feedbackUsecase) validateUser(ctx context.Context, userID uuid.UUID) er
 	}
 	return nil
 }
+
 func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input SaveFeedbackInput) (*FeedbackResult, error) {
 	if userID == uuid.Nil || input.RecommendationDetailID == uuid.Nil {
 		return nil, entity.ErrInvalidRecommendationDetailID
@@ -68,7 +71,8 @@ func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input Save
 	}
 	var result FeedbackResult
 	err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
-		if err := u.feedback.LockUserLearningState(ctx, tx, userID); err != nil {
+		profile, err := u.feedback.FindLearningProfileForUpdate(ctx, tx, userID)
+		if err != nil {
 			return err
 		}
 		target, err := u.feedback.FindTargetForUpdate(ctx, tx, input.RecommendationDetailID)
@@ -100,12 +104,12 @@ func (u *feedbackUsecase) Save(ctx context.Context, userID uuid.UUID, input Save
 				return err
 			}
 		}
-		deltas := map[entity.FeedbackType]repository.FeedbackWeightDelta{
-			entity.FeedbackTypeLike:  {Genre: u.config.Like.Genre, Artist: u.config.Like.Artist, Song: u.config.Like.Song, Profile: u.config.Like.Profile, Discovery: u.config.Like.Discovery},
-			entity.FeedbackTypeMaybe: {Genre: u.config.Maybe.Genre, Artist: u.config.Maybe.Artist, Song: u.config.Maybe.Song, Profile: u.config.Maybe.Profile, Discovery: u.config.Maybe.Discovery},
-			entity.FeedbackTypeSkip:  {Genre: u.config.Skip.Genre, Artist: u.config.Skip.Artist, Song: u.config.Skip.Song, Profile: u.config.Skip.Profile, Discovery: u.config.Skip.Discovery},
+		sources, err := u.feedback.ListLearningSources(ctx, tx, userID)
+		if err != nil {
+			return err
 		}
-		if err := u.feedback.RecalculateLearningWeights(ctx, tx, userID, deltas, u.config.MinimumWeight, u.config.MaximumWeight, u.config.MinimumDiscoveryAdjustment, u.config.MaximumDiscoveryAdjustment); err != nil {
+		snapshot := u.calculateLearningSnapshot(userID, profile, sources, now)
+		if err := u.feedback.ReplaceLearningSnapshot(ctx, tx, userID, profile.ID, snapshot, now); err != nil {
 			return err
 		}
 		result = FeedbackResult{Feedback: existing, Created: created}
@@ -150,7 +154,55 @@ func (u *feedbackUsecase) Get(ctx context.Context, userID, detailID uuid.UUID) (
 	}
 	return result, nil
 }
-func (u *feedbackUsecase) delta(value entity.FeedbackType) FeedbackDelta {
+
+func (u *feedbackUsecase) calculateLearningSnapshot(userID uuid.UUID, profile *entity.UserProfile, sources []entity.FeedbackLearningSource, now time.Time) entity.FeedbackLearningSnapshot {
+	artistScores := make(map[uuid.UUID]float64)
+	songScores := make(map[uuid.UUID]float64)
+	genreScores := make(map[uuid.UUID]float64)
+	elementScores := make(map[uuid.UUID]float64)
+	atmosphereScores := make(map[uuid.UUID]float64)
+	discovery := 0.0
+
+	for _, source := range sources {
+		delta := u.feedbackDelta(source.FeedbackType)
+		artistScores[source.ArtistID] += delta.Artist
+		songScores[source.SongID] += delta.Song
+		if source.Exploration {
+			discovery += delta.Discovery
+		}
+		seen := make(map[uuid.UUID]struct{}, len(source.Tags))
+		for _, tag := range source.Tags {
+			if _, exists := seen[tag.ChoiceID]; exists {
+				continue
+			}
+			seen[tag.ChoiceID] = struct{}{}
+			switch strings.ToLower(strings.TrimSpace(tag.Category)) {
+			case "genre":
+				genreScores[tag.ChoiceID] += delta.Genre
+			case "element", "feature":
+				elementScores[tag.ChoiceID] += delta.Profile
+			case "atmosphere", "scene":
+				atmosphereScores[tag.ChoiceID] += delta.Profile
+			}
+		}
+	}
+
+	snapshot := entity.FeedbackLearningSnapshot{
+		DiscoveryAdjustment: clamp(discovery, u.config.MinimumDiscoveryAdjustment, u.config.MaximumDiscoveryAdjustment),
+	}
+	for id, score := range artistScores {
+		snapshot.ArtistWeights = append(snapshot.ArtistWeights, entity.UserArtistWeight{ID: uuid.New(), UserID: userID, ArtistID: id, Weight: clamp(score, u.config.MinimumWeight, u.config.MaximumWeight), CreatedAt: now, UpdatedAt: now})
+	}
+	for id, score := range songScores {
+		snapshot.SongWeights = append(snapshot.SongWeights, entity.UserSongWeight{ID: uuid.New(), UserID: userID, SongID: id, Weight: clamp(score, u.config.MinimumWeight, u.config.MaximumWeight), CreatedAt: now, UpdatedAt: now})
+	}
+	snapshot.GenreWeights = buildGenreWeights(profile.ID, profile.GenreWeights, genreScores, now, u.config.MinimumWeight, u.config.MaximumWeight)
+	snapshot.ElementWeights = buildElementWeights(profile.ID, profile.ElementWeights, elementScores, now, u.config.MinimumWeight, u.config.MaximumWeight)
+	snapshot.AtmosphereWeights = buildAtmosphereWeights(profile.ID, profile.AtmosphereWeights, atmosphereScores, now, u.config.MinimumWeight, u.config.MaximumWeight)
+	return snapshot
+}
+
+func (u *feedbackUsecase) feedbackDelta(value entity.FeedbackType) FeedbackDelta {
 	switch value {
 	case entity.FeedbackTypeLike:
 		return u.config.Like
@@ -160,36 +212,76 @@ func (u *feedbackUsecase) delta(value entity.FeedbackType) FeedbackDelta {
 		return u.config.Skip
 	}
 }
-func (u *feedbackUsecase) apply(ctx context.Context, tx repository.ITransaction, userID uuid.UUID, target *repository.FeedbackTarget, feedbackType entity.FeedbackType, direction float64) error {
-	delta := u.delta(feedbackType)
-	if err := u.feedback.ApplyArtistWeight(ctx, tx, userID, target.Artist.ID, delta.Artist*direction, u.config.MinimumWeight, u.config.MaximumWeight); err != nil {
-		return err
+
+func clamp(value, minimum, maximum float64) float64 {
+	if value < minimum {
+		return minimum
 	}
-	if err := u.feedback.ApplySongWeight(ctx, tx, userID, target.Song.ID, delta.Song*direction, u.config.MinimumWeight, u.config.MaximumWeight); err != nil {
-		return err
+	if value > maximum {
+		return maximum
 	}
-	seen := make(map[uuid.UUID]struct{}, len(target.Tags))
-	for _, tag := range target.Tags {
-		if _, ok := seen[tag.ID]; ok {
-			continue
-		}
-		seen[tag.ID] = struct{}{}
-		category := strings.ToLower(strings.TrimSpace(tag.Category))
-		tagDelta := delta.Profile
-		if category == "genre" {
-			tagDelta = delta.Genre
-		}
-		if category != "genre" && category != "element" && category != "atmosphere" {
-			continue
-		}
-		if err := u.feedback.ApplyProfileTagWeight(ctx, tx, userID, tag, tagDelta*direction, u.config.MinimumWeight, u.config.MaximumWeight); err != nil {
-			return err
+	return value
+}
+
+func buildGenreWeights(profileID uuid.UUID, current []entity.UserGenreWeight, feedback map[uuid.UUID]float64, now time.Time, minimum, maximum float64) []entity.UserGenreWeight {
+	values := make(map[uuid.UUID]entity.UserGenreWeight, len(current)+len(feedback))
+	for _, value := range current {
+		values[value.ChoiceID] = value
+	}
+	for choiceID := range feedback {
+		if _, exists := values[choiceID]; !exists {
+			values[choiceID] = entity.UserGenreWeight{ID: uuid.New(), ProfileID: profileID, ChoiceID: choiceID, CreatedAt: now}
 		}
 	}
-	if target.Detail.Type == entity.RecommendationTypeTrySomethingNew || target.Recommendation.Source == entity.RecommendationSourceDailyDiscovery {
-		if err := u.feedback.ApplyDiscoveryAdjustment(ctx, tx, userID, delta.Discovery*direction, u.config.MinimumDiscoveryAdjustment, u.config.MaximumDiscoveryAdjustment); err != nil {
-			return err
+	result := make([]entity.UserGenreWeight, 0, len(values))
+	for choiceID, value := range values {
+		value.ProfileID = profileID
+		value.FeedbackWeight = clamp(feedback[choiceID], minimum, maximum)
+		value.Weight = clamp(value.QuestionWeight+value.FeedbackWeight, minimum, maximum)
+		value.UpdatedAt = now
+		result = append(result, value)
+	}
+	return result
+}
+
+func buildElementWeights(profileID uuid.UUID, current []entity.UserElementWeight, feedback map[uuid.UUID]float64, now time.Time, minimum, maximum float64) []entity.UserElementWeight {
+	values := make(map[uuid.UUID]entity.UserElementWeight, len(current)+len(feedback))
+	for _, value := range current {
+		values[value.ChoiceID] = value
+	}
+	for choiceID := range feedback {
+		if _, exists := values[choiceID]; !exists {
+			values[choiceID] = entity.UserElementWeight{ID: uuid.New(), ProfileID: profileID, ChoiceID: choiceID, CreatedAt: now}
 		}
 	}
-	return nil
+	result := make([]entity.UserElementWeight, 0, len(values))
+	for choiceID, value := range values {
+		value.ProfileID = profileID
+		value.FeedbackWeight = clamp(feedback[choiceID], minimum, maximum)
+		value.Weight = clamp(value.QuestionWeight+value.FeedbackWeight, minimum, maximum)
+		value.UpdatedAt = now
+		result = append(result, value)
+	}
+	return result
+}
+
+func buildAtmosphereWeights(profileID uuid.UUID, current []entity.UserAtmosphereWeight, feedback map[uuid.UUID]float64, now time.Time, minimum, maximum float64) []entity.UserAtmosphereWeight {
+	values := make(map[uuid.UUID]entity.UserAtmosphereWeight, len(current)+len(feedback))
+	for _, value := range current {
+		values[value.ChoiceID] = value
+	}
+	for choiceID := range feedback {
+		if _, exists := values[choiceID]; !exists {
+			values[choiceID] = entity.UserAtmosphereWeight{ID: uuid.New(), ProfileID: profileID, ChoiceID: choiceID, CreatedAt: now}
+		}
+	}
+	result := make([]entity.UserAtmosphereWeight, 0, len(values))
+	for choiceID, value := range values {
+		value.ProfileID = profileID
+		value.FeedbackWeight = clamp(feedback[choiceID], minimum, maximum)
+		value.Weight = clamp(value.QuestionWeight+value.FeedbackWeight, minimum, maximum)
+		value.UpdatedAt = now
+		result = append(result, value)
+	}
+	return result
 }

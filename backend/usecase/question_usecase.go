@@ -40,6 +40,11 @@ type IQuestionUsecase interface {
 	GetLatestAnswers(ctx context.Context, userID uuid.UUID) (*LatestQuestionAnswersResult, error)
 }
 
+type FeedbackWeightRange struct {
+	Minimum float64
+	Maximum float64
+}
+
 type questionUsecase struct {
 	questionRepository       repository.IQuestionRepository
 	questionAnswerRepository repository.IQuestionAnswerRepository
@@ -47,6 +52,7 @@ type questionUsecase struct {
 	transactionManager       repository.ITransactionManager
 	userRepository           repository.IUserRepository
 	clock                    IClock
+	weightRange              FeedbackWeightRange
 }
 
 func NewQuestionUsecase(
@@ -56,7 +62,12 @@ func NewQuestionUsecase(
 	transactionManager repository.ITransactionManager,
 	userRepository repository.IUserRepository,
 	clock IClock,
+	optionalWeightRange ...FeedbackWeightRange,
 ) IQuestionUsecase {
+	weightRange := FeedbackWeightRange{Minimum: -10, Maximum: 10}
+	if len(optionalWeightRange) > 0 {
+		weightRange = optionalWeightRange[0]
+	}
 	return &questionUsecase{
 		questionRepository:       questionRepository,
 		questionAnswerRepository: questionAnswerRepository,
@@ -64,6 +75,7 @@ func NewQuestionUsecase(
 		transactionManager:       transactionManager,
 		userRepository:           userRepository,
 		clock:                    clock,
+		weightRange:              weightRange,
 	}
 }
 
@@ -155,6 +167,7 @@ func (u *questionUsecase) SaveAnswers(ctx context.Context, userID uuid.UUID, inp
 		default:
 			profile.ID = existing.ID
 			profile.CreatedAt = existing.CreatedAt
+			mergeExistingFeedbackWeights(existing, genre, element, atmosphere, u.weightRange.Minimum, u.weightRange.Maximum)
 			if err := u.userProfileRepository.UpdateDiscoveryLevel(ctx, tx, existing.ID, profile.DiscoveryLevel, now); err != nil {
 				return err
 			}
@@ -192,6 +205,33 @@ func buildAnswerSession(userID uuid.UUID, questions []entity.Question, validated
 		session.Answers = append(session.Answers, answer)
 	}
 	return session
+}
+
+func mergeExistingFeedbackWeights(profile *entity.UserProfile, genre []entity.UserGenreWeight, element []entity.UserElementWeight, atmosphere []entity.UserAtmosphereWeight, minimum, maximum float64) {
+	genreFeedback := make(map[uuid.UUID]float64, len(profile.GenreWeights))
+	for _, value := range profile.GenreWeights {
+		genreFeedback[value.ChoiceID] = value.FeedbackWeight
+	}
+	for index := range genre {
+		genre[index].FeedbackWeight = genreFeedback[genre[index].ChoiceID]
+		genre[index].Weight = clamp(genre[index].QuestionWeight+genre[index].FeedbackWeight, minimum, maximum)
+	}
+	elementFeedback := make(map[uuid.UUID]float64, len(profile.ElementWeights))
+	for _, value := range profile.ElementWeights {
+		elementFeedback[value.ChoiceID] = value.FeedbackWeight
+	}
+	for index := range element {
+		element[index].FeedbackWeight = elementFeedback[element[index].ChoiceID]
+		element[index].Weight = clamp(element[index].QuestionWeight+element[index].FeedbackWeight, minimum, maximum)
+	}
+	atmosphereFeedback := make(map[uuid.UUID]float64, len(profile.AtmosphereWeights))
+	for _, value := range profile.AtmosphereWeights {
+		atmosphereFeedback[value.ChoiceID] = value.FeedbackWeight
+	}
+	for index := range atmosphere {
+		atmosphere[index].FeedbackWeight = atmosphereFeedback[atmosphere[index].ChoiceID]
+		atmosphere[index].Weight = clamp(atmosphere[index].QuestionWeight+atmosphere[index].FeedbackWeight, minimum, maximum)
+	}
 }
 
 func assignProfileID(profileID uuid.UUID, genre []entity.UserGenreWeight, element []entity.UserElementWeight, atmosphere []entity.UserAtmosphereWeight) {
