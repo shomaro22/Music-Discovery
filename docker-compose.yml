@@ -51,9 +51,13 @@ services:
       VITE_API_BASE_URL: http://localhost:8080
     ports:
       - "5173:5173"
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend_node_modules:/app/frontend/node_modules
     depends_on:
       api:
         condition: service_started
 
 volumes:
   postgres_data:
+  frontend_node_modules:

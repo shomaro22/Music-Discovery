@@ -16,6 +16,8 @@ type RecommendationCondition struct {
 	DiscoveryLevel          string
 	DiscoveryAdjustment     float64
 	GenreWeights            map[string]float64
+	ElementWeights          map[string]float64
+	AtmosphereWeights       map[string]float64
 	ArtistWeights           map[uuid.UUID]float64
 	SongWeights             map[uuid.UUID]float64
 	ArtistFeedbackPenalties map[uuid.UUID]float64
@@ -152,13 +154,23 @@ func (c *recommendationCalculator) CalculateFeedbackScores(values []entity.Recom
 	return result
 }
 
+func scoreTagWeights(tags map[string]bool, values map[string]float64) float64 {
+	total := 0.0
+	for key, weight := range values {
+		if tags[normalized(key)] {
+			total += weight
+		}
+	}
+	return total
+}
+
 func (c *recommendationCalculator) Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
 	result := make([]SongCandidate, 0, len(values))
 	weights := scoreWeightsFor(c.weights, kind)
 	for _, value := range values {
 		tags := tagSet(value)
 		genres := songGenreKeys(value)
-		score := RecommendationScore{Mood: matches(condition.Mood, tags), Element: matches(condition.Elements, tags), Atmosphere: matches(condition.Atmospheres, tags)}
+		score := RecommendationScore{Mood: matches(condition.Mood, tags), Element: matches(condition.Elements, tags) + scoreTagWeights(tags, condition.ElementWeights), Atmosphere: matches(condition.Atmospheres, tags) + scoreTagWeights(tags, condition.AtmosphereWeights)}
 		for _, genre := range genres {
 			key := normalized(genre)
 			for _, wanted := range condition.Genres {

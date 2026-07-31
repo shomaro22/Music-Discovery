@@ -75,6 +75,16 @@ type IClient interface {
 	SearchTracks(context.Context, string, int) (SearchTracksResult, error)
 }
 
+type unavailableClient struct{}
+
+func (unavailableClient) SearchArtists(context.Context, string, int) (SearchArtistsResult, error) {
+	return SearchArtistsResult{}, ErrUnavailable
+}
+
+func (unavailableClient) SearchTracks(context.Context, string, int) (SearchTracksResult, error) {
+	return SearchTracksResult{}, ErrUnavailable
+}
+
 type client struct {
 	config    Config
 	http      *http.Client
@@ -85,7 +95,7 @@ type client struct {
 
 func NewClient(config Config) (IClient, error) {
 	if strings.TrimSpace(config.ClientID) == "" || strings.TrimSpace(config.ClientSecret) == "" {
-		return nil, fmt.Errorf("spotify credentials: %w", ErrUnavailable)
+		return unavailableClient{}, nil
 	}
 	if config.AccountsURL == "" {
 		config.AccountsURL = "https://accounts.spotify.com"

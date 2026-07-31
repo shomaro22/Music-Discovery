@@ -90,6 +90,10 @@ func (c *feedbackController) handle(ctx echo.Context, err error) error {
 		return writeAPIError(ctx, 404, "USER_NOT_FOUND", "Userが存在しません")
 	case errors.Is(err, entity.ErrRecommendationDetailNotFound):
 		return writeAPIError(ctx, 404, "RECOMMENDATION_DETAIL_NOT_FOUND", "推薦詳細が見つかりません")
+	case errors.Is(err, entity.ErrSongNotFound):
+		return writeAPIError(ctx, 404, "SONG_NOT_FOUND", "楽曲が見つかりません")
+	case errors.Is(err, entity.ErrArtistNotFound):
+		return writeAPIError(ctx, 404, "ARTIST_NOT_FOUND", "アーティストが見つかりません")
 	case errors.Is(err, entity.ErrFeedbackSaveFailed):
 		return writeAPIError(ctx, 500, "FEEDBACK_SAVE_FAILED", "Feedbackを保存できませんでした")
 	case errors.Is(err, entity.ErrFeedbackUpdateFailed):

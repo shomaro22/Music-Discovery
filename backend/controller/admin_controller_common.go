@@ -160,6 +160,8 @@ func resolveAdminError(err error) adminErrorResponse {
 		return adminErrorResponse{http.StatusConflict, "CONFLICT", "現在の状態では操作できません"}
 	case errors.Is(err, entity.ErrForbidden):
 		return adminErrorResponse{http.StatusForbidden, "FORBIDDEN", "権限がありません"}
+	case errors.Is(err, entity.ErrSpotifyUnavailable):
+		return adminErrorResponse{http.StatusServiceUnavailable, "SPOTIFY_UNAVAILABLE", "Spotifyを現在利用できません"}
 	default:
 		return adminErrorResponse{http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました"}
 	}

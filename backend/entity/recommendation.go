@@ -47,7 +47,7 @@ type RecommendationDetail struct {
 	Score            float64            `json:"score" gorm:"not null"`
 	Position         int                `json:"position" gorm:"not null;uniqueIndex:uq_recommendation_position"`
 	Reason           string             `json:"reason" gorm:"size:500;not null"`
-	FeedbackStatus   *FeedbackStatus    `json:"feedback_status,omitempty" gorm:"size:16"`
+	FeedbackStatus   *FeedbackStatus    `json:"feedback_status,omitempty" gorm:"-"`
 	Song             Song               `json:"song" gorm:"foreignKey:SongID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
 	CreatedAt        time.Time          `json:"created_at"`
 	UpdatedAt        time.Time          `json:"updated_at"`

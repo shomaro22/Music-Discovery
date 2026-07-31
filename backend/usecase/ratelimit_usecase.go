@@ -86,6 +86,12 @@ func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 			policies = append(policies, rateLimitPolicy{name: "recommendations_user", key: fmt.Sprintf("rate_limit:recommendations:user:%s", userID), capacity: 5, rate: 5.0 / 60.0})
 		}
 		return policies, nil
+	case "feedback":
+		policies := []rateLimitPolicy{{name: "feedback_ip", key: fmt.Sprintf("rate_limit:feedback:ip:%s", ip), capacity: 30, rate: 30.0 / 60.0}}
+		if userID != "" {
+			policies = append(policies, rateLimitPolicy{name: "feedback_user", key: fmt.Sprintf("rate_limit:feedback:user:%s", userID), capacity: 30, rate: 30.0 / 60.0})
+		}
+		return policies, nil
 	default:
 		return nil, fmt.Errorf("unknown rate limit scope: %s", input.Scope)
 	}

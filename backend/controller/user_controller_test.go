@@ -85,6 +85,22 @@ func (f *fakeUserUsecase) Withdraw(_ context.Context, userID uuid.UUID, input us
 	return &usecase.WithdrawResult{Message: "退会が完了しました。"}, nil
 }
 
+func (f *fakeUserUsecase) UpdateProfile(_ context.Context, userID uuid.UUID, input usecase.UpdateProfileInput) (*usecase.CurrentUserResult, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.user == nil {
+		return nil, entity.ErrInvalidCredentials
+	}
+	return &usecase.CurrentUserResult{
+		ID:     userID,
+		Name:   input.Name,
+		Email:  input.Email,
+		Role:   f.user.Role,
+		Status: f.user.Status,
+	}, nil
+}
+
 func runSignupRequest(t *testing.T, body string, uc usecase.IUserUsecase) *httptest.ResponseRecorder {
 	t.Helper()
 

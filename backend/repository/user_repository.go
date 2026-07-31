@@ -18,6 +18,7 @@ type IUserRepository interface {
 	Create(ctx context.Context, user *entity.User) (*entity.User, error)
 	SoftDelete(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
 	IncrementTokenVersion(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
+	UpdateProfile(ctx context.Context, userID uuid.UUID, name, email string, now time.Time) (*entity.User, error)
 }
 
 type userRepository struct{ db *gorm.DB }
@@ -120,4 +121,21 @@ func assertUserForCreate(user *entity.User) error {
 		return entity.ErrInvalidUserForCreate
 	}
 	return nil
+}
+
+func (r *userRepository) UpdateProfile(ctx context.Context, userID uuid.UUID, name, email string, now time.Time) (*entity.User, error) {
+	result := r.db.WithContext(ctx).Model(&entity.User{}).Where("id = ? AND deleted_at IS NULL", userID).Updates(map[string]interface{}{
+		"name": name, "email": email, "updated_at": now,
+	})
+	if result.Error != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(result.Error, &pgErr) && pgErr.Code == "23505" {
+			return nil, entity.ErrEmailAlreadyExists
+		}
+		return nil, entity.ErrInternal
+	}
+	if result.RowsAffected != 1 {
+		return nil, entity.ErrUserNotFound
+	}
+	return r.FindByID(ctx, userID)
 }

@@ -25,6 +25,7 @@ function renderTopPage() {
     login: vi.fn(),
     logout: logoutMock,
     withdraw: vi.fn(),
+    updateProfile: vi.fn(),
     clearAuth: vi.fn(),
   });
 
@@ -34,6 +35,8 @@ function renderTopPage() {
         <Route path="/" element={<TopPage />} />
         <Route path="/login" element={<LoginResult />} />
         <Route path="/withdraw" element={<p>withdraw page</p>} />
+        <Route path="/profile" element={<p>profile page</p>} />
+        <Route path="/questions" element={<p>questions page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -44,6 +47,23 @@ beforeEach(() => {
 });
 
 describe("TopPage", () => {
+  it("shows the shortened slogan", () => {
+    renderTopPage();
+    expect(screen.getByRole("heading", { name: "次の一曲を、見つけよう。" })).toBeInTheDocument();
+  });
+
+  it("moves to the profile page", () => {
+    renderTopPage();
+    fireEvent.click(screen.getByRole("button", { name: "プロフィールを変更" }));
+    expect(screen.getByText("profile page")).toBeInTheDocument();
+  });
+
+  it("moves to the questions page to edit preferences", () => {
+    renderTopPage();
+    fireEvent.click(screen.getByRole("button", { name: "好みを変更" }));
+    expect(screen.getByText("questions page")).toBeInTheDocument();
+  });
+
   it("moves to the withdraw page", () => {
     renderTopPage();
     fireEvent.click(screen.getByRole("button", { name: "退会手続きへ" }));

@@ -15,6 +15,7 @@ import (
 type SignUpInput struct{ Name, Email, Password string }
 type LoginInput struct{ Email, Password string }
 type WithdrawInput struct{ CurrentPassword string }
+type UpdateProfileInput struct{ Name, Email string }
 type AuthResult struct {
 	AccessToken           string
 	ExpiresIn             int64
@@ -73,6 +74,7 @@ type IUserUsecase interface {
 	CurrentUser(ctx context.Context, userID uuid.UUID) (*CurrentUserResult, error)
 	ValidateTokenVersion(ctx context.Context, userID uuid.UUID, tokenVersion uint64) (*entity.User, error)
 	Withdraw(ctx context.Context, userID uuid.UUID, input WithdrawInput) (*WithdrawResult, error)
+	UpdateProfile(ctx context.Context, userID uuid.UUID, input UpdateProfileInput) (*CurrentUserResult, error)
 }
 
 type userUsecase struct {
@@ -95,4 +97,17 @@ func NewUserUsecase(
 	clock IClock,
 ) IUserUsecase {
 	return &userUsecase{userRepository: userRepository, userValidator: userValidator, refreshTokenRepository: refreshTokenRepository, authTransactionManager: authTransactionManager, passwordHasher: passwordHasher, tokenService: tokenService, clock: clock}
+}
+
+func (u *userUsecase) UpdateProfile(ctx context.Context, userID uuid.UUID, input UpdateProfileInput) (*CurrentUserResult, error) {
+	values, validationErrors := validator.ValidateSignUp(input.Name, input.Email, "temporary-password")
+	delete(validationErrors, "password")
+	if len(validationErrors) > 0 || userID == uuid.Nil {
+		return nil, entity.ErrInvalidInput
+	}
+	user, err := u.userRepository.UpdateProfile(ctx, userID, values.Name, values.Email, u.clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	return &CurrentUserResult{ID: user.ID, Name: user.Name, Email: user.Email, Role: user.Role, Status: user.Status}, nil
 }

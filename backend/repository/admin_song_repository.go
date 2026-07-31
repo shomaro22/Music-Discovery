@@ -78,8 +78,8 @@ func (r *adminRepository) songDetail(ctx context.Context, song entity.Song) (*So
 
 func (r *adminRepository) songMetrics(ctx context.Context, songID uuid.UUID) (SongMetrics, error) {
 	var value SongMetrics
-	if r.db.Migrator().HasTable("recommendations") {
-		if err := r.db.WithContext(ctx).Table("recommendations").Where("song_id = ?", songID).Count(&value.RecommendationCount).Error; err != nil {
+	if r.db.Migrator().HasTable("recommendation_details") {
+		if err := r.db.WithContext(ctx).Table("recommendation_details").Where("song_id = ?", songID).Count(&value.RecommendationCount).Error; err != nil {
 			return value, repoError(err)
 		}
 	}

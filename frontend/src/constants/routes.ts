@@ -3,6 +3,7 @@ export const ROUTES = {
   login: "/login",
   forbidden: "/forbidden",
   withdraw: "/withdraw",
+  profile: "/profile",
   questions: "/questions",
   questionConfirm: "/questions/confirm",
   recommendations: "/recommendations",

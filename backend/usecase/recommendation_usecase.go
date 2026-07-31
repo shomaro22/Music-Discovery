@@ -334,7 +334,7 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
-	condition := RecommendationCondition{GenreWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}, ArtistFeedbackPenalties: map[uuid.UUID]float64{}, SongFeedbackPenalties: map[uuid.UUID]float64{}}
+	condition := RecommendationCondition{GenreWeights: map[string]float64{}, ElementWeights: map[string]float64{}, AtmosphereWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}, ArtistFeedbackPenalties: map[uuid.UUID]float64{}, SongFeedbackPenalties: map[uuid.UUID]float64{}}
 	for _, choice := range choices {
 		switch answerQuestion[choice.ID] {
 		case entity.QuestionCodeMood:
@@ -370,6 +370,12 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	for _, v := range profile.GenreWeights {
 		allChoiceIDs = append(allChoiceIDs, v.ChoiceID)
 	}
+	for _, v := range profile.ElementWeights {
+		allChoiceIDs = append(allChoiceIDs, v.ChoiceID)
+	}
+	for _, v := range profile.AtmosphereWeights {
+		allChoiceIDs = append(allChoiceIDs, v.ChoiceID)
+	}
 	weightChoices, err := u.questions.FindChoicesByIDs(ctx, allChoiceIDs)
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
@@ -381,15 +387,20 @@ func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.
 	for _, v := range profile.GenreWeights {
 		condition.GenreWeights[codeByID[v.ChoiceID]] = v.Weight
 	}
-	rawSignals, err := u.recommendations.FindFeedbackSignals(ctx, userID)
+	for _, v := range profile.ElementWeights {
+		condition.ElementWeights[codeByID[v.ChoiceID]] = v.Weight
+	}
+	for _, v := range profile.AtmosphereWeights {
+		condition.AtmosphereWeights[codeByID[v.ChoiceID]] = v.Weight
+	}
+	condition.ArtistWeights, err = u.recommendations.FindArtistWeights(ctx, userID)
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
-	signals := u.calculator.CalculateFeedbackScores(rawSignals)
-	condition.ArtistWeights = signals.ArtistWeights
-	condition.SongWeights = signals.SongWeights
-	condition.ArtistFeedbackPenalties = signals.ArtistPenalties
-	condition.SongFeedbackPenalties = signals.SongPenalties
+	condition.SongWeights, err = u.recommendations.FindSongWeights(ctx, userID)
+	if err != nil {
+		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
+	}
 	historyGenres, err := u.recommendations.FindRecommendedGenres(ctx, userID)
 	if err != nil {
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed

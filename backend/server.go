@@ -26,28 +26,12 @@ func start(ctx context.Context) error {
 		return fmt.Errorf("postgres: %w", err)
 	}
 
-	if err := migrate.CreateUsers(postgres); err != nil {
-		return fmt.Errorf("migrate users: %w", err)
-	}
-	if err := migrate.CreateRefreshTokens(postgres); err != nil {
-		return fmt.Errorf("migrate refresh tokens: %w", err)
-	}
-	if err := migrate.CreateAdminTables(postgres); err != nil {
-		return fmt.Errorf("migrate admin tables: %w", err)
-	}
-	if err := migrate.CreateQuestionTables(postgres); err != nil {
-		return fmt.Errorf("migrate question tables: %w", err)
-	}
-	if err := migrate.CreateRecommendationTables(postgres); err != nil {
-		return fmt.Errorf("migrate recommendation tables: %w", err)
-	}
-	if err := migrate.CreateFeedbackTables(postgres); err != nil {
-		return fmt.Errorf("migrate feedback tables: %w", err)
-	}
-	if os.Getenv("SEED_DEVELOPMENT_USERS") == "true" {
-		if err := migrate.SeedDevelopmentUsers(postgres); err != nil {
-			return fmt.Errorf("seed development users: %w", err)
-		}
+	if err := migrate.Run(postgres, migrate.Config{
+		AppEnvironment:         os.Getenv("APP_ENV"),
+		SeedDevelopmentUsers:   os.Getenv("SEED_DEVELOPMENT_USERS") == "true",
+		SeedDevelopmentCatalog: os.Getenv("SEED_DEVELOPMENT_CATALOG") == "true",
+	}); err != nil {
+		return fmt.Errorf("migration: %w", err)
 	}
 
 	redisClient, err := db.NewRedis(ctx)

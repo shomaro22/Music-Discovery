@@ -126,6 +126,27 @@ func TestRecommendationCalculatorIgnoresArtistGenreTags(t *testing.T) {
 	}
 }
 
+func TestRecommendationCalculatorUsesPersistedElementAndAtmosphereWeights(t *testing.T) {
+	artistA, artistB := uuid.New(), uuid.New()
+	songA, songB := uuid.New(), uuid.New()
+	values := []entity.RecommendationSongCandidate{
+		{Song: entity.Song{ID: songA, ArtistID: artistA}, Artist: entity.Artist{ID: artistA}, SongTags: []entity.Tag{{Slug: "lyrics", Category: "element"}, {Slug: "night", Category: "atmosphere"}}},
+		{Song: entity.Song{ID: songB, ArtistID: artistB}, Artist: entity.Artist{ID: artistB}},
+	}
+	condition := RecommendationCondition{
+		GenreWeights: map[string]float64{}, ElementWeights: map[string]float64{"lyrics": 2}, AtmosphereWeights: map[string]float64{"night": 3},
+		ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{},
+	}
+	weights := RecommendationScoreWeights{YourMatch: RecommendationTypeScoreWeights{Element: 1, Atmosphere: 1}}
+	ranked := NewRecommendationCalculator(weights).Calculate(condition, values, entity.RecommendationTypeYourMatch, map[uuid.UUID]int64{}, map[uuid.UUID]int64{})
+	if ranked[0].Data.Song.ID != songA {
+		t.Fatalf("persisted tag weights must affect ranking")
+	}
+	if ranked[0].Score.Element != 2 || ranked[0].Score.Atmosphere != 3 {
+		t.Fatalf("unexpected persisted tag scores: %+v", ranked[0].Score)
+	}
+}
+
 func TestRecommendationCalculatorConvertsRawFeedbackSignalsToScores(t *testing.T) {
 	artistID := uuid.New()
 	songID := uuid.New()
