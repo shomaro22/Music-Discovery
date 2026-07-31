@@ -29,7 +29,6 @@ type IRecommendationRepository interface {
 	HasRecentNormal(ctx context.Context, userID uuid.UUID, since time.Time) (bool, error)
 	CountByArtist(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
-	FindFeedbackSignals(ctx context.Context, userID uuid.UUID) ([]entity.RecommendationFeedbackSignal, error)
 	FindArtistWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error)
 	FindSongWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error)
 	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
@@ -207,21 +206,6 @@ func (r *recommendationRepository) CountBySong(ctx context.Context, userID uuid.
 		result[v.SongID] = v.Count
 	}
 	return result, err
-}
-
-func (r *recommendationRepository) FindFeedbackSignals(ctx context.Context, userID uuid.UUID) ([]entity.RecommendationFeedbackSignal, error) {
-	var result []entity.RecommendationFeedbackSignal
-	err := r.db.WithContext(ctx).Table("recommendation_details rd").
-		Select("f.artist_id, f.song_id, f.feedback_type status, COUNT(*) count").
-		Joins("JOIN feedbacks f ON f.recommendation_detail_id = rd.id").
-		Joins("JOIN recommendations r ON r.id = rd.recommendation_id").
-		Where("r.user_id = ?", userID).
-		Group("f.artist_id, f.song_id, f.feedback_type").
-		Scan(&result).Error
-	if err != nil {
-		return nil, entity.ErrInternal
-	}
-	return result, nil
 }
 
 func (r *recommendationRepository) FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error) {

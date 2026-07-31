@@ -64,7 +64,12 @@ func start(ctx context.Context) error {
 	questionRepository := repository.NewQuestionRepository(postgres)
 	questionAnswerRepository := repository.NewQuestionAnswerRepository(postgres)
 	userProfileRepository := repository.NewUserProfileRepository(postgres)
-	questionUsecase := usecase.NewQuestionUsecase(questionRepository, questionAnswerRepository, userProfileRepository, authTransactionManager, userRepository, clock)
+	feedbackConfig := loadFeedbackConfig()
+	questionUsecase := usecase.NewQuestionUsecase(
+		questionRepository, questionAnswerRepository, userProfileRepository,
+		authTransactionManager, userRepository, clock,
+		usecase.FeedbackWeightRange{Minimum: feedbackConfig.MinimumWeight, Maximum: feedbackConfig.MaximumWeight},
+	)
 	questionController := controller.NewQuestionController(questionUsecase)
 
 	spotifyClient, err := spotify.NewClient(spotify.Config{
@@ -103,7 +108,7 @@ func start(ctx context.Context) error {
 	)
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
 	feedbackRepository := repository.NewFeedbackRepository(postgres)
-	feedbackUsecase := usecase.NewFeedbackUsecase(userRepository, feedbackRepository, authTransactionManager, clock, loadFeedbackConfig())
+	feedbackUsecase := usecase.NewFeedbackUsecase(userRepository, feedbackRepository, authTransactionManager, clock, feedbackConfig)
 	feedbackController := controller.NewFeedbackController(feedbackUsecase)
 
 	adminRepository := repository.NewAdminRepository(postgres)

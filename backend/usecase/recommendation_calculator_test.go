@@ -25,7 +25,7 @@ func TestRecommendationCalculatorUsesMatchAndDiscoveryWeights(t *testing.T) {
 	}
 }
 
-func TestRecommendationCalculatorAppliesFeedbackWeightsAndPenalty(t *testing.T) {
+func TestRecommendationCalculatorAppliesPersistedFeedbackWeights(t *testing.T) {
 	artistLiked, artistSkipped := uuid.New(), uuid.New()
 	songLiked, songSkipped := uuid.New(), uuid.New()
 	values := []entity.RecommendationSongCandidate{
@@ -35,14 +35,10 @@ func TestRecommendationCalculatorAppliesFeedbackWeightsAndPenalty(t *testing.T) 
 	weights := RecommendationScoreWeights{YourMatch: RecommendationTypeScoreWeights{Artist: 1, Song: 1}, ArtistRecency: .15, GenreRecency: .3}
 	condition := RecommendationCondition{
 		GenreWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{artistLiked: 2}, SongWeights: map[uuid.UUID]float64{songLiked: 1},
-		ArtistFeedbackPenalties: map[uuid.UUID]float64{artistSkipped: 2}, SongFeedbackPenalties: map[uuid.UUID]float64{songSkipped: 2},
 	}
 	ranked := NewRecommendationCalculator(weights).Calculate(condition, values, entity.RecommendationTypeYourMatch, map[uuid.UUID]int64{}, map[uuid.UUID]int64{})
 	if ranked[0].Data.Song.ID != songLiked {
 		t.Fatalf("positive feedback weights should rank the liked song first")
-	}
-	if ranked[1].Score.FeedbackPenalty != 4 {
-		t.Fatalf("feedback penalty=%v want=4", ranked[1].Score.FeedbackPenalty)
 	}
 }
 
@@ -144,30 +140,5 @@ func TestRecommendationCalculatorUsesPersistedElementAndAtmosphereWeights(t *tes
 	}
 	if ranked[0].Score.Element != 2 || ranked[0].Score.Atmosphere != 3 {
 		t.Fatalf("unexpected persisted tag scores: %+v", ranked[0].Score)
-	}
-}
-
-func TestRecommendationCalculatorConvertsRawFeedbackSignalsToScores(t *testing.T) {
-	artistID := uuid.New()
-	songID := uuid.New()
-	values := []entity.RecommendationFeedbackSignal{
-		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusLike, Count: 2},
-		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusMaybe, Count: 4},
-		{ArtistID: artistID, SongID: songID, Status: entity.FeedbackStatusSkip, Count: 2},
-	}
-
-	result := NewRecommendationCalculator(RecommendationScoreWeights{}).CalculateFeedbackScores(values)
-
-	if got := result.ArtistWeights[artistID]; got != 2 {
-		t.Fatalf("artist weight=%v want=2", got)
-	}
-	if got := result.SongWeights[songID]; got != 2 {
-		t.Fatalf("song weight=%v want=2", got)
-	}
-	if got := result.ArtistPenalties[artistID]; got != 2 {
-		t.Fatalf("artist penalty=%v want=2", got)
-	}
-	if got := result.SongPenalties[songID]; got != 3 {
-		t.Fatalf("song penalty=%v want=3", got)
 	}
 }
