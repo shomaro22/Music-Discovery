@@ -73,10 +73,14 @@ func (u *dailyDiscoveryUsecase) targetDate(ctx context.Context, userID uuid.UUID
 	if zone == "" {
 		zone = "Asia/Tokyo"
 	}
-	location, err := time.LoadLocation(zone)
-	if err != nil {
-		location, _ = time.LoadLocation("Asia/Tokyo")
+
+	location, loadErr := time.LoadLocation(zone)
+	if loadErr != nil || location == nil {
+		// AlpineなどにTimezoneデータがない環境でもpanicさせない。
+		// 初期TimezoneのAsia/Tokyoを固定オフセットで安全に使用する。
+		location = time.FixedZone("Asia/Tokyo", 9*60*60)
 	}
+
 	now := u.clock.Now().In(location)
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC), nil
 }

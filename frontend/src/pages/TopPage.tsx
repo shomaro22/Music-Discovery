@@ -84,6 +84,36 @@ export function TopPage() {
               </div>
 
               <div className="top-menu-grid">
+                {user?.role === ROLE.USER && (
+                  <>
+                    <button
+                      className="top-menu-button"
+                      type="button"
+                      aria-label="Daily Discoveryを開く"
+                      onClick={() => navigate(ROUTES.dailyDiscovery)}
+                    >
+                      <span className="top-menu-icon" aria-hidden="true">D</span>
+                      <span>
+                        <strong>Daily Discovery</strong>
+                        <small>今日のおすすめ3曲を確認</small>
+                      </span>
+                    </button>
+
+                    <button
+                      className="top-menu-button"
+                      type="button"
+                      aria-label="Daily Discovery履歴を開く"
+                      onClick={() => navigate(ROUTES.dailyDiscoveryHistory)}
+                    >
+                      <span className="top-menu-icon" aria-hidden="true">H</span>
+                      <span>
+                        <strong>Daily Discovery履歴</strong>
+                        <small>過去のおすすめを確認</small>
+                      </span>
+                    </button>
+                  </>
+                )}
+
                 <button
                   className="top-menu-button"
                   type="button"

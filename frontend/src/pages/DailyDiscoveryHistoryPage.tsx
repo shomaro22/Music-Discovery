@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+
 import { getDailyDiscoveries } from "../api/dailyDiscovery";
+import { ROUTES } from "../constants/routes";
 import type { DailyDiscoveryList } from "../types/recommendation";
 
 const PAGE_LIMIT = 10;
 
 export function DailyDiscoveryHistoryPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<DailyDiscoveryList | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -18,7 +21,9 @@ export function DailyDiscoveryHistoryPage() {
 
     getDailyDiscoveries(page, PAGE_LIMIT)
       .then((response) => {
-        if (active) setData(response);
+        if (active) {
+          setData(response);
+        }
       })
       .catch((caught: unknown) => {
         if (active) {
@@ -30,7 +35,9 @@ export function DailyDiscoveryHistoryPage() {
         }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -40,9 +47,17 @@ export function DailyDiscoveryHistoryPage() {
 
   return (
     <main className="recommendation-page">
+      <button
+        type="button"
+        className="recommendation-home-button"
+        onClick={() => navigate(ROUTES.top)}
+      >
+        TOPページへ戻る
+      </button>
+
       <section className="recommendation-header">
         <h1>Daily Discovery履歴</h1>
-        <Link to="/daily-discovery">今日の3曲へ戻る</Link>
+        <Link to={ROUTES.dailyDiscovery}>今日の3曲へ戻る</Link>
       </section>
 
       {loading && <p aria-busy="true">履歴を読み込んでいます...</p>}
@@ -67,12 +82,14 @@ export function DailyDiscoveryHistoryPage() {
 
       <div>
         <button
+          type="button"
           disabled={loading || page <= 1}
           onClick={() => setPage((value) => value - 1)}
         >
           前へ
         </button>
         <button
+          type="button"
           disabled={loading || !data || page >= data.total_pages}
           onClick={() => setPage((value) => value + 1)}
         >
