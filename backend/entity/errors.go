@@ -54,6 +54,13 @@ var (
 	ErrSpotifyUnavailable                            = errors.New("spotify unavailable")
 	ErrRecommendationGenerateFailed                  = errors.New("recommendation generate failed")
 	ErrRecommendationSaveFailed                      = errors.New("recommendation save failed")
+	ErrDailyDiscoveryAccessDenied                    = errors.New("daily discovery access denied")
+	ErrDailyDiscoveryNotFound                        = errors.New("daily discovery not found")
+	ErrDailyDiscoveryCandidatesNotFound              = errors.New("daily discovery candidates not found")
+	ErrDailyDiscoveryGenerationConflict              = errors.New("daily discovery generation conflict")
+	ErrDailyDiscoveryGenerateFailed                  = errors.New("daily discovery generate failed")
+	ErrDailyDiscoverySaveFailed                      = errors.New("daily discovery save failed")
+	ErrDailyDiscoveryFetchFailed                     = errors.New("daily discovery fetch failed")
 )
 
 var (

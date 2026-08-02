@@ -10,6 +10,7 @@ type UserProfile struct {
 	ID                  uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	UserID              uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;uniqueIndex"`
 	User                User                   `json:"-" gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
+	Timezone            string                 `json:"timezone" gorm:"size:64;not null;default:Asia/Tokyo"`
 	DiscoveryLevel      string                 `json:"discovery_level" gorm:"size:64;not null"`
 	DiscoveryAdjustment float64                `json:"discovery_adjustment" gorm:"not null;default:0"`
 	GenreWeights        []UserGenreWeight      `json:"genre_weights,omitempty" gorm:"foreignKey:ProfileID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
