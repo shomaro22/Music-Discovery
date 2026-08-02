@@ -63,13 +63,21 @@ func (c *dailyDiscoveryController) List(x echo.Context) error {
 	if !ok {
 		return writeAPIError(x, 401, "UNAUTHORIZED", "認証が必要です")
 	}
-	page, err := strconv.Atoi(x.QueryParam("page"))
-	if err != nil || page < 1 {
-		return writeAPIError(x, 400, "INVALID_PAGE", "Page指定が不正です")
+	page := 1
+	limit := 10
+	if value := x.QueryParam("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			return writeAPIError(x, 400, "INVALID_PAGE", "Page指定が不正です")
+		}
+		page = parsed
 	}
-	limit, err := strconv.Atoi(x.QueryParam("limit"))
-	if err != nil || limit < 1 || limit > 100 {
-		return writeAPIError(x, 400, "INVALID_LIMIT", "Limit指定が不正です")
+	if value := x.QueryParam("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return writeAPIError(x, 400, "INVALID_LIMIT", "Limit指定が不正です")
+		}
+		limit = parsed
 	}
 	v, e := c.usecase.List(x.Request().Context(), id, page, limit)
 	if e != nil {
@@ -110,6 +118,12 @@ func (c *dailyDiscoveryController) handle(x echo.Context, e error) error {
 		return writeAPIError(x, 404, "DAILY_DISCOVERY_NOT_FOUND", "Daily Discoveryが見つかりません")
 	case errors.Is(e, entity.ErrDailyDiscoveryCandidatesNotFound):
 		return writeAPIError(x, 422, "DAILY_DISCOVERY_CANDIDATES_NOT_FOUND", "推薦候補が不足しています")
+	case errors.Is(e, entity.ErrUserNotFound):
+		return writeAPIError(x, 404, "USER_NOT_FOUND", "Userが見つかりません")
+	case errors.Is(e, entity.ErrDailyDiscoveryGenerationConflict):
+		return writeAPIError(x, 409, "DAILY_DISCOVERY_GENERATION_CONFLICT", "同時生成の競合を解決できませんでした")
+	case errors.Is(e, entity.ErrDailyDiscoveryGenerateFailed):
+		return writeAPIError(x, 500, "DAILY_DISCOVERY_GENERATE_FAILED", "Daily Discoveryを生成できませんでした")
 	case errors.Is(e, entity.ErrDailyDiscoverySaveFailed):
 		return writeAPIError(x, 500, "DAILY_DISCOVERY_SAVE_FAILED", "保存できませんでした")
 	default:

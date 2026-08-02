@@ -63,4 +63,9 @@ describe("RecommendationCard Feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: /もう少し聴きたい MAYBE/ }));
     await waitFor(() => expect(saveFeedbackMock).toHaveBeenCalledTimes(2));
   });
+  it("Daily Discoveryの推薦種別ラベルを表示する", () => {
+    render(<RecommendationCard detail={{ ...detail, recommendation_type: "DAILY_CHALLENGE" }} />);
+    expect(screen.getByText("Daily Challenge")).toBeInTheDocument();
+  });
+
 });

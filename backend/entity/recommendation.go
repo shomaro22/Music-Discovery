@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,6 +50,7 @@ type RecommendationDetail struct {
 	SongID           uuid.UUID          `json:"song_id" gorm:"type:uuid;not null;index;uniqueIndex:uq_recommendation_song"`
 	Type             RecommendationType `json:"recommendation_type" gorm:"column:recommendation_type;size:32;not null;uniqueIndex:uq_recommendation_type"`
 	Score            float64            `json:"score" gorm:"not null"`
+	ScoreBreakdown   json.RawMessage    `json:"-" gorm:"type:jsonb"`
 	Position         int                `json:"position" gorm:"not null;uniqueIndex:uq_recommendation_position"`
 	Reason           string             `json:"reason" gorm:"size:500;not null"`
 	FeedbackStatus   *FeedbackStatus    `json:"feedback_status,omitempty" gorm:"-"`

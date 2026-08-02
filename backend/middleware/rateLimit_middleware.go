@@ -21,6 +21,7 @@ type IRateLimitMiddleware interface {
 	Withdraw(echo.HandlerFunc) echo.HandlerFunc
 	QuestionAnswers(echo.HandlerFunc) echo.HandlerFunc
 	Recommendations(echo.HandlerFunc) echo.HandlerFunc
+	DailyDiscovery(echo.HandlerFunc) echo.HandlerFunc
 	Feedback(echo.HandlerFunc) echo.HandlerFunc
 }
 
@@ -46,6 +47,9 @@ func (m *rateLimitMiddleware) QuestionAnswers(next echo.HandlerFunc) echo.Handle
 }
 func (m *rateLimitMiddleware) Recommendations(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.apply("recommendations", next)
+}
+func (m *rateLimitMiddleware) DailyDiscovery(next echo.HandlerFunc) echo.HandlerFunc {
+	return m.apply("daily_discovery", next)
 }
 func (m *rateLimitMiddleware) Feedback(next echo.HandlerFunc) echo.HandlerFunc {
 	return m.apply("feedback", next)

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"music-discovery/backend/entity"
@@ -35,6 +37,11 @@ type IRecommendationRepository interface {
 	FindSongWeights(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]float64, error)
 	FindRecommendedGenres(ctx context.Context, userID uuid.UUID) ([]string, error)
 	FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error)
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 type recommendationRepository struct{ db *gorm.DB }
@@ -117,6 +124,9 @@ func (r *recommendationRepository) Create(ctx context.Context, tx ITransaction, 
 		return entity.ErrInvalidInput
 	}
 	if err := db.WithContext(ctx).Create(recommendation).Error; err != nil {
+		if isUniqueViolation(err) {
+			return entity.ErrConflict
+		}
 		return entity.ErrRecommendationSaveFailed
 	}
 	return nil
