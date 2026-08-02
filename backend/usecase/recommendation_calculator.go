@@ -130,8 +130,11 @@ func scoreTagWeights(tags map[string]bool, values map[string]float64) float64 {
 }
 
 func (c *recommendationCalculator) Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
+	return calculateWithWeights(condition, values, scoreWeightsFor(c.weights, kind), c.weights.ArtistRecency, c.weights.GenreRecency, artistCounts, songCounts)
+}
+
+func calculateWithWeights(condition RecommendationCondition, values []entity.RecommendationSongCandidate, weights RecommendationTypeScoreWeights, artistRecency, genreRecency float64, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
 	result := make([]SongCandidate, 0, len(values))
-	weights := scoreWeightsFor(c.weights, kind)
 	for _, value := range values {
 		tags := tagSet(value)
 		genres := songGenreKeys(value)
@@ -169,9 +172,9 @@ func (c *recommendationCalculator) Calculate(condition RecommendationCondition, 
 				score.Discovery++
 			}
 		}
-		score.RecencyPenalty = float64(condition.RecentArtistCounts[value.Artist.ID]) * c.weights.ArtistRecency
+		score.RecencyPenalty = float64(condition.RecentArtistCounts[value.Artist.ID]) * artistRecency
 		for _, genre := range genres {
-			score.RecencyPenalty += float64(condition.RecentGenreCounts[normalized(genre)]) * c.weights.GenreRecency
+			score.RecencyPenalty += float64(condition.RecentGenreCounts[normalized(genre)]) * genreRecency
 		}
 		score.Total = score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery - score.RecencyPenalty
 		result = append(result, SongCandidate{Data: value, Score: score})

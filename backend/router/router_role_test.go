@@ -127,6 +127,7 @@ func (passRateLimit) Refresh(next echo.HandlerFunc) echo.HandlerFunc         { r
 func (passRateLimit) Withdraw(next echo.HandlerFunc) echo.HandlerFunc        { return next }
 func (passRateLimit) QuestionAnswers(next echo.HandlerFunc) echo.HandlerFunc { return next }
 func (passRateLimit) Recommendations(next echo.HandlerFunc) echo.HandlerFunc { return next }
+func (passRateLimit) DailyDiscovery(next echo.HandlerFunc) echo.HandlerFunc  { return next }
 func (passRateLimit) Feedback(next echo.HandlerFunc) echo.HandlerFunc        { return next }
 
 type testAuthMiddleware struct{ calls int }
@@ -278,6 +279,32 @@ func TestRecommendationRoutesAllowAllAuthenticatedRoles(t *testing.T) {
 				rec := performRoleRequest(e, route.method, route.path, role)
 				if rec.Code != http.StatusNoContent {
 					t.Fatalf("role=%s method=%s path=%s status=%d body=%s", role, route.method, route.path, rec.Code, rec.Body.String())
+				}
+			})
+		}
+	}
+}
+
+func TestDailyDiscoveryRoutesAllowOnlyGeneralUsers(t *testing.T) {
+	paths := []string{
+		"/api/daily-discovery",
+		"/api/daily-discoveries",
+		"/api/daily-discoveries/" + uuid.NewString(),
+	}
+	for _, path := range paths {
+		t.Run("user_"+path, func(t *testing.T) {
+			e, _, _, _ := newRoleTestRouter()
+			rec := performRoleRequest(e, http.MethodGet, path, entity.RoleUser)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+		for _, role := range []entity.Role{entity.RoleContentAdmin, entity.RoleSystemAdmin} {
+			t.Run(string(role)+"_"+path, func(t *testing.T) {
+				e, _, _, _ := newRoleTestRouter()
+				rec := performRoleRequest(e, http.MethodGet, path, role)
+				if rec.Code != http.StatusForbidden {
+					t.Fatalf("role=%s status=%d body=%s", role, rec.Code, rec.Body.String())
 				}
 			})
 		}
