@@ -12,6 +12,9 @@ const (
 	RecommendationTypeYourMatch       RecommendationType = "YOUR_MATCH"
 	RecommendationTypeNewFavorite     RecommendationType = "NEW_FAVORITE"
 	RecommendationTypeTrySomethingNew RecommendationType = "TRY_SOMETHING_NEW"
+	RecommendationTypeDailyMatchOne   RecommendationType = "DAILY_MATCH_ONE"
+	RecommendationTypeDailyMatchTwo   RecommendationType = "DAILY_MATCH_TWO"
+	RecommendationTypeDailyChallenge  RecommendationType = "DAILY_CHALLENGE"
 )
 
 type RecommendationSource string
@@ -31,8 +34,9 @@ const (
 
 type Recommendation struct {
 	ID               uuid.UUID              `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	UserID           uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;index"`
-	Source           RecommendationSource   `json:"source" gorm:"size:32;not null;index"`
+	UserID           uuid.UUID              `json:"user_id" gorm:"type:uuid;not null;index;uniqueIndex:uq_daily_discovery_day"`
+	Source           RecommendationSource   `json:"source" gorm:"size:32;not null;index;uniqueIndex:uq_daily_discovery_day"`
+	TargetDate       *time.Time             `json:"target_date,omitempty" gorm:"type:date;index;uniqueIndex:uq_daily_discovery_day"`
 	RecommendedAt    time.Time              `json:"recommended_at" gorm:"not null;index"`
 	AlgorithmVersion string                 `json:"algorithm_version" gorm:"size:64;not null"`
 	Details          []RecommendationDetail `json:"details,omitempty" gorm:"foreignKey:RecommendationID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`

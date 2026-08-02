@@ -53,6 +53,18 @@ func (routerRecommendationControllerStub) GetByID(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+type routerDailyDiscoveryControllerStub struct{}
+
+func (routerDailyDiscoveryControllerStub) GetToday(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerDailyDiscoveryControllerStub) List(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+func (routerDailyDiscoveryControllerStub) GetByID(c echo.Context) error {
+	return c.NoContent(http.StatusNoContent)
+}
+
 type routerFeedbackControllerStub struct{}
 
 func (routerFeedbackControllerStub) Save(c echo.Context) error {
@@ -141,6 +153,7 @@ func newRoleTestRouter() (*echo.Echo, *routerUserControllerStub, *routerAdminMan
 		users,
 		routerQuestionControllerStub{},
 		routerRecommendationControllerStub{},
+		routerDailyDiscoveryControllerStub{},
 		routerFeedbackControllerStub{},
 		routerSpotifyAdminControllerStub{},
 		admins,

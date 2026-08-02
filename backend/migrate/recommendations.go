@@ -67,6 +67,10 @@ func CreateRecommendationTables(db *gorm.DB) error {
 		}
 	}
 
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_discovery_day ON recommendations (user_id, source, target_date) WHERE target_date IS NOT NULL`).Error; err != nil {
+		return fmt.Errorf("create daily discovery unique index: %w", err)
+	}
+
 	return nil
 }
 

@@ -12,6 +12,9 @@ import { WithdrawPage } from "../pages/WithdrawPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { QuestionPage } from "../pages/QuestionPage";
 import { AnswerConfirmPage } from "../pages/AnswerConfirmPage";
+import { DailyDiscoveryPage } from "../pages/DailyDiscoveryPage";
+import { DailyDiscoveryHistoryPage } from "../pages/DailyDiscoveryHistoryPage";
+import { DailyDiscoveryDetailPage } from "../pages/DailyDiscoveryDetailPage";
 import { RecommendationPage } from "../pages/RecommendationPage";
 import { AdminRoute } from "./AdminRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -25,6 +28,9 @@ export function AppRouter() {
     <Route path={ROUTES.withdraw} element={<AdminRoute allowedRoles={[ROLE.USER]}><WithdrawPage /></AdminRoute>} />
     <Route path={ROUTES.questions} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><QuestionPage /></AdminRoute>} />
     <Route path={ROUTES.questionConfirm} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><AnswerConfirmPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscovery} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><DailyDiscoveryPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscoveryHistory} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><DailyDiscoveryHistoryPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscoveryDetail} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><DailyDiscoveryDetailPage /></AdminRoute>} />
     <Route path={ROUTES.recommendations} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><RecommendationPage /></AdminRoute>} />
     <Route path={ROUTES.contentAdmin} element={<AdminRoute allowedRoles={[ROLE.CONTENT_ADMIN]}><ContentAdminPage /></AdminRoute>} />
     <Route path={ROUTES.systemUsers} element={<AdminRoute allowedRoles={[ROLE.SYSTEM_ADMIN]}><SystemAdminPage /></AdminRoute>} />

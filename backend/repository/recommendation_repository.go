@@ -26,6 +26,8 @@ type IRecommendationRepository interface {
 	Create(ctx context.Context, tx ITransaction, recommendation *entity.Recommendation) error
 	FindLatest(ctx context.Context, userID uuid.UUID, source entity.RecommendationSource) (*entity.Recommendation, error)
 	FindByID(ctx context.Context, recommendationID uuid.UUID) (*entity.Recommendation, error)
+	FindDailyByDate(ctx context.Context, userID uuid.UUID, targetDate time.Time) (*entity.Recommendation, error)
+	ListDaily(ctx context.Context, userID uuid.UUID, page, limit int) ([]entity.Recommendation, int64, error)
 	HasRecentNormal(ctx context.Context, userID uuid.UUID, since time.Time) (bool, error)
 	CountByArtist(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
 	CountBySong(ctx context.Context, userID uuid.UUID) (map[uuid.UUID]int64, error)
@@ -283,4 +285,44 @@ func (r *recommendationRepository) FindSongWeights(ctx context.Context, userID u
 		result[value.SongID] = value.Weight
 	}
 	return result, nil
+}
+
+func (r *recommendationRepository) FindDailyByDate(ctx context.Context, userID uuid.UUID, targetDate time.Time) (*entity.Recommendation, error) {
+	var value entity.Recommendation
+	err := r.preload(ctx).Where("user_id = ? AND source = ? AND target_date = ?", userID, entity.RecommendationSourceDailyDiscovery, targetDate.Format("2006-01-02")).First(&value).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, entity.ErrDailyDiscoveryNotFound
+	}
+	if err != nil {
+		return nil, entity.ErrDailyDiscoveryFetchFailed
+	}
+	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func (r *recommendationRepository) ListDaily(ctx context.Context, userID uuid.UUID, page, limit int) ([]entity.Recommendation, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	query := r.db.WithContext(ctx).Model(&entity.Recommendation{}).Where("user_id = ? AND source = ?", userID, entity.RecommendationSourceDailyDiscovery)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, entity.ErrDailyDiscoveryFetchFailed
+	}
+	var values []entity.Recommendation
+	err := r.preload(ctx).Where("user_id = ? AND source = ?", userID, entity.RecommendationSourceDailyDiscovery).Order("target_date DESC").Offset((page - 1) * limit).Limit(limit).Find(&values).Error
+	if err != nil {
+		return nil, 0, entity.ErrDailyDiscoveryFetchFailed
+	}
+	for i := range values {
+		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
+			return nil, 0, err
+		}
+	}
+	return values, total, nil
 }
