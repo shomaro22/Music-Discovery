@@ -22,9 +22,18 @@ type IUserProfileRepository interface {
 	UpsertAtmosphereWeights(ctx context.Context, tx ITransaction, values []entity.UserAtmosphereWeight) error
 }
 
+type IUserProfileTimezoneRepository interface {
+	FindTimezoneByUserID(ctx context.Context, userID uuid.UUID) (string, error)
+}
+
+type IUserProfileStore interface {
+	IUserProfileRepository
+	IUserProfileTimezoneRepository
+}
+
 type userProfileRepository struct{ db *gorm.DB }
 
-func NewUserProfileRepository(db *gorm.DB) IUserProfileRepository {
+func NewUserProfileRepository(db *gorm.DB) IUserProfileStore {
 	return &userProfileRepository{db: db}
 }
 
@@ -44,6 +53,24 @@ func (r *userProfileRepository) FindByUserID(ctx context.Context, tx ITransactio
 		return nil, entity.ErrProfileCreateFailed
 	}
 	return &profile, nil
+}
+
+func (r *userProfileRepository) FindTimezoneByUserID(ctx context.Context, userID uuid.UUID) (string, error) {
+	var profile struct {
+		Timezone string `gorm:"column:timezone"`
+	}
+	err := r.db.WithContext(ctx).
+		Model(&entity.UserProfile{}).
+		Select("timezone").
+		Where("user_id = ?", userID).
+		Take(&profile).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", entity.ErrNotFound
+	}
+	if err != nil {
+		return "", entity.ErrProfileCreateFailed
+	}
+	return profile.Timezone, nil
 }
 
 func (r *userProfileRepository) Create(ctx context.Context, tx ITransaction, profile *entity.UserProfile) error {

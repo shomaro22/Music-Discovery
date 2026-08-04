@@ -384,10 +384,40 @@ func (r *recommendationRepository) ListHistory(ctx context.Context, condition Re
 	if err := listQuery.Order("recommended_at DESC, id DESC").Offset((condition.Page - 1) * condition.Limit).Limit(condition.Limit).Find(&values).Error; err != nil {
 		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
 	}
-	for i := range values {
-		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
-			return nil, 0, entity.ErrRecommendationHistoryFetchFailed
-		}
+	if err := r.loadHistoryFeedbackStatuses(ctx, values); err != nil {
+		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
 	}
 	return values, total, nil
+}
+
+func (r *recommendationRepository) loadHistoryFeedbackStatuses(ctx context.Context, recommendations []entity.Recommendation) error {
+	detailIDs := make([]uuid.UUID, 0, len(recommendations)*3)
+	for _, recommendation := range recommendations {
+		for _, detail := range recommendation.Details {
+			detailIDs = append(detailIDs, detail.ID)
+		}
+	}
+	if len(detailIDs) == 0 {
+		return nil
+	}
+	var feedbacks []entity.Feedback
+	if err := r.db.WithContext(ctx).Where("recommendation_detail_id IN ?", detailIDs).Find(&feedbacks).Error; err != nil {
+		return entity.ErrInternal
+	}
+	statusByID := make(map[uuid.UUID]entity.FeedbackStatus, len(feedbacks))
+	for _, feedback := range feedbacks {
+		statusByID[feedback.RecommendationDetailID] = entity.FeedbackStatus(feedback.Type)
+	}
+	for recommendationIndex := range recommendations {
+		for detailIndex := range recommendations[recommendationIndex].Details {
+			detail := &recommendations[recommendationIndex].Details[detailIndex]
+			if status, ok := statusByID[detail.ID]; ok {
+				current := status
+				detail.FeedbackStatus = &current
+			} else {
+				detail.FeedbackStatus = nil
+			}
+		}
+	}
+	return nil
 }

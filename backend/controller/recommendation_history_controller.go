@@ -25,14 +25,16 @@ func NewRecommendationHistoryController(value usecase.IRecommendationHistoryUsec
 }
 
 type RecommendationHistorySongResponse struct {
-	RecommendationDetailID uuid.UUID `json:"recommendation_detail_id"`
-	DisplayOrder           int       `json:"display_order"`
-	SongID                 uuid.UUID `json:"song_id"`
-	SongName               string    `json:"song_name"`
-	ArtistID               uuid.UUID `json:"artist_id"`
-	ArtistName             string    `json:"artist_name"`
-	ArtworkURL             string    `json:"artwork_url"`
-	FeedbackStatus         string    `json:"feedback_status"`
+	RecommendationDetailID uuid.UUID                 `json:"recommendation_detail_id"`
+	RecommendationType     entity.RecommendationType `json:"recommendation_type"`
+	DisplayOrder           int                       `json:"display_order"`
+	SongID                 uuid.UUID                 `json:"song_id"`
+	SongName               string                    `json:"song_name"`
+	ArtistID               uuid.UUID                 `json:"artist_id"`
+	ArtistName             string                    `json:"artist_name"`
+	ArtworkURL             string                    `json:"artwork_url"`
+	Reason                 string                    `json:"reason"`
+	FeedbackStatus         *entity.FeedbackStatus    `json:"feedback_status"`
 }
 type RecommendationHistoryItemResponse struct {
 	RecommendationID uuid.UUID                           `json:"recommendation_id"`
@@ -47,6 +49,7 @@ type RecommendationHistoryListResponse struct {
 	Limit      int                                 `json:"limit"`
 	Total      int64                               `json:"total"`
 	TotalPages int                                 `json:"total_pages"`
+	Timezone   string                              `json:"timezone"`
 }
 type RecommendationHistoryDetailResponse struct {
 	RecommendationID uuid.UUID                    `json:"recommendation_id"`
@@ -54,14 +57,9 @@ type RecommendationHistoryDetailResponse struct {
 	TargetDate       *string                      `json:"target_date,omitempty"`
 	RecommendedAt    time.Time                    `json:"recommended_at"`
 	Recommendations  []RecommendationItemResponse `json:"recommendations"`
+	Timezone         string                       `json:"timezone"`
 }
 
-func historyStatus(value *entity.FeedbackStatus) string {
-	if value == nil {
-		return "NONE"
-	}
-	return string(*value)
-}
 func historyItem(value entity.Recommendation) RecommendationHistoryItemResponse {
 	var target *string
 	if value.TargetDate != nil {
@@ -70,7 +68,18 @@ func historyItem(value entity.Recommendation) RecommendationHistoryItemResponse 
 	}
 	songs := make([]RecommendationHistorySongResponse, 0, len(value.Details))
 	for _, detail := range value.Details {
-		songs = append(songs, RecommendationHistorySongResponse{detail.ID, detail.Position, detail.SongID, detail.Song.Name, detail.Song.ArtistID, detail.Song.Artist.Name, detail.Song.ImageURL, historyStatus(detail.FeedbackStatus)})
+		songs = append(songs, RecommendationHistorySongResponse{
+			RecommendationDetailID: detail.ID,
+			RecommendationType:     detail.Type,
+			DisplayOrder:           detail.Position,
+			SongID:                 detail.SongID,
+			SongName:               detail.Song.Name,
+			ArtistID:               detail.Song.ArtistID,
+			ArtistName:             detail.Song.Artist.Name,
+			ArtworkURL:             detail.Song.ImageURL,
+			Reason:                 detail.Reason,
+			FeedbackStatus:         detail.FeedbackStatus,
+		})
 	}
 	return RecommendationHistoryItemResponse{value.ID, value.Source, target, value.RecommendedAt, songs}
 }
@@ -81,7 +90,7 @@ func historyDetail(value *entity.Recommendation) RecommendationHistoryDetailResp
 		formatted := value.TargetDate.Format("2006-01-02")
 		target = &formatted
 	}
-	return RecommendationHistoryDetailResponse{value.ID, value.Source, target, value.RecommendedAt, base.Recommendations}
+	return RecommendationHistoryDetailResponse{RecommendationID: value.ID, Source: value.Source, TargetDate: target, RecommendedAt: value.RecommendedAt, Recommendations: base.Recommendations}
 }
 func parsePositive(value string, fallback int) (int, error) {
 	if value == "" {
@@ -119,7 +128,7 @@ func (c *recommendationHistoryController) List(ctx echo.Context) error {
 	for _, v := range result.Items {
 		items = append(items, historyItem(v))
 	}
-	return ctx.JSON(http.StatusOK, RecommendationHistoryListResponse{items, result.Page, result.Limit, result.Total, result.TotalPages})
+	return ctx.JSON(http.StatusOK, RecommendationHistoryListResponse{Items: items, Page: result.Page, Limit: result.Limit, Total: result.Total, TotalPages: result.TotalPages, Timezone: result.Timezone})
 }
 func (c *recommendationHistoryController) GetByID(ctx echo.Context) error {
 	userID, ok := authUserID(ctx)
@@ -130,11 +139,13 @@ func (c *recommendationHistoryController) GetByID(ctx echo.Context) error {
 	if err != nil {
 		return c.handle(ctx, entity.ErrInvalidRecommendationID)
 	}
-	value, err := c.usecase.GetByID(ctx.Request().Context(), userID, id)
+	value, timezone, err := c.usecase.GetByID(ctx.Request().Context(), userID, id)
 	if err != nil {
 		return c.handle(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, historyDetail(value))
+	response := historyDetail(value)
+	response.Timezone = timezone
+	return ctx.JSON(http.StatusOK, response)
 }
 func (c *recommendationHistoryController) handle(ctx echo.Context, err error) error {
 	switch {

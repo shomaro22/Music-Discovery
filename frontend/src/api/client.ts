@@ -56,7 +56,8 @@ export function isAuthenticationFailure(error: unknown): boolean {
     error instanceof ApiRequestError &&
     (error.response.status === 401 ||
       error.response.code === "INVALID_REFRESH_TOKEN" ||
-      error.response.code === "REFRESH_TOKEN_REUSED")
+      error.response.code === "REFRESH_TOKEN_REUSED" ||
+      error.response.code === "USER_SUSPENDED")
   );
 }
 
@@ -152,7 +153,10 @@ export async function request<T>(
 
   if (!response.ok) {
     const error = await parseError(response);
-    if (retried && isAuthenticationFailure(error)) expireAuthenticationOnce();
+    const shouldExpire =
+      error.response.code === "USER_SUSPENDED" ||
+      (requestHadAccessToken && isAuthenticationFailure(error));
+    if (shouldExpire) expireAuthenticationOnce();
     throw error;
   }
 

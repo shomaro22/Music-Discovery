@@ -1,17 +1,20 @@
-import type { FeedbackStatus } from "./feedback";
+import type { FeedbackType } from "./feedback";
+import type { RecommendationType } from "./recommendation";
 import type { RecommendationDetail } from "./recommendation";
 
 export type RecommendationSource = "NORMAL" | "DAILY_DISCOVERY";
 
 export interface RecommendationHistorySong {
   recommendation_detail_id: string;
+  recommendation_type: RecommendationType;
   display_order: number;
   song_id: string;
   song_name: string;
   artist_id: string;
   artist_name: string;
   artwork_url: string;
-  feedback_status: FeedbackStatus;
+  reason: string;
+  feedback_status: FeedbackType | null;
 }
 
 export interface RecommendationHistoryItem {
@@ -28,6 +31,7 @@ export interface RecommendationHistoryListResponse {
   limit: number;
   total: number;
   total_pages: number;
+  timezone: string;
 }
 
 export interface RecommendationHistoryDetailResponse {
@@ -36,6 +40,7 @@ export interface RecommendationHistoryDetailResponse {
   target_date?: string;
   recommended_at: string;
   recommendations: RecommendationDetail[];
+  timezone: string;
 }
 
 export interface RecommendationHistoryQuery {
