@@ -10,6 +10,8 @@ export const ROUTES = {
   dailyDiscovery: "/daily-discovery",
   dailyDiscoveryHistory: "/daily-discoveries",
   dailyDiscoveryDetail: "/daily-discoveries/:recommendationId",
+  recommendationHistory: "/recommendation-history",
+  recommendationHistoryDetail: "/recommendation-history/:recommendationId",
   contentAdmin: "/admin/content",
   systemUsers: "/system/users",
   top: "/",

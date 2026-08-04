@@ -8,6 +8,8 @@ export const API_PATHS = {
   dailyDiscovery: "/api/daily-discovery",
   dailyDiscoveries: "/api/daily-discoveries",
   dailyDiscoveryDetail: (recommendationId: string) => `/api/daily-discoveries/${recommendationId}`,
+  recommendationHistory: "/api/recommendation-history",
+  recommendationHistoryDetail: (recommendationId: string) => `/api/recommendation-history/${recommendationId}`,
   feedback: (recommendationDetailId: string) =>
     `/api/recommendation-details/${recommendationDetailId}/feedback`,
 } as const;

@@ -28,6 +28,7 @@ func NewRouter(
 	questionController controller.IQuestionController,
 	recommendationController controller.IRecommendationController,
 	dailyDiscoveryController controller.IDailyDiscoveryController,
+	recommendationHistoryController controller.IRecommendationHistoryController,
 	feedbackController controller.IFeedbackController,
 	spotifyAdminController controller.ISpotifyAdminController,
 	artistAdminController controller.IArtistAdminController,
@@ -74,6 +75,8 @@ func NewRouter(
 	authenticated.GET("/daily-discovery", dailyDiscoveryController.GetToday, rateLimit.DailyDiscovery, userOnly.Authorize)
 	authenticated.GET("/daily-discoveries", dailyDiscoveryController.List, userOnly.Authorize)
 	authenticated.GET("/daily-discoveries/:recommendationId", dailyDiscoveryController.GetByID, userOnly.Authorize)
+	authenticated.GET("/recommendation-history", recommendationHistoryController.List, userOnly.Authorize)
+	authenticated.GET("/recommendation-history/:recommendationId", recommendationHistoryController.GetByID, userOnly.Authorize)
 	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), rateLimit.Feedback, requireJSON, userOnly.Authorize)
 	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, userOnly.Authorize)
 	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)

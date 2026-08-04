@@ -74,3 +74,13 @@ var (
 	ErrFeedbackSaveFailed            = errors.New("feedback save failed")
 	ErrFeedbackUpdateFailed          = errors.New("feedback update failed")
 )
+
+var (
+	ErrInvalidPage                       = errors.New("invalid page")
+	ErrInvalidLimit                      = errors.New("invalid limit")
+	ErrInvalidRecommendationSource       = errors.New("invalid recommendation source")
+	ErrInvalidDateRange                  = errors.New("invalid date range")
+	ErrRecommendationHistoryAccessDenied = errors.New("recommendation history access denied")
+	ErrRecommendationHistoryNotFound     = errors.New("recommendation history not found")
+	ErrRecommendationHistoryFetchFailed  = errors.New("recommendation history fetch failed")
+)
