@@ -102,13 +102,13 @@ export function TopPage() {
                     <button
                       className="top-menu-button"
                       type="button"
-                      aria-label="Daily Discovery履歴を開く"
-                      onClick={() => navigate(ROUTES.dailyDiscoveryHistory)}
+                      aria-label="推薦履歴を開く"
+                      onClick={() => navigate(ROUTES.recommendationHistory)}
                     >
-                      <span className="top-menu-icon" aria-hidden="true">H</span>
+                      <span className="top-menu-icon" aria-hidden="true">R</span>
                       <span>
-                        <strong>Daily Discovery履歴</strong>
-                        <small>過去のおすすめを確認</small>
+                        <strong>推薦履歴</strong>
+                        <small>通常推薦とDaily Discoveryを確認</small>
                       </span>
                     </button>
                   </>

@@ -111,7 +111,7 @@ func start(ctx context.Context) error {
 	recommendationConditionBuilder := usecase.NewRecommendationConditionBuilder(questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, authTransactionManager)
 	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, authTransactionManager, clock, recommendationConditionBuilder, dailyDiscoveryConfig)
 	dailyDiscoveryController := controller.NewDailyDiscoveryController(dailyDiscoveryUsecase)
-	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository, authTransactionManager)
+	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository)
 	recommendationHistoryController := controller.NewRecommendationHistoryController(recommendationHistoryUsecase)
 	feedbackRepository := repository.NewFeedbackRepository(postgres)
 	feedbackUsecase := usecase.NewFeedbackUsecase(userRepository, feedbackRepository, authTransactionManager, clock, feedbackConfig)

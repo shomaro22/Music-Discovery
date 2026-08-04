@@ -172,3 +172,53 @@ describe("withdraw request authentication recovery", () => {
     expect(new Headers(withdrawCalls[1][1]?.headers).get("Authorization")).toBe("Bearer new-token");
   });
 });
+
+
+describe("request authentication expiration boundaries", () => {
+  it("does not notify expiration for a login 401 without an Access Token", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: 401, code: "INVALID_CREDENTIALS", message: "invalid", request_id: "" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+    const listener = vi.fn();
+    client.setAuthStateListener(listener);
+
+    await expect(client.request("/api/auth/login", { method: "POST" })).rejects.toBeInstanceOf(client.ApiRequestError);
+
+    expect(listener).not.toHaveBeenCalledWith(null, "expired");
+  });
+
+  it("clears authentication for a 401 when the request had an Access Token", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 401, code: "UNAUTHORIZED", message: "expired", request_id: "" }), { status: 401, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 401, code: "INVALID_REFRESH_TOKEN", message: "expired", request_id: "" }), { status: 401, headers: { "Content-Type": "application/json" } }));
+    const client = await import("./client");
+    const listener = vi.fn();
+    client.setAuthStateListener(listener);
+    client.setAccessToken("token");
+
+    await expect(client.request("/api/users/me", { method: "GET" })).rejects.toBeInstanceOf(client.ApiRequestError);
+
+    expect(client.hasAccessToken()).toBe(false);
+    expect(listener).toHaveBeenLastCalledWith(null, "expired");
+  });
+
+  it("clears authentication for USER_SUSPENDED even without an Access Token", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: 403, code: "USER_SUSPENDED", message: "suspended", request_id: "" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+    const listener = vi.fn();
+    client.setAuthStateListener(listener);
+
+    await expect(client.request("/api/recommendation-history", { method: "GET" })).rejects.toBeInstanceOf(client.ApiRequestError);
+
+    expect(listener).toHaveBeenLastCalledWith(null, "expired");
+  });
+});

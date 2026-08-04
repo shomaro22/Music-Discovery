@@ -61,3 +61,26 @@ func TestHTTPErrorHandlerDoesNotExposeInternalError(t *testing.T) {
 		t.Fatalf("got=%#v status=%d", got, rec.Code)
 	}
 }
+
+func TestHTTPErrorHandlerReturnsUserSuspendedCode(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/recommendation-history", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	NewHTTPErrorHandler(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))(
+		echo.NewHTTPError(http.StatusForbidden, entity.ErrUserSuspended),
+		c,
+	)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d", rec.Code)
+	}
+	var body entity.APIErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "USER_SUSPENDED" {
+		t.Fatalf("code=%s body=%s", body.Code, rec.Body.String())
+	}
+}

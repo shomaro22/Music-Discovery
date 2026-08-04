@@ -30,7 +30,7 @@ describe("Navigation Daily Discovery role", () => {
     render(<MemoryRouter><Navigation /></MemoryRouter>);
 
     expect(screen.getByRole("link", { name: "Daily Discovery" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "履歴" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "推薦履歴" })).toBeInTheDocument();
   });
 
   it("管理者にDaily Discovery導線を表示しない", () => {
@@ -48,6 +48,6 @@ describe("Navigation Daily Discovery role", () => {
     render(<MemoryRouter><Navigation /></MemoryRouter>);
 
     expect(screen.queryByRole("link", { name: "Daily Discovery" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "履歴" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "推薦履歴" })).not.toBeInTheDocument();
   });
 });

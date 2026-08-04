@@ -27,22 +27,22 @@ type RecommendationHistoryResult struct {
 	Limit      int
 	Total      int64
 	TotalPages int
+	Timezone   string
 }
 
 type IRecommendationHistoryUsecase interface {
 	List(context.Context, uuid.UUID, RecommendationHistoryInput) (*RecommendationHistoryResult, error)
-	GetByID(context.Context, uuid.UUID, uuid.UUID) (*entity.Recommendation, error)
+	GetByID(context.Context, uuid.UUID, uuid.UUID) (*entity.Recommendation, string, error)
 }
 
 type recommendationHistoryUsecase struct {
 	users           repository.IUserRepository
-	profiles        repository.IUserProfileRepository
+	profiles        repository.IUserProfileTimezoneRepository
 	recommendations repository.IRecommendationHistoryRepository
-	tx              repository.ITransactionManager
 }
 
-func NewRecommendationHistoryUsecase(users repository.IUserRepository, profiles repository.IUserProfileRepository, recommendations repository.IRecommendationHistoryRepository, tx repository.ITransactionManager) IRecommendationHistoryUsecase {
-	return &recommendationHistoryUsecase{users: users, profiles: profiles, recommendations: recommendations, tx: tx}
+func NewRecommendationHistoryUsecase(users repository.IUserRepository, profiles repository.IUserProfileTimezoneRepository, recommendations repository.IRecommendationHistoryRepository) IRecommendationHistoryUsecase {
+	return &recommendationHistoryUsecase{users: users, profiles: profiles, recommendations: recommendations}
 }
 
 func (u *recommendationHistoryUsecase) activeUser(ctx context.Context, userID uuid.UUID) error {
@@ -57,22 +57,12 @@ func (u *recommendationHistoryUsecase) activeUser(ctx context.Context, userID uu
 }
 
 func (u *recommendationHistoryUsecase) location(ctx context.Context, userID uuid.UUID) (*time.Location, error) {
-	zone := "Asia/Tokyo"
-	err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
-		profile, err := u.profiles.FindByUserID(ctx, tx, userID)
-		if errors.Is(err, entity.ErrNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if profile.Timezone != "" {
-			zone = profile.Timezone
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	zone, err := u.profiles.FindTimezoneByUserID(ctx, userID)
+	if err != nil && !errors.Is(err, entity.ErrNotFound) {
+		return nil, entity.ErrRecommendationHistoryFetchFailed
+	}
+	if zone == "" {
+		zone = "Asia/Tokyo"
 	}
 	location, err := time.LoadLocation(zone)
 	if err != nil {
@@ -131,28 +121,32 @@ func (u *recommendationHistoryUsecase) List(ctx context.Context, userID uuid.UUI
 	if total > 0 {
 		pages = int((total + int64(input.Limit) - 1) / int64(input.Limit))
 	}
-	return &RecommendationHistoryResult{Items: items, Page: input.Page, Limit: input.Limit, Total: total, TotalPages: pages}, nil
+	return &RecommendationHistoryResult{Items: items, Page: input.Page, Limit: input.Limit, Total: total, TotalPages: pages, Timezone: location.String()}, nil
 }
 
-func (u *recommendationHistoryUsecase) GetByID(ctx context.Context, userID, recommendationID uuid.UUID) (*entity.Recommendation, error) {
+func (u *recommendationHistoryUsecase) GetByID(ctx context.Context, userID, recommendationID uuid.UUID) (*entity.Recommendation, string, error) {
 	if recommendationID == uuid.Nil {
-		return nil, entity.ErrInvalidRecommendationID
+		return nil, "", entity.ErrInvalidRecommendationID
 	}
 	if err := u.activeUser(ctx, userID); err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	location, err := u.location(ctx, userID)
+	if err != nil {
+		return nil, "", err
 	}
 	value, err := u.recommendations.FindByID(ctx, recommendationID)
 	if errors.Is(err, entity.ErrRecommendationNotFound) {
-		return nil, entity.ErrRecommendationHistoryNotFound
+		return nil, "", entity.ErrRecommendationHistoryNotFound
 	}
 	if err != nil {
-		return nil, entity.ErrRecommendationHistoryFetchFailed
+		return nil, "", entity.ErrRecommendationHistoryFetchFailed
 	}
 	if value.UserID != userID {
-		return nil, entity.ErrRecommendationHistoryAccessDenied
+		return nil, "", entity.ErrRecommendationHistoryAccessDenied
 	}
 	if len(value.Details) != 3 {
-		return nil, entity.ErrRecommendationHistoryFetchFailed
+		return nil, "", entity.ErrRecommendationHistoryFetchFailed
 	}
-	return value, nil
+	return value, location.String(), nil
 }
