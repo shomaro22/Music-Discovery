@@ -71,6 +71,13 @@ func CreateRecommendationTables(db *gorm.DB) error {
 		return fmt.Errorf("create daily discovery unique index: %w", err)
 	}
 
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_recommendations_user_recommended_at ON recommendations (user_id, recommended_at DESC)`).Error; err != nil {
+		return fmt.Errorf("create recommendation history index: %w", err)
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_recommendations_user_source_recommended_at ON recommendations (user_id, source, recommended_at DESC)`).Error; err != nil {
+		return fmt.Errorf("create recommendation source history index: %w", err)
+	}
+
 	return nil
 }
 

@@ -17,6 +17,15 @@ type RecommendationRecencyCounts struct {
 	GenreCounts  map[string]int64
 }
 
+type RecommendationHistoryCondition struct {
+	UserID    uuid.UUID
+	Source    *entity.RecommendationSource
+	StartAt   *time.Time
+	EndBefore *time.Time
+	Page      int
+	Limit     int
+}
+
 type RecommendationCandidateCondition struct {
 	ExcludedSongIDs []uuid.UUID
 	Limit           int
@@ -39,6 +48,16 @@ type IRecommendationRepository interface {
 	FindRecentDisplayCounts(ctx context.Context, userID uuid.UUID, since time.Time) (RecommendationRecencyCounts, error)
 }
 
+type IRecommendationHistoryRepository interface {
+	ListHistory(ctx context.Context, condition RecommendationHistoryCondition) ([]entity.Recommendation, int64, error)
+	FindByID(ctx context.Context, recommendationID uuid.UUID) (*entity.Recommendation, error)
+}
+
+type IRecommendationStore interface {
+	IRecommendationRepository
+	IRecommendationHistoryRepository
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
@@ -46,7 +65,7 @@ func isUniqueViolation(err error) bool {
 
 type recommendationRepository struct{ db *gorm.DB }
 
-func NewRecommendationRepository(db *gorm.DB) IRecommendationRepository {
+func NewRecommendationRepository(db *gorm.DB) IRecommendationStore {
 	return &recommendationRepository{db: db}
 }
 
@@ -132,7 +151,7 @@ func (r *recommendationRepository) Create(ctx context.Context, tx ITransaction, 
 	return nil
 }
 func (r *recommendationRepository) preload(ctx context.Context) *gorm.DB {
-	return r.db.WithContext(ctx).Preload("Details", func(db *gorm.DB) *gorm.DB { return db.Order("position ASC") }).Preload("Details.Song.Artist")
+	return r.db.WithContext(ctx).Preload("Details", func(db *gorm.DB) *gorm.DB { return db.Order("position ASC") }).Preload("Details.Song", func(db *gorm.DB) *gorm.DB { return db.Unscoped() }).Preload("Details.Song.Artist", func(db *gorm.DB) *gorm.DB { return db.Unscoped() })
 }
 func (r *recommendationRepository) FindLatest(ctx context.Context, userID uuid.UUID, source entity.RecommendationSource) (*entity.Recommendation, error) {
 	var value entity.Recommendation
@@ -332,6 +351,42 @@ func (r *recommendationRepository) ListDaily(ctx context.Context, userID uuid.UU
 	for i := range values {
 		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
 			return nil, 0, err
+		}
+	}
+	return values, total, nil
+}
+
+func applyRecommendationHistoryCondition(db *gorm.DB, condition RecommendationHistoryCondition) *gorm.DB {
+	db = db.Where("user_id = ?", condition.UserID)
+	if condition.Source != nil {
+		db = db.Where("source = ?", *condition.Source)
+	}
+	if condition.StartAt != nil {
+		db = db.Where("recommended_at >= ?", *condition.StartAt)
+	}
+	if condition.EndBefore != nil {
+		db = db.Where("recommended_at < ?", *condition.EndBefore)
+	}
+	return db
+}
+
+func (r *recommendationRepository) ListHistory(ctx context.Context, condition RecommendationHistoryCondition) ([]entity.Recommendation, int64, error) {
+	countQuery := applyRecommendationHistoryCondition(
+		r.db.WithContext(ctx).Model(&entity.Recommendation{}),
+		condition,
+	)
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
+	}
+	var values []entity.Recommendation
+	listQuery := applyRecommendationHistoryCondition(r.preload(ctx), condition)
+	if err := listQuery.Order("recommended_at DESC, id DESC").Offset((condition.Page - 1) * condition.Limit).Limit(condition.Limit).Find(&values).Error; err != nil {
+		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
+	}
+	for i := range values {
+		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
+			return nil, 0, entity.ErrRecommendationHistoryFetchFailed
 		}
 	}
 	return values, total, nil
