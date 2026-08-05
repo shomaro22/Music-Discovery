@@ -213,16 +213,6 @@ func (u *feedbackUsecase) feedbackDelta(value entity.FeedbackType) FeedbackDelta
 	}
 }
 
-func clamp(value, minimum, maximum float64) float64 {
-	if value < minimum {
-		return minimum
-	}
-	if value > maximum {
-		return maximum
-	}
-	return value
-}
-
 func buildGenreWeights(profileID uuid.UUID, current []entity.UserGenreWeight, feedback map[uuid.UUID]float64, now time.Time, minimum, maximum float64) []entity.UserGenreWeight {
 	values := make(map[uuid.UUID]entity.UserGenreWeight, len(current)+len(feedback))
 	for _, value := range current {

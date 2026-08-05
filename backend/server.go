@@ -172,14 +172,15 @@ func envPositiveInt(name string, fallback int) int {
 
 func loadRecommendationConfig() usecase.RecommendationConfig {
 	return usecase.RecommendationConfig{
-		CandidateLimit:    envPositiveInt("RECOMMENDATION_CANDIDATE_LIMIT", 100),
-		DuplicateDays:     envPositiveInt("RECOMMENDATION_DUPLICATE_DAYS", 30),
-		RecencyDays:       envPositiveInt("RECOMMENDATION_RECENCY_DAYS", 30),
-		GenerationWindow:  envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10),
-		LockTTLSeconds:    envPositiveInt("RECOMMENDATION_LOCK_TTL_SECONDS", 120),
-		AlgorithmVersion:  usecase.RecommendationAlgorithmVersion,
-		MinimumMatchScore: usecase.RecommendationMinimumMatchScore,
-		ScoreWeights:      usecase.RecommendationV1ScoreWeights(),
+		CandidateLimit:      envPositiveInt("RECOMMENDATION_CANDIDATE_LIMIT", 100),
+		DuplicateDays:       envPositiveInt("RECOMMENDATION_DUPLICATE_DAYS", 30),
+		RecencyDays:         envPositiveInt("RECOMMENDATION_RECENCY_DAYS", 30),
+		GenerationWindow:    envPositiveInt("RECOMMENDATION_GENERATION_WINDOW_SECONDS", 10),
+		LockTTLSeconds:      envPositiveInt("RECOMMENDATION_LOCK_TTL_SECONDS", 120),
+		AlgorithmVersion:    usecase.RecommendationAlgorithmVersion,
+		WeightConfigVersion: usecase.RecommendationWeightConfigVersion,
+		MinimumMatchScore:   usecase.RecommendationMinimumMatchScore,
+		ScoreWeights:        usecase.RecommendationV1ScoreWeights(),
 	}
 }
 

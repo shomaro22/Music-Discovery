@@ -128,3 +128,17 @@ func TestRecommendationHistoryGetByIDChecksOwnerAndDetailCount(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestRecommendationHistoryListMapsMissingUserToFetchFailed(t *testing.T) {
+	userID := uuid.New()
+	u := NewRecommendationHistoryUsecase(
+		&historyUserRepoStub{err: entity.ErrUserNotFound},
+		&historyProfileRepoStub{},
+		&historyRepoStub{},
+	)
+
+	_, err := u.List(context.Background(), userID, RecommendationHistoryInput{Page: 1, Limit: 10})
+	if !errors.Is(err, entity.ErrRecommendationHistoryFetchFailed) {
+		t.Fatalf("err=%v", err)
+	}
+}

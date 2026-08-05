@@ -64,6 +64,7 @@ func (b *recommendationConditionBuilder) Build(ctx context.Context, userID uuid.
 		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
 	}
 	condition := RecommendationCondition{
+		UserID:       userID,
 		GenreWeights: map[string]float64{}, ElementWeights: map[string]float64{},
 		AtmosphereWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{},
 		SongWeights: map[uuid.UUID]float64{},

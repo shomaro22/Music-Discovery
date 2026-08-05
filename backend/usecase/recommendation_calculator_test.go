@@ -142,3 +142,26 @@ func TestRecommendationCalculatorUsesPersistedElementAndAtmosphereWeights(t *tes
 		t.Fatalf("unexpected persisted tag scores: %+v", ranked[0].Score)
 	}
 }
+
+func TestRecommendationCalculatorUsesDeterministicTieBreakers(t *testing.T) {
+	artistID := uuid.New()
+	songSmall := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	songLarge := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+	values := []entity.RecommendationSongCandidate{
+		{Song: entity.Song{ID: songLarge, ArtistID: artistID}, Artist: entity.Artist{ID: artistID}},
+		{Song: entity.Song{ID: songSmall, ArtistID: artistID}, Artist: entity.Artist{ID: artistID}},
+	}
+	condition := RecommendationCondition{GenreWeights: map[string]float64{}, ArtistWeights: map[uuid.UUID]float64{}, SongWeights: map[uuid.UUID]float64{}}
+	ranked := NewRecommendationCalculator(RecommendationScoreWeights{}).Calculate(condition, values, entity.RecommendationTypeYourMatch, map[uuid.UUID]int64{}, map[uuid.UUID]int64{})
+	if ranked[0].Data.Song.ID != songSmall {
+		t.Fatalf("tie must be resolved by song id: got=%s", ranked[0].Data.Song.ID)
+	}
+}
+
+func TestValidateRecommendationScoreWeightsRejectsNegativeConfig(t *testing.T) {
+	weights := RecommendationV1ScoreWeights()
+	weights.YourMatch.Mood = -1
+	if err := ValidateRecommendationScoreWeights(weights); err != entity.ErrInvalidWeightConfig {
+		t.Fatalf("err=%v want=%v", err, entity.ErrInvalidWeightConfig)
+	}
+}

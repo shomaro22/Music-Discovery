@@ -11,16 +11,40 @@ const logoutMock = vi.fn();
 function LoginResult() {
   const location = useLocation();
   const state = location.state as { logoutError?: string } | null;
-  return <><p>login page</p>{state?.logoutError && <p role="alert">{state.logoutError}</p>}</>;
+
+  return (
+    <>
+      <p>login page</p>
+      {state?.logoutError && <p role="alert">{state.logoutError}</p>}
+    </>
+  );
+}
+
+function QuestionsResult() {
+  const location = useLocation();
+  const state = location.state as { loadLatest?: boolean } | null;
+
+  return (
+    <>
+      <p>questions page</p>
+      {state?.loadLatest && <p>latest answers enabled</p>}
+    </>
+  );
 }
 
 function renderTopPage() {
   useAuthMock.mockReturnValue({
-    user: { id: "u1", name: "Taro", email: "taro@example.com", role: "user", status: "active" },
+    user: {
+      id: "u1",
+      name: "Taro",
+      email: "taro@example.com",
+      role: "user",
+      status: "active",
+    },
     accessToken: "access-token",
     isAuthenticated: true,
     isLoading: false,
-      authExpired: false,
+    authExpired: false,
     signUp: vi.fn(),
     login: vi.fn(),
     logout: logoutMock,
@@ -36,7 +60,8 @@ function renderTopPage() {
         <Route path="/login" element={<LoginResult />} />
         <Route path="/withdraw" element={<p>withdraw page</p>} />
         <Route path="/profile" element={<p>profile page</p>} />
-        <Route path="/questions" element={<p>questions page</p>} />
+        <Route path="/questions" element={<QuestionsResult />} />
+        <Route path="/recommendation-history" element={<p>history page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -49,7 +74,9 @@ beforeEach(() => {
 describe("TopPage", () => {
   it("shows the shortened slogan", () => {
     renderTopPage();
-    expect(screen.getByRole("heading", { name: "次の一曲を、見つけよう。" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "次の一曲を、見つけよう。" }),
+    ).toBeInTheDocument();
   });
 
   it("moves to the profile page", () => {
@@ -58,10 +85,25 @@ describe("TopPage", () => {
     expect(screen.getByText("profile page")).toBeInTheDocument();
   });
 
-  it("moves to the questions page to edit preferences", () => {
+  it("moves to the questions page and loads the latest answers", () => {
     renderTopPage();
-    fireEvent.click(screen.getByRole("button", { name: "好みを変更" }));
+    fireEvent.click(screen.getByRole("button", { name: "おすすめを探す" }));
     expect(screen.getByText("questions page")).toBeInTheDocument();
+    expect(screen.getByText("latest answers enabled")).toBeInTheDocument();
+  });
+
+  it("does not show a separate preference edit button", () => {
+    renderTopPage();
+    expect(
+      screen.queryByRole("button", { name: "好みを変更" }),
+    ).not.toBeInTheDocument();
+  });
+
+
+  it("moves to recommendation history from the top page", () => {
+    renderTopPage();
+    fireEvent.click(screen.getByRole("button", { name: "推薦履歴を開く" }));
+    expect(screen.getByText("history page")).toBeInTheDocument();
   });
 
   it("moves to the withdraw page", () => {

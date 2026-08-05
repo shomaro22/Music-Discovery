@@ -48,7 +48,7 @@ func NewRecommendationHistoryUsecase(users repository.IUserRepository, profiles 
 func (u *recommendationHistoryUsecase) activeUser(ctx context.Context, userID uuid.UUID) error {
 	user, err := u.users.FindByID(ctx, userID)
 	if err != nil {
-		return err
+		return entity.ErrRecommendationHistoryFetchFailed
 	}
 	if user.Status == entity.UserStatusSuspended {
 		return entity.ErrUserSuspended
