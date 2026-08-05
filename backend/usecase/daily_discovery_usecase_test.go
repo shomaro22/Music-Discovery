@@ -213,7 +213,7 @@ func TestDailyDiscoverySelectChallengeKeepsMinimumContactAndNoSongDuplication(t 
 	valid := dailyCandidate(uuid.New(), RecommendationScore{Mood: 1, Discovery: 5}, "rock")
 	condition := RecommendationCondition{Genres: []string{"rock"}, DiscoveryLevel: "low"}
 
-	candidate, ok := u.selectChallenge(
+	candidate, _, ok := u.selectChallenge(
 		[]SongCandidate{noContact, valid}, condition, map[uuid.UUID]int64{},
 		map[uuid.UUID]bool{selectedSong: true}, map[uuid.UUID]bool{selectedArtist: true},
 	)

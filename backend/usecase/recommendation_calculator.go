@@ -83,7 +83,7 @@ type SongCandidate struct {
 }
 
 type IRecommendationCalculator interface {
-	Calculate(RecommendationCondition, []entity.RecommendationSongCandidate, entity.RecommendationType, map[uuid.UUID]int64, map[uuid.UUID]int64) []SongCandidate
+	Calculate(RecommendationCondition, []entity.RecommendationSongCandidate, entity.RecommendationType, map[uuid.UUID]int64, map[uuid.UUID]int64) ([]SongCandidate, error)
 }
 
 type recommendationCalculator struct{ weights RecommendationScoreWeights }
@@ -168,20 +168,20 @@ func songGenreKeys(candidate entity.RecommendationSongCandidate) []string {
 	return result
 }
 
-func scoreWeightsFor(weights RecommendationScoreWeights, kind entity.RecommendationType) RecommendationTypeScoreWeights {
+func scoreWeightsFor(weights RecommendationScoreWeights, kind entity.RecommendationType) (RecommendationTypeScoreWeights, error) {
 	switch kind {
 	case entity.RecommendationTypeYourMatch:
-		return weights.YourMatch
+		return weights.YourMatch, nil
 	case entity.RecommendationTypeNewFavorite:
-		return weights.NewFavorite
+		return weights.NewFavorite, nil
 	case entity.RecommendationTypeTrySomethingNew:
-		return weights.TrySomethingNew
+		return weights.TrySomethingNew, nil
 	case entity.RecommendationTypeDailyMatchOne, entity.RecommendationTypeDailyMatchTwo:
-		return weights.DailyMatch
+		return weights.DailyMatch, nil
 	case entity.RecommendationTypeDailyChallenge:
-		return weights.DailyChallenge
+		return weights.DailyChallenge, nil
 	default:
-		return RecommendationTypeScoreWeights{}
+		return RecommendationTypeScoreWeights{}, entity.ErrInvalidRecommendationType
 	}
 }
 
@@ -200,8 +200,12 @@ func scoreTagWeights(tags map[string]bool, values map[string]float64) float64 {
 	return clamp(total/count, -10, 10)
 }
 
-func (c *recommendationCalculator) Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
-	return calculateWithWeights(condition, values, scoreWeightsFor(c.weights, kind), c.weights.ArtistRecency, c.weights.GenreRecency, artistCounts, songCounts)
+func (c *recommendationCalculator) Calculate(condition RecommendationCondition, values []entity.RecommendationSongCandidate, kind entity.RecommendationType, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) ([]SongCandidate, error) {
+	weights, err := scoreWeightsFor(c.weights, kind)
+	if err != nil {
+		return nil, err
+	}
+	return calculateWithWeights(condition, values, weights, c.weights.ArtistRecency, c.weights.GenreRecency, artistCounts, songCounts), nil
 }
 
 func calculateWithWeights(condition RecommendationCondition, values []entity.RecommendationSongCandidate, weights RecommendationTypeScoreWeights, artistRecency, genreRecency float64, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64) []SongCandidate {
@@ -213,7 +217,7 @@ func calculateWithWeights(condition RecommendationCondition, values []entity.Rec
 		tags := tagSet(value)
 		genres := songGenreKeys(value)
 		score := RecommendationScore{Mood: matches(condition.Mood, tags), Element: clamp(matches(condition.Elements, tags)+scoreTagWeights(tags, condition.ElementWeights), -10, 10), Atmosphere: clamp(matches(condition.Atmospheres, tags)+scoreTagWeights(tags, condition.AtmosphereWeights), -10, 10)}
-		bestGenre := 0.0
+		bestGenre := math.Inf(-1)
 		for _, genre := range genres {
 			base := condition.GenreWeights[genre]
 			for _, wanted := range condition.Genres {
@@ -227,6 +231,9 @@ func calculateWithWeights(condition RecommendationCondition, values []entity.Rec
 			if base > bestGenre {
 				bestGenre = base
 			}
+		}
+		if math.IsInf(bestGenre, -1) {
+			bestGenre = 0
 		}
 		score.Genre = clamp(bestGenre, -10, 10)
 		score.Artist = clamp(condition.ArtistWeights[value.Artist.ID], -10, 10)
@@ -282,7 +289,7 @@ func calculateWithWeights(condition RecommendationCondition, values []entity.Rec
 			score.RecencyPenalty += float64(condition.RecentGenreCounts[g]) * genreRecency
 		}
 		score.RecencyPenalty = clamp(score.RecencyPenalty, 0, 10)
-		score.Total = round2(score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery + score.Novelty*weights.Novelty - score.FeedbackPenalty*weights.FeedbackPenalty - score.RecencyPenalty*maxOrOne(weights.RecencyPenalty))
+		score.Total = round2(score.Mood*weights.Mood + score.Element*weights.Element + score.Atmosphere*weights.Atmosphere + score.Genre*weights.Genre + score.Artist*weights.Artist + score.Song*weights.Song + score.Discovery*weights.Discovery + score.Novelty*weights.Novelty - score.FeedbackPenalty*weights.FeedbackPenalty - score.RecencyPenalty*weights.RecencyPenalty)
 		score.Total = clamp(score.Total, -100, 100)
 		result = append(result, SongCandidate{Data: value, Score: score})
 	}
@@ -313,12 +320,6 @@ func novelty(count int64, max float64) float64 {
 		return max
 	}
 	return max / float64(count+1)
-}
-func maxOrOne(v float64) float64 {
-	if v == 0 {
-		return 1
-	}
-	return v
 }
 func clamp(v, min, max float64) float64 {
 	if v < min {
