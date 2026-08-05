@@ -122,6 +122,10 @@ func (c *dailyDiscoveryController) handle(x echo.Context, e error) error {
 		return writeAPIError(x, 404, "USER_NOT_FOUND", "Userが見つかりません")
 	case errors.Is(e, entity.ErrDailyDiscoveryGenerationConflict):
 		return writeAPIError(x, 409, "DAILY_DISCOVERY_GENERATION_CONFLICT", "同時生成の競合を解決できませんでした")
+	case errors.Is(e, entity.ErrDuplicateRecommendationSong):
+		return writeAPIError(x, http.StatusConflict, "DUPLICATE_RECOMMENDATION_SONG", "直近30日以内に推薦済みの楽曲が含まれています")
+	case errors.Is(e, entity.ErrScoreCalculationFailed):
+		return writeAPIError(x, http.StatusInternalServerError, "SCORE_CALCULATION_FAILED", "推薦スコアを計算できませんでした")
 	case errors.Is(e, entity.ErrDailyDiscoveryGenerateFailed):
 		return writeAPIError(x, 500, "DAILY_DISCOVERY_GENERATE_FAILED", "Daily Discoveryを生成できませんでした")
 	case errors.Is(e, entity.ErrDailyDiscoverySaveFailed):

@@ -115,7 +115,7 @@ func start(ctx context.Context) error {
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
 	dailyDiscoveryConfig := usecase.DailyDiscoveryV1Config(recommendationConfig)
 	recommendationConditionBuilder := usecase.NewRecommendationConditionBuilder(questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, authTransactionManager)
-	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, authTransactionManager, clock, recommendationConditionBuilder, dailyDiscoveryConfig, recommendationLockRepository, recommendationCalculator)
+	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, recommendationLockRepository, authTransactionManager, recommendationCalculator, clock, recommendationConditionBuilder, dailyDiscoveryConfig)
 	dailyDiscoveryController := controller.NewDailyDiscoveryController(dailyDiscoveryUsecase)
 	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository)
 	recommendationHistoryController := controller.NewRecommendationHistoryController(recommendationHistoryUsecase)
@@ -186,7 +186,7 @@ func loadRecommendationConfig() usecase.RecommendationConfig {
 		AlgorithmVersion:    usecase.RecommendationAlgorithmVersion,
 		WeightConfigVersion: usecase.RecommendationWeightConfigVersion,
 		MinimumMatchScore:   usecase.RecommendationMinimumMatchScore,
-		ScoreWeights:        usecase.RecommendationV1ScoreWeights(),
+		ScoreWeights:        usecase.DefaultRecommendationScoreWeights(),
 	}
 }
 

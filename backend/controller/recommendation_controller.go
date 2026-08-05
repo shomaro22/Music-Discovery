@@ -106,18 +106,12 @@ func (c *recommendationController) handleError(ctx echo.Context, err error) erro
 		return writeAPIError(ctx, 503, "SPOTIFY_CANDIDATE_IMPORT_FAILED", "Spotifyから推薦候補を取得できませんでした")
 	case errors.Is(err, entity.ErrRecommendationCandidatesNotFound):
 		return writeAPIError(ctx, 422, "RECOMMENDATION_CANDIDATES_NOT_FOUND", "推薦候補が不足しています")
-	case errors.Is(err, entity.ErrInvalidWeightConfig):
-		return writeAPIError(ctx, 500, "INVALID_WEIGHT_CONFIG", "推薦設定が不正です")
-	case errors.Is(err, entity.ErrInvalidGenreRelation):
-		return writeAPIError(ctx, 500, "INVALID_GENRE_RELATION", "ジャンル関連設定が不正です")
-	case errors.Is(err, entity.ErrInvalidRecommendationType):
-		return writeAPIError(ctx, 500, "INVALID_RECOMMENDATION_TYPE", "推薦種別が不正です")
-	case errors.Is(err, entity.ErrScoreCalculationFailed):
-		return writeAPIError(ctx, 500, "SCORE_CALCULATION_FAILED", "推薦スコアを計算できませんでした")
-	case errors.Is(err, entity.ErrRecommendationSelectionFailed):
-		return writeAPIError(ctx, 422, "RECOMMENDATION_SELECTION_FAILED", "3曲を選定できませんでした")
 	case errors.Is(err, entity.ErrDuplicateRecommendationSong):
-		return writeAPIError(ctx, 500, "DUPLICATE_RECOMMENDATION_SONG", "推薦結果に重複があります")
+		return writeAPIError(ctx, http.StatusConflict, "DUPLICATE_RECOMMENDATION_SONG", "直近30日以内に推薦済みの楽曲が含まれています")
+	case errors.Is(err, entity.ErrScoreCalculationFailed):
+		return writeAPIError(ctx, http.StatusInternalServerError, "SCORE_CALCULATION_FAILED", "推薦スコアを計算できませんでした")
+	case errors.Is(err, entity.ErrRecommendationReasonGenerateFailed):
+		return writeAPIError(ctx, http.StatusInternalServerError, "RECOMMENDATION_REASON_GENERATE_FAILED", "推薦理由を生成できませんでした")
 	case errors.Is(err, entity.ErrRecommendationSaveFailed):
 		return writeAPIError(ctx, 500, "RECOMMENDATION_SAVE_FAILED", "推薦結果を保存できませんでした")
 	case errors.Is(err, entity.ErrRecommendationGenerateFailed):

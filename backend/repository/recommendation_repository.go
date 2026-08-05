@@ -34,6 +34,7 @@ type RecommendationCandidateCondition struct {
 type IRecommendationRepository interface {
 	FindCandidates(ctx context.Context, condition RecommendationCandidateCondition) ([]entity.RecommendationSongCandidate, error)
 	FindRecommendedSongIDs(ctx context.Context, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error)
+	FindRecommendedSongIDsWithTransaction(ctx context.Context, tx ITransaction, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error)
 	Create(ctx context.Context, tx ITransaction, recommendation *entity.Recommendation) error
 	FindLatest(ctx context.Context, userID uuid.UUID, source entity.RecommendationSource) (*entity.Recommendation, error)
 	FindByID(ctx context.Context, recommendationID uuid.UUID) (*entity.Recommendation, error)
@@ -130,13 +131,25 @@ func (r *recommendationRepository) FindCandidates(ctx context.Context, condition
 	return result, nil
 }
 
-func (r *recommendationRepository) FindRecommendedSongIDs(ctx context.Context, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error) {
+func findRecommendedSongIDs(db *gorm.DB, ctx context.Context, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
-	err := r.db.WithContext(ctx).Table("recommendation_details rd").Distinct("rd.song_id").Joins("JOIN recommendations r ON r.id = rd.recommendation_id").Where("r.user_id = ? AND r.recommended_at >= ? AND r.recommended_at <= ?", userID, from, to).Pluck("rd.song_id", &ids).Error
+	err := db.WithContext(ctx).Table("recommendation_details rd").Distinct("rd.song_id").Joins("JOIN recommendations r ON r.id = rd.recommendation_id").Where("r.user_id = ? AND r.recommended_at >= ? AND r.recommended_at <= ?", userID, from, to).Pluck("rd.song_id", &ids).Error
 	if err != nil {
 		return nil, entity.ErrInternal
 	}
 	return ids, nil
+}
+
+func (r *recommendationRepository) FindRecommendedSongIDs(ctx context.Context, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error) {
+	return findRecommendedSongIDs(r.db, ctx, userID, from, to)
+}
+
+func (r *recommendationRepository) FindRecommendedSongIDsWithTransaction(ctx context.Context, tx ITransaction, userID uuid.UUID, from, to time.Time) ([]uuid.UUID, error) {
+	db, ok := transactionDB(tx)
+	if !ok {
+		return nil, entity.ErrInvalidInput
+	}
+	return findRecommendedSongIDs(db, ctx, userID, from, to)
 }
 func (r *recommendationRepository) Create(ctx context.Context, tx ITransaction, recommendation *entity.Recommendation) error {
 	db, ok := transactionDB(tx)
@@ -349,10 +362,8 @@ func (r *recommendationRepository) ListDaily(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return nil, 0, entity.ErrDailyDiscoveryFetchFailed
 	}
-	for i := range values {
-		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
-			return nil, 0, err
-		}
+	if err := r.loadHistoryFeedbackStatuses(ctx, values); err != nil {
+		return nil, 0, entity.ErrDailyDiscoveryFetchFailed
 	}
 	return values, total, nil
 }

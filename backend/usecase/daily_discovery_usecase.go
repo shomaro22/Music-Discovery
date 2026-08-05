@@ -41,30 +41,24 @@ func NewDailyDiscoveryUsecase(
 	users repository.IUserRepository,
 	profiles repository.IUserProfileRepository,
 	recommendations repository.IRecommendationRepository,
+	locks repository.IRecommendationLockRepository,
 	tx repository.ITransactionManager,
+	calculator IRecommendationCalculator,
 	clock IClock,
 	conditionBuilder IRecommendationConditionBuilder,
 	dailyConfig DailyDiscoveryConfig,
-	dependencies ...any,
 ) IDailyDiscoveryUsecase {
-	value := &dailyDiscoveryUsecase{
+	return &dailyDiscoveryUsecase{
 		users:            users,
 		profiles:         profiles,
 		recommendations:  recommendations,
+		locks:            locks,
 		tx:               tx,
+		calculator:       calculator,
 		clock:            clock,
 		conditionBuilder: conditionBuilder,
 		config:           dailyConfig,
 	}
-	for _, dependency := range dependencies {
-		switch typed := dependency.(type) {
-		case repository.IRecommendationLockRepository:
-			value.locks = typed
-		case IRecommendationCalculator:
-			value.calculator = typed
-		}
-	}
-	return value
 }
 
 func (u *dailyDiscoveryUsecase) targetDate(ctx context.Context, userID uuid.UUID) (time.Time, error) {
@@ -119,20 +113,26 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 		return nil, false, entity.ErrDailyDiscoveryFetchFailed
 	}
 
-	if u.locks != nil {
-		token, acquired, lockErr := u.locks.Acquire(ctx, userID, 120*time.Second)
-		if lockErr != nil {
-			return nil, false, entity.ErrDailyDiscoveryGenerateFailed
-		}
-		if !acquired {
-			return nil, false, entity.ErrDailyDiscoveryGenerationConflict
-		}
-		defer func() { _ = u.locks.Release(context.Background(), userID, token) }()
-		if existing, findErr := u.recommendations.FindDailyByDate(ctx, userID, targetDate); findErr == nil {
-			return existing, false, nil
-		} else if !errors.Is(findErr, entity.ErrDailyDiscoveryNotFound) {
-			return nil, false, entity.ErrDailyDiscoveryFetchFailed
-		}
+	lockTTLSeconds := u.config.LockTTLSeconds
+	if lockTTLSeconds <= 0 {
+		lockTTLSeconds = 120
+	}
+	token, acquired, lockErr := u.locks.Acquire(
+		ctx,
+		userID,
+		time.Duration(lockTTLSeconds)*time.Second,
+	)
+	if lockErr != nil {
+		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
+	}
+	if !acquired {
+		return nil, false, entity.ErrDailyDiscoveryGenerationConflict
+	}
+	defer func() { _ = u.locks.Release(context.Background(), userID, token) }()
+	if existing, findErr := u.recommendations.FindDailyByDate(ctx, userID, targetDate); findErr == nil {
+		return existing, false, nil
+	} else if !errors.Is(findErr, entity.ErrDailyDiscoveryNotFound) {
+		return nil, false, entity.ErrDailyDiscoveryFetchFailed
 	}
 
 	condition, err := u.conditionBuilder.Build(ctx, userID)
@@ -189,16 +189,11 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 	condition.RecentArtistCounts = recency.ArtistCounts
 	condition.RecentGenreCounts = recency.GenreCounts
 
-	var matchRanked, challengeRanked []SongCandidate
-	if u.calculator != nil {
-		matchRanked, err = u.calculator.Calculate(condition, candidates, entity.RecommendationTypeDailyMatchOne, artistCounts, songCounts)
-		if err == nil {
-			challengeRanked, err = u.calculator.Calculate(condition, candidates, entity.RecommendationTypeDailyChallenge, artistCounts, songCounts)
-		}
-	} else {
-		matchRanked = calculateWithWeights(condition, candidates, u.config.MatchWeights, u.config.ArtistRecency, u.config.GenreRecency, artistCounts, songCounts)
-		challengeRanked = calculateWithWeights(condition, candidates, u.config.ChallengeWeights, u.config.ArtistRecency, u.config.GenreRecency, artistCounts, songCounts)
+	matchRanked, err := u.calculator.Calculate(condition, candidates, entity.RecommendationTypeDailyMatchOne, artistCounts, songCounts)
+	if err != nil {
+		return nil, false, err
 	}
+	challengeRanked, err := u.calculator.Calculate(condition, candidates, entity.RecommendationTypeDailyChallenge, artistCounts, songCounts)
 	if err != nil {
 		return nil, false, err
 	}
@@ -218,18 +213,26 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 		return nil, false, entity.ErrDailyDiscoveryCandidatesNotFound
 	}
 
+	firstDetail, err := dailyDetail(first, entity.RecommendationTypeDailyMatchOne, 1, dailyReason(entity.RecommendationTypeDailyMatchOne, first), false)
+	if err != nil {
+		return nil, false, err
+	}
+	secondDetail, err := dailyDetail(second, entity.RecommendationTypeDailyMatchTwo, 2, dailyReason(entity.RecommendationTypeDailyMatchTwo, second), false)
+	if err != nil {
+		return nil, false, err
+	}
+	thirdDetail, err := dailyDetail(third, entity.RecommendationTypeDailyChallenge, 3, dailyReason(entity.RecommendationTypeDailyChallenge, third), challengeStage > 0)
+	if err != nil {
+		return nil, false, err
+	}
 	value := &entity.Recommendation{
 		UserID:              userID,
 		Source:              entity.RecommendationSourceDailyDiscovery,
 		TargetDate:          &targetDate,
 		RecommendedAt:       now,
 		AlgorithmVersion:    u.config.AlgorithmVersion,
-		WeightConfigVersion: RecommendationWeightConfigVersion,
-		Details: []entity.RecommendationDetail{
-			dailyDetail(first, entity.RecommendationTypeDailyMatchOne, 1, dailyReason(entity.RecommendationTypeDailyMatchOne, first), false),
-			dailyDetail(second, entity.RecommendationTypeDailyMatchTwo, 2, dailyReason(entity.RecommendationTypeDailyMatchTwo, second), false),
-			dailyDetail(third, entity.RecommendationTypeDailyChallenge, 3, dailyReason(entity.RecommendationTypeDailyChallenge, third), challengeStage > 0),
-		},
+		WeightConfigVersion: u.config.WeightConfigVersion,
+		Details:             []entity.RecommendationDetail{firstDetail, secondDetail, thirdDetail},
 	}
 
 	// 保存直前にも同日データを確認し、Application側でも重複生成を抑止する。
@@ -240,6 +243,19 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 	}
 
 	err = u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
+		recentSongIDs, findErr := u.recommendations.FindRecommendedSongIDsWithTransaction(
+			ctx,
+			tx,
+			userID,
+			now.AddDate(0, 0, -u.config.DuplicateDays),
+			now,
+		)
+		if findErr != nil {
+			return findErr
+		}
+		if containsRecommendationSong(value.Details, recentSongIDs) {
+			return entity.ErrDuplicateRecommendationSong
+		}
 		return u.recommendations.Create(ctx, tx, value)
 	})
 	if err != nil {
@@ -248,6 +264,9 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 		}
 		if errors.Is(err, entity.ErrConflict) {
 			return nil, false, entity.ErrDailyDiscoveryGenerationConflict
+		}
+		if errors.Is(err, entity.ErrDuplicateRecommendationSong) {
+			return nil, false, err
 		}
 		return nil, false, entity.ErrDailyDiscoverySaveFailed
 	}
@@ -309,8 +328,11 @@ func (u *dailyDiscoveryUsecase) selectChallenge(
 	return SongCandidate{}, 0, false
 }
 
-func dailyDetail(candidate SongCandidate, kind entity.RecommendationType, position int, reason string, fallbackUsed bool) entity.RecommendationDetail {
-	breakdown, _ := json.Marshal(candidate.Score)
+func dailyDetail(candidate SongCandidate, kind entity.RecommendationType, position int, reason string, fallbackUsed bool) (entity.RecommendationDetail, error) {
+	breakdown, err := json.Marshal(candidate.Score)
+	if err != nil {
+		return entity.RecommendationDetail{}, entity.ErrScoreCalculationFailed
+	}
 	return entity.RecommendationDetail{
 		SongID:         candidate.Data.Song.ID,
 		Type:           kind,
@@ -319,7 +341,7 @@ func dailyDetail(candidate SongCandidate, kind entity.RecommendationType, positi
 		Position:       position,
 		Reason:         reason,
 		FallbackUsed:   fallbackUsed,
-	}
+	}, nil
 }
 
 func dailyReason(kind entity.RecommendationType, candidate SongCandidate) string {

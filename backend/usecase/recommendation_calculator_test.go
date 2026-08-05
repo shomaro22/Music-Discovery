@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"github.com/google/uuid"
+	"math"
 	"music-discovery/backend/entity"
 	"testing"
 )
@@ -168,7 +169,7 @@ func TestRecommendationCalculatorUsesDeterministicTieBreakers(t *testing.T) {
 }
 
 func TestValidateRecommendationScoreWeightsRejectsNegativeConfig(t *testing.T) {
-	weights := RecommendationV1ScoreWeights()
+	weights := DefaultRecommendationScoreWeights()
 	weights.YourMatch.Mood = -1
 	if err := ValidateRecommendationScoreWeights(weights); err != entity.ErrInvalidWeightConfig {
 		t.Fatalf("err=%v want=%v", err, entity.ErrInvalidWeightConfig)
@@ -199,5 +200,82 @@ func TestRecommendationCalculatorRejectsInvalidRecommendationType(t *testing.T) 
 	_, err := NewRecommendationCalculator(RecommendationScoreWeights{}).Calculate(RecommendationCondition{}, nil, entity.RecommendationType("UNKNOWN"), nil, nil)
 	if err != entity.ErrInvalidRecommendationType {
 		t.Fatalf("err=%v want=%v", err, entity.ErrInvalidRecommendationType)
+	}
+}
+
+func TestValidateRecommendationScoreWeightsRejectsInvalidRecencyWeights(t *testing.T) {
+	tests := []struct {
+		name   string
+		artist float64
+		genre  float64
+	}{
+		{name: "artist NaN", artist: math.NaN()},
+		{name: "artist positive infinity", artist: math.Inf(1)},
+		{name: "genre NaN", genre: math.NaN()},
+		{name: "genre negative infinity", genre: math.Inf(-1)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			weights := DefaultRecommendationScoreWeights()
+			weights.ArtistRecency = test.artist
+			weights.GenreRecency = test.genre
+			if err := ValidateRecommendationScoreWeights(weights); err != entity.ErrInvalidWeightConfig {
+				t.Fatalf("err=%v want=%v", err, entity.ErrInvalidWeightConfig)
+			}
+		})
+	}
+}
+
+func TestRecommendationCalculatorDoesNotAddExactAndRelatedGenreMatchesTogether(t *testing.T) {
+	artistID, songID := uuid.New(), uuid.New()
+	condition := RecommendationCondition{
+		Genres:        []string{"rock", "alternative"},
+		GenreWeights:  map[string]float64{"rock": 0},
+		ArtistWeights: map[uuid.UUID]float64{},
+		SongWeights:   map[uuid.UUID]float64{},
+	}
+	candidate := entity.RecommendationSongCandidate{
+		Song:     entity.Song{ID: songID, ArtistID: artistID},
+		Artist:   entity.Artist{ID: artistID},
+		SongTags: []entity.Tag{{Slug: "rock", Category: "genre"}},
+	}
+	weights := RecommendationScoreWeights{YourMatch: RecommendationTypeScoreWeights{Genre: 1}}
+	ranked := mustCalculate(t, NewRecommendationCalculator(weights), condition,
+		[]entity.RecommendationSongCandidate{candidate},
+		entity.RecommendationTypeYourMatch,
+		map[uuid.UUID]int64{}, map[uuid.UUID]int64{},
+	)
+	if got := ranked[0].Score.Genre; got != 2 {
+		t.Fatalf("genre score=%v want=2; exact and related matches must not be added together", got)
+	}
+}
+
+func TestRecommendationCalculatorAddsMediumGenreContactOnlyOnce(t *testing.T) {
+	artistID, songID := uuid.New(), uuid.New()
+	condition := RecommendationCondition{
+		Genres:            []string{"rock", "pop"},
+		DiscoveryLevel:    "medium",
+		GenreWeights:      map[string]float64{},
+		ArtistWeights:     map[uuid.UUID]float64{},
+		SongWeights:       map[uuid.UUID]float64{},
+		RecommendedGenres: map[string]bool{},
+	}
+	candidate := entity.RecommendationSongCandidate{
+		Song:   entity.Song{ID: songID, ArtistID: artistID},
+		Artist: entity.Artist{ID: artistID},
+		SongTags: []entity.Tag{
+			{Slug: "alternative", Category: "genre"},
+			{Slug: "electronic", Category: "genre"},
+		},
+	}
+	weights := RecommendationScoreWeights{TrySomethingNew: RecommendationTypeScoreWeights{Discovery: 1}}
+	ranked := mustCalculate(t, NewRecommendationCalculator(weights), condition,
+		[]entity.RecommendationSongCandidate{candidate},
+		entity.RecommendationTypeTrySomethingNew,
+		map[uuid.UUID]int64{artistID: 1},
+		map[uuid.UUID]int64{songID: 1},
+	)
+	if got := ranked[0].Score.Discovery; got != 4 {
+		t.Fatalf("discovery score=%v want=4; medium genre contact must be added once", got)
 	}
 }

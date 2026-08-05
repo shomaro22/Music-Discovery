@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -75,6 +76,34 @@ type dailyClockStub struct{ now time.Time }
 
 func (c dailyClockStub) Now() time.Time { return c.now }
 
+type dailyLockRepositoryStub struct {
+	acquired bool
+	err      error
+	duration time.Duration
+}
+
+func (s *dailyLockRepositoryStub) Acquire(_ context.Context, _ uuid.UUID, duration time.Duration) (string, bool, error) {
+	s.duration = duration
+	if s.err != nil {
+		return "", false, s.err
+	}
+	if !s.acquired {
+		return "daily-test-lock", true, nil
+	}
+	return "", false, nil
+}
+
+func (*dailyLockRepositoryStub) Release(context.Context, uuid.UUID, string) error { return nil }
+
+func dailyCalculator(config DailyDiscoveryConfig) IRecommendationCalculator {
+	return NewRecommendationCalculator(RecommendationScoreWeights{
+		DailyMatch:     config.MatchWeights,
+		DailyChallenge: config.ChallengeWeights,
+		ArtistRecency:  config.ArtistRecency,
+		GenreRecency:   config.GenreRecency,
+	})
+}
+
 type dailyConditionBuilderStub struct {
 	condition RecommendationCondition
 	err       error
@@ -108,6 +137,9 @@ func (s *dailyRecommendationRepositoryStub) FindCandidates(context.Context, repo
 	return s.candidates, s.candidatesErr
 }
 func (s *dailyRecommendationRepositoryStub) FindRecommendedSongIDs(context.Context, uuid.UUID, time.Time, time.Time) ([]uuid.UUID, error) {
+	return s.excluded, s.excludedErr
+}
+func (s *dailyRecommendationRepositoryStub) FindRecommendedSongIDsWithTransaction(context.Context, repository.ITransaction, uuid.UUID, time.Time, time.Time) ([]uuid.UUID, error) {
 	return s.excluded, s.excludedErr
 }
 func (s *dailyRecommendationRepositoryStub) Create(_ context.Context, _ repository.ITransaction, value *entity.Recommendation) error {
@@ -162,11 +194,12 @@ func newDailyUsecaseForTest(repo *dailyRecommendationRepositoryStub, profile *da
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		profile,
 		repo,
+		&dailyLockRepositoryStub{},
 		&dailyTransactionStub{},
+		dailyCalculator(DailyDiscoveryConfig{CandidateLimit: 20, DuplicateDays: 30, RecencyDays: 30, MinimumMatchScore: 2, MinimumContactScore: 1}),
 		dailyClockStub{now: now},
 		builder,
-		DailyDiscoveryConfig{CandidateLimit: 20, DuplicateDays: 30, RecencyDays: 30, MinimumMatchScore: 2, MinimumContactScore: 1},
-	).(*dailyDiscoveryUsecase)
+		DailyDiscoveryConfig{CandidateLimit: 20, DuplicateDays: 30, RecencyDays: 30, MinimumMatchScore: 2, MinimumContactScore: 1}).(*dailyDiscoveryUsecase)
 }
 
 func dailyCandidate(artistID uuid.UUID, score RecommendationScore, genres ...string) SongCandidate {
@@ -230,13 +263,17 @@ func TestDailyDiscoveryGetTodayReturnsExistingForUserTimezone(t *testing.T) {
 	existing := &entity.Recommendation{ID: uuid.New(), UserID: userID, Source: entity.RecommendationSourceDailyDiscovery}
 	repo := &dailyRecommendationRepositoryStub{findDailyValues: []*entity.Recommendation{existing}}
 	now := time.Date(2026, 8, 1, 15, 30, 0, 0, time.UTC) // Asia/Tokyo is 2026-08-02 00:30
+	locks := &dailyLockRepositoryStub{}
 	u := NewDailyDiscoveryUsecase(
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
 		repo,
-		&dailyTransactionStub{}, dailyClockStub{now: now},
-		&dailyConditionBuilderStub{}, DailyDiscoveryConfig{},
-	)
+		locks,
+		&dailyTransactionStub{},
+		dailyCalculator(DailyDiscoveryConfig{}),
+		dailyClockStub{now: now},
+		&dailyConditionBuilderStub{},
+		DailyDiscoveryConfig{})
 	value, generated, err := u.GetToday(context.Background(), userID)
 	if err != nil {
 		t.Fatalf("GetToday error: %v", err)
@@ -257,9 +294,13 @@ func TestDailyDiscoveryGetTodayMapsConditionBuilderFailure(t *testing.T) {
 	u := NewDailyDiscoveryUsecase(
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
-		&dailyRecommendationRepositoryStub{}, &dailyTransactionStub{}, dailyClockStub{now: time.Now()},
-		&dailyConditionBuilderStub{err: entity.ErrRecommendationGenerateFailed}, DailyDiscoveryConfig{},
-	)
+		&dailyRecommendationRepositoryStub{},
+		&dailyLockRepositoryStub{},
+		&dailyTransactionStub{},
+		dailyCalculator(DailyDiscoveryConfig{}),
+		dailyClockStub{now: time.Now()},
+		&dailyConditionBuilderStub{err: entity.ErrRecommendationGenerateFailed},
+		DailyDiscoveryConfig{})
 	_, _, err := u.GetToday(context.Background(), userID)
 	if !errors.Is(err, entity.ErrDailyDiscoveryGenerateFailed) {
 		t.Fatalf("got %v", err)
@@ -272,9 +313,13 @@ func TestDailyDiscoveryGetTodayDoesNotIgnoreRepositoryError(t *testing.T) {
 	u := NewDailyDiscoveryUsecase(
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
-		repo, &dailyTransactionStub{}, dailyClockStub{now: time.Now()},
-		&dailyConditionBuilderStub{condition: RecommendationCondition{}}, DailyDiscoveryConfig{DuplicateDays: 30},
-	)
+		repo,
+		&dailyLockRepositoryStub{},
+		&dailyTransactionStub{},
+		dailyCalculator(DailyDiscoveryConfig{DuplicateDays: 30}),
+		dailyClockStub{now: time.Now()},
+		&dailyConditionBuilderStub{condition: RecommendationCondition{}},
+		DailyDiscoveryConfig{DuplicateDays: 30})
 	_, _, err := u.GetToday(context.Background(), userID)
 	if !errors.Is(err, entity.ErrDailyDiscoveryGenerateFailed) {
 		t.Fatalf("got %v", err)
@@ -318,9 +363,11 @@ func dailyGenerationConfig() DailyDiscoveryConfig {
 		CandidateLimit:      20,
 		DuplicateDays:       30,
 		RecencyDays:         30,
+		LockTTLSeconds:      45,
 		MinimumMatchScore:   1,
 		MinimumContactScore: 1,
 		AlgorithmVersion:    "daily-v1-test",
+		WeightConfigVersion: "weights-test",
 		MatchWeights: RecommendationTypeScoreWeights{
 			Mood:  1,
 			Genre: 1,
@@ -337,7 +384,7 @@ func TestDailyDiscoveryGetTodayCreatesThreeSongs(t *testing.T) {
 	now := time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
 	saved := &entity.Recommendation{ID: uuid.New(), UserID: userID, Source: entity.RecommendationSourceDailyDiscovery}
 	repo := &dailyRecommendationRepositoryStub{
-		findDailyValues: []*entity.Recommendation{nil, nil, saved},
+		findDailyValues: []*entity.Recommendation{nil, nil, nil, saved},
 		candidates: []entity.RecommendationSongCandidate{
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
@@ -361,15 +408,17 @@ func TestDailyDiscoveryGetTodayCreatesThreeSongs(t *testing.T) {
 		SongWeights:       map[uuid.UUID]float64{},
 		RecommendedGenres: map[string]bool{},
 	}
+	locks := &dailyLockRepositoryStub{}
 	u := NewDailyDiscoveryUsecase(
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
 		repo,
+		locks,
 		&dailyTransactionStub{},
+		dailyCalculator(dailyGenerationConfig()),
 		dailyClockStub{now: now},
 		&dailyConditionBuilderStub{condition: condition},
-		dailyGenerationConfig(),
-	)
+		dailyGenerationConfig())
 
 	value, generated, err := u.GetToday(context.Background(), userID)
 	if err != nil {
@@ -392,6 +441,12 @@ func TestDailyDiscoveryGetTodayCreatesThreeSongs(t *testing.T) {
 	}
 	if repo.created.AlgorithmVersion != "daily-v1-test" {
 		t.Fatalf("algorithm version=%s", repo.created.AlgorithmVersion)
+	}
+	if repo.created.WeightConfigVersion != "weights-test" {
+		t.Fatalf("weight config version=%s", repo.created.WeightConfigVersion)
+	}
+	if locks.duration != 45*time.Second {
+		t.Fatalf("lock duration=%s want=%s", locks.duration, 45*time.Second)
 	}
 	if len(repo.created.Details) != 3 {
 		t.Fatalf("details=%d, want 3", len(repo.created.Details))
@@ -421,7 +476,7 @@ func TestDailyDiscoveryGetTodayReturnsSavedValueAfterConflict(t *testing.T) {
 	now := time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
 	saved := &entity.Recommendation{ID: uuid.New(), UserID: userID, Source: entity.RecommendationSourceDailyDiscovery}
 	repo := &dailyRecommendationRepositoryStub{
-		findDailyValues: []*entity.Recommendation{nil, nil, saved},
+		findDailyValues: []*entity.Recommendation{nil, nil, nil, saved},
 		candidates: []entity.RecommendationSongCandidate{
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
@@ -450,11 +505,12 @@ func TestDailyDiscoveryGetTodayReturnsSavedValueAfterConflict(t *testing.T) {
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
 		repo,
+		&dailyLockRepositoryStub{},
 		&dailyTransactionStub{},
+		dailyCalculator(dailyGenerationConfig()),
 		dailyClockStub{now: now},
 		&dailyConditionBuilderStub{condition: condition},
-		dailyGenerationConfig(),
-	)
+		dailyGenerationConfig())
 
 	value, generated, err := u.GetToday(context.Background(), userID)
 	if err != nil {
@@ -500,11 +556,12 @@ func TestDailyDiscoveryGetTodayReturnsConflictWhenSavedValueCannotBeRecovered(t 
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
 		repo,
+		&dailyLockRepositoryStub{},
 		&dailyTransactionStub{},
+		dailyCalculator(dailyGenerationConfig()),
 		dailyClockStub{now: now},
 		&dailyConditionBuilderStub{condition: condition},
-		dailyGenerationConfig(),
-	)
+		dailyGenerationConfig())
 
 	_, _, err := u.GetToday(context.Background(), userID)
 	if !errors.Is(err, entity.ErrDailyDiscoveryGenerationConflict) {
@@ -516,7 +573,7 @@ func TestDailyDiscoveryGetTodayMapsPostSaveFetchFailure(t *testing.T) {
 	userID := uuid.New()
 	now := time.Date(2026, 8, 2, 3, 0, 0, 0, time.UTC)
 	repo := &dailyRecommendationRepositoryStub{
-		findDailyErrs: []error{nil, nil, entity.ErrInternal},
+		findDailyErrs: []error{nil, nil, nil, entity.ErrInternal},
 		candidates: []entity.RecommendationSongCandidate{
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
 			dailyEntityCandidate(uuid.New(), "calm", "rock"),
@@ -544,14 +601,28 @@ func TestDailyDiscoveryGetTodayMapsPostSaveFetchFailure(t *testing.T) {
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
 		repo,
+		&dailyLockRepositoryStub{},
 		&dailyTransactionStub{},
+		dailyCalculator(dailyGenerationConfig()),
 		dailyClockStub{now: now},
 		&dailyConditionBuilderStub{condition: condition},
-		dailyGenerationConfig(),
-	)
+		dailyGenerationConfig())
 
 	_, _, err := u.GetToday(context.Background(), userID)
 	if !errors.Is(err, entity.ErrDailyDiscoveryFetchFailed) {
 		t.Fatalf("got %v, want %v", err, entity.ErrDailyDiscoveryFetchFailed)
+	}
+}
+
+func TestDailyDetailReturnsScoreCalculationErrorWhenBreakdownCannotBeMarshaled(t *testing.T) {
+	_, err := dailyDetail(
+		SongCandidate{Score: RecommendationScore{Total: math.NaN()}},
+		entity.RecommendationTypeDailyMatchOne,
+		1,
+		"reason",
+		false,
+	)
+	if !errors.Is(err, entity.ErrScoreCalculationFailed) {
+		t.Fatalf("err=%v want=%v", err, entity.ErrScoreCalculationFailed)
 	}
 }

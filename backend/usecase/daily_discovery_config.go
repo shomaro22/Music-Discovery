@@ -9,6 +9,7 @@ type DailyDiscoveryConfig struct {
 	CandidateLimit int
 	DuplicateDays  int
 	RecencyDays    int
+	LockTTLSeconds int
 
 	MatchWeights     RecommendationTypeScoreWeights
 	ChallengeWeights RecommendationTypeScoreWeights
@@ -18,6 +19,7 @@ type DailyDiscoveryConfig struct {
 	MinimumMatchScore   float64
 	MinimumContactScore float64
 	AlgorithmVersion    string
+	WeightConfigVersion string
 }
 
 func DailyDiscoveryV1Config(base RecommendationConfig) DailyDiscoveryConfig {
@@ -25,6 +27,7 @@ func DailyDiscoveryV1Config(base RecommendationConfig) DailyDiscoveryConfig {
 		CandidateLimit:      base.CandidateLimit,
 		DuplicateDays:       base.DuplicateDays,
 		RecencyDays:         base.RecencyDays,
+		LockTTLSeconds:      base.LockTTLSeconds,
 		MatchWeights:        base.ScoreWeights.DailyMatch,
 		ChallengeWeights:    base.ScoreWeights.DailyChallenge,
 		ArtistRecency:       base.ScoreWeights.ArtistRecency,
@@ -32,5 +35,6 @@ func DailyDiscoveryV1Config(base RecommendationConfig) DailyDiscoveryConfig {
 		MinimumMatchScore:   DailyDiscoveryMinimumMatchScore,
 		MinimumContactScore: DailyDiscoveryMinimumContactScore,
 		AlgorithmVersion:    "daily-discovery-v1",
+		WeightConfigVersion: base.WeightConfigVersion,
 	}
 }

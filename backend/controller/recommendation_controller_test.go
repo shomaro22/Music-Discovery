@@ -59,6 +59,9 @@ func TestRecommendationControllerMapsErrors(t *testing.T) {
 		{"not found", entity.ErrRecommendationNotFound, 404, "RECOMMENDATION_NOT_FOUND"},
 		{"already generated", entity.ErrRecommendationAlreadyGenerated, 409, "RECOMMENDATION_ALREADY_GENERATED"},
 		{"candidates missing", entity.ErrRecommendationCandidatesNotFound, 422, "RECOMMENDATION_CANDIDATES_NOT_FOUND"},
+		{"duplicate song", entity.ErrDuplicateRecommendationSong, 409, "DUPLICATE_RECOMMENDATION_SONG"},
+		{"score calculation failed", entity.ErrScoreCalculationFailed, 500, "SCORE_CALCULATION_FAILED"},
+		{"reason generation failed", entity.ErrRecommendationReasonGenerateFailed, 500, "RECOMMENDATION_REASON_GENERATE_FAILED"},
 		{"save failed", entity.ErrRecommendationSaveFailed, 500, "RECOMMENDATION_SAVE_FAILED"},
 		{"generate failed", entity.ErrRecommendationGenerateFailed, 500, "RECOMMENDATION_GENERATE_FAILED"},
 	}
