@@ -124,6 +124,10 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
 	}
+	condition.ExcludedSongIDs = make(map[uuid.UUID]bool, len(excluded))
+	for _, songID := range excluded {
+		condition.ExcludedSongIDs[songID] = true
+	}
 	candidates, err := u.recommendations.FindCandidates(
 		ctx,
 		repository.RecommendationCandidateCondition{
@@ -192,11 +196,12 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 	}
 
 	value := &entity.Recommendation{
-		UserID:           userID,
-		Source:           entity.RecommendationSourceDailyDiscovery,
-		TargetDate:       &targetDate,
-		RecommendedAt:    now,
-		AlgorithmVersion: u.config.AlgorithmVersion,
+		UserID:              userID,
+		Source:              entity.RecommendationSourceDailyDiscovery,
+		TargetDate:          &targetDate,
+		RecommendedAt:       now,
+		AlgorithmVersion:    u.config.AlgorithmVersion,
+		WeightConfigVersion: RecommendationWeightConfigVersion,
 		Details: []entity.RecommendationDetail{
 			dailyDetail(first, entity.RecommendationTypeDailyMatchOne, 1, dailyReason(entity.RecommendationTypeDailyMatchOne, first)),
 			dailyDetail(second, entity.RecommendationTypeDailyMatchTwo, 2, dailyReason(entity.RecommendationTypeDailyMatchTwo, second)),

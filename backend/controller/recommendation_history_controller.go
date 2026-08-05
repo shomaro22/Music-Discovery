@@ -163,8 +163,6 @@ func (c *recommendationHistoryController) handle(ctx echo.Context, err error) er
 		return writeAPIError(ctx, 403, "USER_SUSPENDED", "利用停止中です")
 	case errors.Is(err, entity.ErrRecommendationHistoryAccessDenied):
 		return writeAPIError(ctx, 403, "RECOMMENDATION_HISTORY_ACCESS_DENIED", "この履歴へアクセスできません")
-	case errors.Is(err, entity.ErrUserNotFound):
-		return writeAPIError(ctx, 404, "USER_NOT_FOUND", "Userが見つかりません")
 	case errors.Is(err, entity.ErrRecommendationHistoryNotFound):
 		return writeAPIError(ctx, 404, "RECOMMENDATION_HISTORY_NOT_FOUND", "推薦履歴が見つかりません")
 	default:

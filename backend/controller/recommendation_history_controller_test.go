@@ -67,3 +67,29 @@ func TestRecommendationHistoryControllerRejectsInvalidPage(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestRecommendationHistoryControllerMapsUserNotFoundToFetchFailed(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/api/recommendation-history", nil)
+	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Set(middleware.AuthUserIDKey, uuid.New())
+
+	controller := NewRecommendationHistoryController(&recommendationHistoryUsecaseStub{listErr: entity.ErrUserNotFound})
+	if err := controller.List(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Code != "RECOMMENDATION_HISTORY_FETCH_FAILED" {
+		t.Fatalf("code=%s body=%s", body.Code, rec.Body.String())
+	}
+}

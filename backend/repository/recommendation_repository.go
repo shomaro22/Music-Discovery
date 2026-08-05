@@ -77,7 +77,6 @@ func (r *recommendationRepository) FindCandidates(ctx context.Context, condition
 	query := r.db.WithContext(ctx).Model(&entity.Song{}).
 		Joins("JOIN artists ON artists.id = songs.artist_id AND artists.deleted_at IS NULL").
 		Where("songs.deleted_at IS NULL AND songs.spotify_url <> ''").
-		Where("songs.review_status IN ?", []entity.ContentReviewStatus{entity.ContentReviewStatusApproved, entity.ContentReviewStatusAutoApproved}).
 		Where("EXISTS (SELECT 1 FROM song_tags st JOIN tags t ON t.id = st.tag_id AND t.deleted_at IS NULL WHERE st.song_id = songs.id AND LOWER(t.category) = 'genre')")
 	if len(condition.ExcludedSongIDs) > 0 {
 		query = query.Where("songs.id NOT IN ?", condition.ExcludedSongIDs)
@@ -163,7 +162,7 @@ func (r *recommendationRepository) FindLatest(ctx context.Context, userID uuid.U
 	if err != nil {
 		return nil, entity.ErrInternal
 	}
-	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+	if err := r.loadHistoryFeedbackStatuses(ctx, []*entity.Recommendation{&value}); err != nil {
 		return nil, err
 	}
 	return &value, nil
@@ -177,36 +176,10 @@ func (r *recommendationRepository) FindByID(ctx context.Context, id uuid.UUID) (
 	if err != nil {
 		return nil, entity.ErrInternal
 	}
-	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+	if err := r.loadHistoryFeedbackStatuses(ctx, []*entity.Recommendation{&value}); err != nil {
 		return nil, err
 	}
 	return &value, nil
-}
-func (r *recommendationRepository) loadFeedbackStatuses(ctx context.Context, value *entity.Recommendation) error {
-	if value == nil || len(value.Details) == 0 {
-		return nil
-	}
-	ids := make([]uuid.UUID, 0, len(value.Details))
-	for _, detail := range value.Details {
-		ids = append(ids, detail.ID)
-	}
-	var feedbacks []entity.Feedback
-	if err := r.db.WithContext(ctx).Where("recommendation_detail_id IN ?", ids).Find(&feedbacks).Error; err != nil {
-		return entity.ErrInternal
-	}
-	statusByID := make(map[uuid.UUID]entity.FeedbackStatus, len(feedbacks))
-	for _, feedback := range feedbacks {
-		statusByID[feedback.RecommendationDetailID] = entity.FeedbackStatus(feedback.Type)
-	}
-	for index := range value.Details {
-		if status, ok := statusByID[value.Details[index].ID]; ok {
-			current := status
-			value.Details[index].FeedbackStatus = &current
-		} else {
-			value.Details[index].FeedbackStatus = nil
-		}
-	}
-	return nil
 }
 func (r *recommendationRepository) HasRecentNormal(ctx context.Context, userID uuid.UUID, since time.Time) (bool, error) {
 	var count int64
@@ -326,7 +299,7 @@ func (r *recommendationRepository) FindDailyByDate(ctx context.Context, userID u
 	if err != nil {
 		return nil, entity.ErrDailyDiscoveryFetchFailed
 	}
-	if err := r.loadFeedbackStatuses(ctx, &value); err != nil {
+	if err := r.loadHistoryFeedbackStatuses(ctx, []*entity.Recommendation{&value}); err != nil {
 		return nil, err
 	}
 	return &value, nil
@@ -349,10 +322,8 @@ func (r *recommendationRepository) ListDaily(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return nil, 0, entity.ErrDailyDiscoveryFetchFailed
 	}
-	for i := range values {
-		if err := r.loadFeedbackStatuses(ctx, &values[i]); err != nil {
-			return nil, 0, err
-		}
+	if err := r.loadHistoryFeedbackStatuses(ctx, recommendationPointers(values)); err != nil {
+		return nil, 0, err
 	}
 	return values, total, nil
 }
@@ -385,15 +356,26 @@ func (r *recommendationRepository) ListHistory(ctx context.Context, condition Re
 	if err := listQuery.Order("recommended_at DESC, id DESC").Offset((condition.Page - 1) * condition.Limit).Limit(condition.Limit).Find(&values).Error; err != nil {
 		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
 	}
-	if err := r.loadHistoryFeedbackStatuses(ctx, values); err != nil {
+	if err := r.loadHistoryFeedbackStatuses(ctx, recommendationPointers(values)); err != nil {
 		return nil, 0, entity.ErrRecommendationHistoryFetchFailed
 	}
 	return values, total, nil
 }
 
-func (r *recommendationRepository) loadHistoryFeedbackStatuses(ctx context.Context, recommendations []entity.Recommendation) error {
+func recommendationPointers(values []entity.Recommendation) []*entity.Recommendation {
+	result := make([]*entity.Recommendation, 0, len(values))
+	for i := range values {
+		result = append(result, &values[i])
+	}
+	return result
+}
+
+func (r *recommendationRepository) loadHistoryFeedbackStatuses(ctx context.Context, recommendations []*entity.Recommendation) error {
 	detailIDs := make([]uuid.UUID, 0, len(recommendations)*3)
 	for _, recommendation := range recommendations {
+		if recommendation == nil {
+			continue
+		}
 		for _, detail := range recommendation.Details {
 			detailIDs = append(detailIDs, detail.ID)
 		}
@@ -409,9 +391,12 @@ func (r *recommendationRepository) loadHistoryFeedbackStatuses(ctx context.Conte
 	for _, feedback := range feedbacks {
 		statusByID[feedback.RecommendationDetailID] = entity.FeedbackStatus(feedback.Type)
 	}
-	for recommendationIndex := range recommendations {
-		for detailIndex := range recommendations[recommendationIndex].Details {
-			detail := &recommendations[recommendationIndex].Details[detailIndex]
+	for _, recommendation := range recommendations {
+		if recommendation == nil {
+			continue
+		}
+		for detailIndex := range recommendation.Details {
+			detail := &recommendation.Details[detailIndex]
 			if status, ok := statusByID[detail.ID]; ok {
 				current := status
 				detail.FeedbackStatus = &current

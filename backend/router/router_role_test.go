@@ -320,3 +320,38 @@ func TestDailyDiscoveryRoutesAllowOnlyGeneralUsers(t *testing.T) {
 		}
 	}
 }
+
+func TestRecommendationHistoryRoutesAllowOnlyGeneralUsers(t *testing.T) {
+	paths := []string{
+		"/api/recommendation-history",
+		"/api/recommendation-history/" + uuid.NewString(),
+	}
+
+	for _, path := range paths {
+		t.Run("user_"+path, func(t *testing.T) {
+			e, _, _, _ := newRoleTestRouter()
+			rec := performRoleRequest(e, http.MethodGet, path, entity.RoleUser)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+
+		for _, role := range []entity.Role{entity.RoleContentAdmin, entity.RoleSystemAdmin} {
+			t.Run(string(role)+"_"+path, func(t *testing.T) {
+				e, _, _, _ := newRoleTestRouter()
+				rec := performRoleRequest(e, http.MethodGet, path, role)
+				if rec.Code != http.StatusForbidden {
+					t.Fatalf("role=%s status=%d body=%s", role, rec.Code, rec.Body.String())
+				}
+			})
+		}
+
+		t.Run("unauthenticated_"+path, func(t *testing.T) {
+			e, _, _, _ := newRoleTestRouter()
+			rec := performRoleRequest(e, http.MethodGet, path, "")
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}

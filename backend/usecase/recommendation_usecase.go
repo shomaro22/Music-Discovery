@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -35,6 +36,9 @@ func NewRecommendationUsecase(users repository.IUserRepository, questions reposi
 }
 
 func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
+	if err := ValidateRecommendationScoreWeights(u.config.ScoreWeights); err != nil {
+		return nil, err
+	}
 	lockTTLSeconds := u.config.LockTTLSeconds
 	if lockTTLSeconds <= 0 {
 		lockTTLSeconds = 120
@@ -71,6 +75,10 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	excluded, err := u.recommendations.FindRecommendedSongIDs(ctx, userID, now.AddDate(0, 0, -u.config.DuplicateDays), now)
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	condition.ExcludedSongIDs = make(map[uuid.UUID]bool, len(excluded))
+	for _, songID := range excluded {
+		condition.ExcludedSongIDs[songID] = true
 	}
 	candidates, err := u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
 	if err != nil {
@@ -121,7 +129,7 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	if selectionErr != nil {
 		return nil, selectionErr
 	}
-	recommendation := &entity.Recommendation{UserID: userID, Source: entity.RecommendationSourceNormal, RecommendedAt: now, AlgorithmVersion: u.config.AlgorithmVersion, Details: details}
+	recommendation := &entity.Recommendation{UserID: userID, Source: entity.RecommendationSourceNormal, RecommendedAt: now, AlgorithmVersion: u.config.AlgorithmVersion, WeightConfigVersion: u.config.WeightConfigVersion, Details: details}
 	if err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error { return u.recommendations.Create(ctx, tx, recommendation) }); err != nil {
 		return nil, entity.ErrRecommendationSaveFailed
 	}
@@ -141,7 +149,11 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 		}
 		selectedSongs[candidate.Data.Song.ID] = true
 		selectedArtists[candidate.Data.Artist.ID] = true
-		result = append(result, entity.RecommendationDetail{SongID: candidate.Data.Song.ID, Type: kind, Score: candidate.Score.Total, Position: position + 1, Reason: reasonFor(kind, candidate.Data)})
+		breakdown, marshalErr := json.Marshal(candidate.Score)
+		if marshalErr != nil {
+			return nil, entity.ErrScoreCalculationFailed
+		}
+		result = append(result, entity.RecommendationDetail{SongID: candidate.Data.Song.ID, Type: kind, Score: candidate.Score.Total, ScoreBreakdown: breakdown, Position: position + 1, Reason: recommendationReason(kind, candidate)})
 	}
 	return result, nil
 }

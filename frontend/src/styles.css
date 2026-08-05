@@ -465,8 +465,8 @@ a {
 }
 
 
-.withdraw-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: #050505; color: #ffffff; }
-.withdraw-card { width: min(640px, 100%); padding: 36px; border: 1px solid #27272a; border-radius: 16px; background: #111827; color: #ffffff; box-shadow: 0 24px 70px rgba(0,0,0,.42); }
+.withdraw-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: #f5f5f5; }
+.withdraw-card { width: min(640px, 100%); padding: 36px; border: 1px solid #dedede; border-radius: 16px; background: #fff; box-shadow: 0 20px 50px rgba(0,0,0,.08); }
 .withdraw-kicker { margin: 0 0 8px; font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .withdraw-card h1 { margin: 0 0 24px; }
 .withdraw-warning { margin-bottom: 24px; padding: 18px; border-left: 4px solid #b42318; background: #fff5f4; }
@@ -592,28 +592,25 @@ a {
   opacity: 0.55;
 }
 
-/* Withdraw page: Top／Login／Signupと統一したダークデザイン */
-.withdraw-kicker {
-  color: #a1a1aa;
-}
-
-.withdraw-card h1,
-.withdraw-form label {
-  color: #ffffff;
-}
-
-.withdraw-warning {
-  border-left-color: #ef4444;
-  background: rgba(127, 29, 29, 0.28);
-  color: #fecaca;
-}
-
+/* Withdraw page: dark-mode inheritanceを受けても読めるよう明示 */
+.withdraw-page,
+.withdraw-card,
 .confirm-dialog {
   color: #111111;
 }
 
-.confirm-dialog h2 {
+.withdraw-kicker {
+  color: #6b7280;
+}
+
+.withdraw-card h1,
+.confirm-dialog h2,
+.withdraw-form label {
   color: #111111;
+}
+
+.withdraw-warning {
+  color: #7a271a;
 }
 
 .withdraw-form input {
@@ -1361,3 +1358,69 @@ a {
 .history-pagination button:disabled { opacity: .35; cursor: not-allowed; }
 @media (max-width: 900px) { .history-filter { grid-template-columns: 1fr 1fr; } .history-song-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .history-header { display: block; } .history-filter { grid-template-columns: 1fr; } .history-filter-actions { display: grid; grid-template-columns: 1fr 1fr; } }
+
+/* Recommendation restart action */
+.recommendation-restart {
+  max-width: 760px;
+  margin: 42px auto 0;
+  padding: 30px clamp(22px, 4vw, 38px);
+  border: 1px solid #292b36;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(23, 25, 36, 0.96), rgba(13, 14, 20, 0.98));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.recommendation-restart h2 {
+  margin: 0;
+  color: #f7f7fb;
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+}
+
+.recommendation-restart p {
+  margin: 12px auto 22px;
+  color: #b8bac7;
+  line-height: 1.75;
+}
+
+.recommendation-restart .primary {
+  min-height: 50px;
+  padding: 13px 24px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5, #9333ea);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.28);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.recommendation-restart .primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+  box-shadow: 0 16px 36px rgba(147, 51, 234, 0.34);
+}
+
+.recommendation-restart .primary:focus-visible {
+  outline: 3px solid rgba(167, 139, 250, 0.85);
+  outline-offset: 4px;
+}
+
+.recommendation-restart .primary:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .recommendation-restart {
+    margin-top: 30px;
+    padding: 24px 18px;
+    border-radius: 20px;
+  }
+
+  .recommendation-restart .primary {
+    width: 100%;
+  }
+}

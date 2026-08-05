@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiRequestError } from "../api/client";
 import { generateRecommendation, getLatestRecommendation } from "../api/recommendation";
@@ -36,13 +36,24 @@ const recommendation: Recommendation = {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+function QuestionsPageStub() {
+  const location = useLocation();
+  const state = location.state as { loadLatest?: boolean } | null;
+  return (
+    <>
+      <p>questions page</p>
+      {state?.loadLatest && <p>latest answers enabled</p>}
+    </>
+  );
+}
+
 
 function renderPage(initialEntry: string | { pathname: string; state?: unknown } = "/recommendations") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/recommendations" element={<RecommendationPage />} />
-        <Route path="/questions" element={<p>questions page</p>} />
+        <Route path="/questions" element={<QuestionsPageStub />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -86,6 +97,16 @@ describe("RecommendationPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "再試行" }));
     await waitFor(() => expect(latestMock).toHaveBeenCalledTimes(2));
     expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("starts recommendation questions again from the first question", async () => {
+    latestMock.mockResolvedValue(recommendation);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "もう一度おすすめを探す" }));
+
+    expect(await screen.findByText("questions page")).toBeInTheDocument();
+    expect(screen.getByText("latest answers enabled")).toBeInTheDocument();
   });
 
   it("moves to questions when answers are required", async () => {

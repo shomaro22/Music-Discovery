@@ -68,7 +68,7 @@ func (r *userProfileRepository) FindTimezoneByUserID(ctx context.Context, userID
 		return "", entity.ErrNotFound
 	}
 	if err != nil {
-		return "", entity.ErrProfileCreateFailed
+		return "", entity.ErrProfileFetchFailed
 	}
 	return profile.Timezone, nil
 }
