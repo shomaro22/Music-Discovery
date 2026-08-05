@@ -92,16 +92,20 @@ func NewRecommendationCalculator(weights RecommendationScoreWeights) IRecommenda
 	return &recommendationCalculator{weights: weights}
 }
 
+func invalidWeight(value float64) bool {
+	return math.IsNaN(value) || math.IsInf(value, 0) || value < 0
+}
+
 func ValidateRecommendationScoreWeights(weights RecommendationScoreWeights) error {
 	values := []RecommendationTypeScoreWeights{weights.YourMatch, weights.NewFavorite, weights.TrySomethingNew, weights.DailyMatch, weights.DailyChallenge}
 	for _, value := range values {
 		for _, n := range []float64{value.Mood, value.Element, value.Atmosphere, value.Genre, value.Artist, value.Song, value.Discovery, value.Novelty, value.FeedbackPenalty, value.RecencyPenalty} {
-			if math.IsNaN(n) || math.IsInf(n, 0) || n < 0 {
+			if invalidWeight(n) {
 				return entity.ErrInvalidWeightConfig
 			}
 		}
 	}
-	if weights.ArtistRecency < 0 || weights.GenreRecency < 0 {
+	if invalidWeight(weights.ArtistRecency) || invalidWeight(weights.GenreRecency) {
 		return entity.ErrInvalidWeightConfig
 	}
 	return nil
@@ -220,13 +224,22 @@ func calculateWithWeights(condition RecommendationCondition, values []entity.Rec
 		bestGenre := math.Inf(-1)
 		for _, genre := range genres {
 			base := condition.GenreWeights[genre]
+			hasExactMatch := false
+			hasRelatedMatch := false
 			for _, wanted := range condition.Genres {
 				w := normalized(wanted)
 				if genre == w {
-					base += 2
-				} else if genreRelated(w, genre) {
-					base += 1
+					hasExactMatch = true
+					break
 				}
+				if genreRelated(w, genre) {
+					hasRelatedMatch = true
+				}
+			}
+			if hasExactMatch {
+				base += 2
+			} else if hasRelatedMatch {
+				base += 1
 			}
 			if base > bestGenre {
 				bestGenre = base
@@ -261,12 +274,21 @@ func calculateWithWeights(condition RecommendationCondition, values []entity.Rec
 				score.Discovery += 2
 			}
 		case "medium":
+			hasGenreContact := false
 			for _, g := range genres {
 				for _, wanted := range condition.Genres {
-					if genreRelated(normalized(wanted), g) {
-						score.Discovery += 4
+					w := normalized(wanted)
+					if g == w || genreRelated(w, g) {
+						hasGenreContact = true
+						break
 					}
 				}
+				if hasGenreContact {
+					break
+				}
+			}
+			if hasGenreContact {
+				score.Discovery += 4
 			}
 			if !knownArtist {
 				score.Discovery += 4

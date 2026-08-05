@@ -129,10 +129,41 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 		return nil, selectionErr
 	}
 	recommendation := &entity.Recommendation{UserID: userID, Source: entity.RecommendationSourceNormal, RecommendedAt: now, AlgorithmVersion: u.config.AlgorithmVersion, WeightConfigVersion: u.config.WeightConfigVersion, Details: details}
-	if err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error { return u.recommendations.Create(ctx, tx, recommendation) }); err != nil {
+	if err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
+		recentSongIDs, findErr := u.recommendations.FindRecommendedSongIDsWithTransaction(
+			ctx,
+			tx,
+			userID,
+			now.AddDate(0, 0, -u.config.DuplicateDays),
+			now,
+		)
+		if findErr != nil {
+			return findErr
+		}
+		if containsRecommendationSong(recommendation.Details, recentSongIDs) {
+			return entity.ErrDuplicateRecommendationSong
+		}
+		return u.recommendations.Create(ctx, tx, recommendation)
+	}); err != nil {
+		if errors.Is(err, entity.ErrDuplicateRecommendationSong) {
+			return nil, err
+		}
 		return nil, entity.ErrRecommendationSaveFailed
 	}
 	return u.recommendations.FindByID(ctx, recommendation.ID)
+}
+
+func containsRecommendationSong(details []entity.RecommendationDetail, recentSongIDs []uuid.UUID) bool {
+	recent := make(map[uuid.UUID]struct{}, len(recentSongIDs))
+	for _, songID := range recentSongIDs {
+		recent[songID] = struct{}{}
+	}
+	for _, detail := range details {
+		if _, exists := recent[detail.SongID]; exists {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *recommendationUsecase) selectDetails(condition RecommendationCondition, candidates []entity.RecommendationSongCandidate, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, first bool) ([]entity.RecommendationDetail, error) {

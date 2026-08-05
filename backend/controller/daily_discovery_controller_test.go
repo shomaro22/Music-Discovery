@@ -97,6 +97,8 @@ func TestDailyDiscoveryControllerMapsDailyErrors(t *testing.T) {
 	}{
 		{entity.ErrDailyDiscoveryGenerateFailed, 500, "DAILY_DISCOVERY_GENERATE_FAILED"},
 		{entity.ErrDailyDiscoveryGenerationConflict, 409, "DAILY_DISCOVERY_GENERATION_CONFLICT"},
+		{entity.ErrDuplicateRecommendationSong, 409, "DUPLICATE_RECOMMENDATION_SONG"},
+		{entity.ErrScoreCalculationFailed, 500, "SCORE_CALCULATION_FAILED"},
 		{entity.ErrUserNotFound, 404, "USER_NOT_FOUND"},
 		{entity.ErrDailyDiscoveryFetchFailed, 500, "DAILY_DISCOVERY_FETCH_FAILED"},
 	}
