@@ -43,6 +43,8 @@ func (u *adminManagementUsecase) GetSong(ctx context.Context, id uuid.UUID) (*So
 }
 func (u *adminManagementUsecase) SaveSong(ctx context.Context, actor uuid.UUID, in SongInput, meta AuditInput) (*SongResponse, error) {
 	value := in.Song
+	// コンテンツ管理者が保存したSongは、Tag確認済みとして扱う。
+	value.ReviewStatus = entity.ContentReviewStatusApproved
 	if actor == uuid.Nil || value.ArtistID == uuid.Nil || !spotifyIDPattern.MatchString(strings.TrimSpace(value.SpotifyTrackID)) || strings.TrimSpace(value.Name) == "" || len(strings.TrimSpace(value.Name)) > 200 || strings.TrimSpace(value.AlbumName) == "" || len(strings.TrimSpace(value.AlbumName)) > 200 || !validSpotifyURL(strings.TrimSpace(value.SpotifyURL), "track") || value.DurationMs <= 0 || !validPopularity(value.Popularity) || value.ReleaseDate.IsZero() {
 		return nil, entity.ErrInvalidInput
 	}

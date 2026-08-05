@@ -75,6 +75,13 @@ type IClient interface {
 	SearchTracks(context.Context, string, int) (SearchTracksResult, error)
 }
 
+// ITrackSearchWithOffset is implemented by clients that support Spotify search paging.
+// Keeping this separate preserves compatibility with existing test doubles that only
+// implement IClient.
+type ITrackSearchWithOffset interface {
+	SearchTracksWithOffset(context.Context, string, int, int) (SearchTracksResult, error)
+}
+
 type unavailableClient struct{}
 
 func (unavailableClient) SearchArtists(context.Context, string, int) (SearchArtistsResult, error) {
@@ -82,6 +89,10 @@ func (unavailableClient) SearchArtists(context.Context, string, int) (SearchArti
 }
 
 func (unavailableClient) SearchTracks(context.Context, string, int) (SearchTracksResult, error) {
+	return SearchTracksResult{}, ErrUnavailable
+}
+
+func (unavailableClient) SearchTracksWithOffset(context.Context, string, int, int) (SearchTracksResult, error) {
 	return SearchTracksResult{}, ErrUnavailable
 }
 
@@ -113,29 +124,36 @@ func (c *client) SearchArtists(ctx context.Context, query string, limit int) (Se
 	var response struct {
 		Artists SearchArtistsResult `json:"artists"`
 	}
-	if err := c.search(ctx, query, "artist", limit, &response); err != nil {
+	if err := c.search(ctx, query, "artist", limit, 0, &response); err != nil {
 		return SearchArtistsResult{}, err
 	}
 	return response.Artists, nil
 }
 
 func (c *client) SearchTracks(ctx context.Context, query string, limit int) (SearchTracksResult, error) {
+	return c.SearchTracksWithOffset(ctx, query, limit, 0)
+}
+
+func (c *client) SearchTracksWithOffset(ctx context.Context, query string, limit, offset int) (SearchTracksResult, error) {
 	var response struct {
 		Tracks SearchTracksResult `json:"tracks"`
 	}
-	if err := c.search(ctx, query, "track", limit, &response); err != nil {
+	if err := c.search(ctx, query, "track", limit, offset, &response); err != nil {
 		return SearchTracksResult{}, err
 	}
 	return response.Tracks, nil
 }
 
-func (c *client) search(ctx context.Context, query, kind string, limit int, target interface{}) error {
+func (c *client) search(ctx context.Context, query, kind string, limit, offset int, target interface{}) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return fmt.Errorf("empty query")
 	}
 	if limit < 1 || limit > 10 {
 		return fmt.Errorf("invalid limit")
+	}
+	if offset < 0 || offset > 1000 {
+		return fmt.Errorf("invalid offset")
 	}
 	token, err := c.accessToken(ctx)
 	if err != nil {
@@ -146,6 +164,7 @@ func (c *client) search(ctx context.Context, query, kind string, limit int, targ
 	values.Set("q", query)
 	values.Set("type", kind)
 	values.Set("limit", strconv.Itoa(limit))
+	values.Set("offset", strconv.Itoa(offset))
 	endpoint.RawQuery = values.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {

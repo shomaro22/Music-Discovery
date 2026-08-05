@@ -77,6 +77,7 @@ func (r *recommendationRepository) FindCandidates(ctx context.Context, condition
 	query := r.db.WithContext(ctx).Model(&entity.Song{}).
 		Joins("JOIN artists ON artists.id = songs.artist_id AND artists.deleted_at IS NULL").
 		Where("songs.deleted_at IS NULL AND songs.spotify_url <> ''").
+		Where("songs.review_status IN ?", []entity.ContentReviewStatus{entity.ContentReviewStatusApproved, entity.ContentReviewStatusAutoApproved}).
 		Where("EXISTS (SELECT 1 FROM song_tags st JOIN tags t ON t.id = st.tag_id AND t.deleted_at IS NULL WHERE st.song_id = songs.id AND LOWER(t.category) = 'genre')")
 	if len(condition.ExcludedSongIDs) > 0 {
 		query = query.Where("songs.id NOT IN ?", condition.ExcludedSongIDs)

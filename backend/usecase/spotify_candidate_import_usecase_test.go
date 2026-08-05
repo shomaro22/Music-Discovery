@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"music-discovery/backend/entity"
 )
 
 func TestSpotifyCandidateQueriesNormalizesQuestionChoiceCodes(t *testing.T) {
@@ -51,5 +53,72 @@ func TestParseSpotifyReleaseDate(t *testing.T) {
 		if actual := parseSpotifyReleaseDate(input); !actual.Equal(expected) {
 			t.Fatalf("input=%s actual=%s expected=%s", input, actual, expected)
 		}
+	}
+}
+
+func TestSpotifyCandidateGenreSlug(t *testing.T) {
+	cases := map[string]string{
+		`genre:"pop"`:     "genre-pop",
+		`genre:"hip-hop"`: "genre-hip-hop",
+		"new music":       "",
+	}
+	for input, expected := range cases {
+		if actual := spotifyCandidateGenreSlug(input); actual != expected {
+			t.Fatalf("input=%s actual=%s expected=%s", input, actual, expected)
+		}
+	}
+}
+
+func TestHighConfidenceSpotifyCandidate(t *testing.T) {
+	value := entity.SpotifyCandidate{
+		Artist: entity.Artist{
+			SpotifyArtistID: "artist-id",
+			Name:            "Artist",
+			SpotifyURL:      "https://open.spotify.com/artist/artist-id",
+		},
+		Song: entity.Song{
+			SpotifyTrackID: "track-id",
+			Name:           "Song",
+			AlbumName:      "Album",
+			ImageURL:       "https://example.com/artwork.jpg",
+			SpotifyURL:     "https://open.spotify.com/track/track-id",
+			DurationMs:     180000,
+		},
+		TagSlugs: []string{"genre-pop", "mood-uplifting", "element-vocal", "atmosphere-bright"},
+	}
+	if !isHighConfidenceSpotifyCandidate(value) {
+		t.Fatal("complete candidate must be high confidence")
+	}
+
+	value.Song.ImageURL = ""
+	if isHighConfidenceSpotifyCandidate(value) {
+		t.Fatal("candidate without artwork must remain pending")
+	}
+}
+
+func TestMergeStringsRemovesDuplicates(t *testing.T) {
+	actual := mergeStrings([]string{"genre-pop"}, []string{"genre-pop", "genre-rock"})
+	expected := []string{"genre-pop", "genre-rock"}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("actual=%#v expected=%#v", actual, expected)
+	}
+}
+
+func TestSpotifyCandidateTagSlugsAddsContactTags(t *testing.T) {
+	actual := spotifyCandidateTagSlugs(`genre:"anime"`)
+	expected := []string{"genre-anime", "mood-extraordinary", "element-worldview", "atmosphere-cinematic"}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("actual=%#v expected=%#v", actual, expected)
+	}
+}
+
+func TestHighConfidenceSpotifyCandidateRequiresContactTag(t *testing.T) {
+	value := entity.SpotifyCandidate{
+		Artist:   entity.Artist{SpotifyArtistID: "artist-id", Name: "Artist", SpotifyURL: "https://open.spotify.com/artist/artist-id"},
+		Song:     entity.Song{SpotifyTrackID: "track-id", Name: "Song", AlbumName: "Album", ImageURL: "https://example.com/artwork.jpg", SpotifyURL: "https://open.spotify.com/track/track-id", DurationMs: 180000},
+		TagSlugs: []string{"genre-pop"},
+	}
+	if isHighConfidenceSpotifyCandidate(value) {
+		t.Fatal("genre-only candidate must remain pending")
 	}
 }

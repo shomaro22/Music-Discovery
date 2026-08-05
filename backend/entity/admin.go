@@ -8,6 +8,19 @@ import (
 	"gorm.io/gorm"
 )
 
+type ContentReviewStatus string
+
+const (
+	ContentReviewStatusPending      ContentReviewStatus = "PENDING"
+	ContentReviewStatusAutoApproved ContentReviewStatus = "AUTO_APPROVED"
+	ContentReviewStatusApproved     ContentReviewStatus = "APPROVED"
+	ContentReviewStatusRejected     ContentReviewStatus = "REJECTED"
+)
+
+func (s ContentReviewStatus) IsRecommendable() bool {
+	return s == ContentReviewStatusApproved || s == ContentReviewStatusAutoApproved
+}
+
 type Artist struct {
 	ID              uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	SpotifyArtistID string         `json:"spotify_artist_id" gorm:"size:64;not null;uniqueIndex"`
@@ -21,22 +34,23 @@ type Artist struct {
 }
 
 type Song struct {
-	ID             uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	ArtistID       uuid.UUID      `json:"artist_id" gorm:"type:uuid;not null;index"`
-	Artist         Artist         `json:"artist,omitempty" gorm:"foreignKey:ArtistID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
-	SpotifyTrackID string         `json:"spotify_track_id" gorm:"size:64;not null;uniqueIndex"`
-	Name           string         `json:"name" gorm:"size:200;not null;index"`
-	AlbumName      string         `json:"album_name" gorm:"size:200;not null"`
-	ImageURL       string         `json:"image_url"`
-	SpotifyURL     string         `json:"spotify_url" gorm:"not null"`
-	PreviewURL     string         `json:"preview_url"`
-	DurationMs     int            `json:"duration_ms" gorm:"not null"`
-	Popularity     int            `json:"popularity" gorm:"not null"`
-	ReleaseDate    time.Time      `json:"release_date"`
-	Explicit       bool           `json:"explicit"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
+	ID             uuid.UUID           `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	ArtistID       uuid.UUID           `json:"artist_id" gorm:"type:uuid;not null;index"`
+	Artist         Artist              `json:"artist,omitempty" gorm:"foreignKey:ArtistID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;-:migration"`
+	SpotifyTrackID string              `json:"spotify_track_id" gorm:"size:64;not null;uniqueIndex"`
+	Name           string              `json:"name" gorm:"size:200;not null;index"`
+	AlbumName      string              `json:"album_name" gorm:"size:200;not null"`
+	ImageURL       string              `json:"image_url"`
+	SpotifyURL     string              `json:"spotify_url" gorm:"not null"`
+	PreviewURL     string              `json:"preview_url"`
+	DurationMs     int                 `json:"duration_ms" gorm:"not null"`
+	Popularity     int                 `json:"popularity" gorm:"not null"`
+	ReleaseDate    time.Time           `json:"release_date"`
+	Explicit       bool                `json:"explicit"`
+	ReviewStatus   ContentReviewStatus `json:"review_status" gorm:"size:32;not null;default:APPROVED;index"`
+	CreatedAt      time.Time           `json:"created_at"`
+	UpdatedAt      time.Time           `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt      `json:"-" gorm:"index"`
 }
 
 type Tag struct {

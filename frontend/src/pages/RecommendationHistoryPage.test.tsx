@@ -15,7 +15,7 @@ const response = {
     recommended_at: "2026-08-04T12:00:00Z",
     songs: [{
       recommendation_detail_id: "detail-1",
-      recommendation_type: "Your Match" as const,
+      recommendation_type: "YOUR_MATCH" as const,
       display_order: 1,
       song_id: "song-1",
       song_name: "Song One",
