@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -142,10 +141,13 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 	result := make([]entity.RecommendationDetail, 0, 3)
 	kinds := []entity.RecommendationType{entity.RecommendationTypeYourMatch, entity.RecommendationTypeNewFavorite, entity.RecommendationTypeTrySomethingNew}
 	for position, kind := range kinds {
-		ranked := u.calculator.Calculate(condition, candidates, kind, artistCounts, songCounts)
-		candidate, ok := u.pickCandidate(ranked, kind, condition, artistCounts, songCounts, selectedSongs, selectedArtists, first)
+		ranked, calcErr := u.calculator.Calculate(condition, candidates, kind, artistCounts, songCounts)
+		if calcErr != nil {
+			return nil, calcErr
+		}
+		candidate, stage, ok := u.pickCandidate(ranked, kind, condition, artistCounts, songCounts, selectedSongs, selectedArtists, first)
 		if !ok {
-			return nil, entity.ErrRecommendationCandidatesNotFound
+			return nil, entity.ErrRecommendationSelectionFailed
 		}
 		selectedSongs[candidate.Data.Song.ID] = true
 		selectedArtists[candidate.Data.Artist.ID] = true
@@ -153,12 +155,25 @@ func (u *recommendationUsecase) selectDetails(condition RecommendationCondition,
 		if marshalErr != nil {
 			return nil, entity.ErrScoreCalculationFailed
 		}
-		result = append(result, entity.RecommendationDetail{SongID: candidate.Data.Song.ID, Type: kind, Score: candidate.Score.Total, ScoreBreakdown: breakdown, Position: position + 1, Reason: recommendationReason(kind, candidate)})
+		result = append(result, entity.RecommendationDetail{SongID: candidate.Data.Song.ID, Type: kind, Score: candidate.Score.Total, ScoreBreakdown: breakdown, Position: position + 1, Reason: recommendationReason(kind, candidate), FallbackUsed: stage > 0})
+	}
+	if len(result) != 3 {
+		return nil, entity.ErrRecommendationSelectionFailed
+	}
+	seen := map[uuid.UUID]struct{}{}
+	for _, detail := range result {
+		if detail.Reason == "" {
+			return nil, entity.ErrRecommendationReasonGenerateFailed
+		}
+		if _, exists := seen[detail.SongID]; exists {
+			return nil, entity.ErrDuplicateRecommendationSong
+		}
+		seen[detail.SongID] = struct{}{}
 	}
 	return result, nil
 }
 
-func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, bool) {
+func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, int, bool) {
 	// Strict -> relaxed -> fallback. Song duplication and the Try Something New
 	// mood/element/atmosphere bridge are never relaxed.
 	for stage := 0; stage < 3; stage++ {
@@ -166,7 +181,7 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 			if selectedSongs[candidate.Data.Song.ID] {
 				continue
 			}
-			contact := candidate.Score.Mood + candidate.Score.Element + candidate.Score.Atmosphere
+			contact := hasMinimumContact(candidate, condition)
 			genreMatch := candidateMatchesGenres(candidate.Data, condition.Genres)
 			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
 			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
@@ -174,7 +189,7 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 				if selectedArtists[candidate.Data.Artist.ID] {
 					continue
 				}
-				if contact <= 0 || !matchesDiscoveryStage(candidate.Data, condition, seenArtist, stage) {
+				if !contact || !matchesDiscoveryStage(candidate.Data, condition, seenArtist, stage) {
 					continue
 				}
 			}
@@ -185,7 +200,7 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 				if kind != entity.RecommendationTypeTrySomethingNew && stage == 0 && candidate.Score.Mood+candidate.Score.Element+candidate.Score.Atmosphere+candidate.Score.Genre < u.config.MinimumMatchScore {
 					continue
 				}
-				return candidate, true
+				return candidate, stage, true
 			}
 			seenSong := songCounts[candidate.Data.Song.ID] > 0
 			switch kind {
@@ -215,10 +230,17 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 					continue
 				}
 			}
-			return candidate, true
+			return candidate, stage, true
 		}
 	}
-	return SongCandidate{}, false
+	return SongCandidate{}, 0, false
+}
+
+func hasMinimumContact(candidate SongCandidate, condition RecommendationCondition) bool {
+	return candidate.Score.Mood > 0 ||
+		candidate.Score.Element > 0 ||
+		candidate.Score.Atmosphere > 0 ||
+		candidateIsNearbyGenre(candidate.Data, condition.Genres)
 }
 
 func candidateGenreKeys(value entity.RecommendationSongCandidate) []string {
@@ -274,6 +296,20 @@ func candidateIsNearbyGenre(value entity.RecommendationSongCandidate, genres []s
 	return false
 }
 
+func ValidateGenreRelations() error {
+	for source, related := range nearbyGenres {
+		if source == "" {
+			return entity.ErrInvalidGenreRelation
+		}
+		for target := range related {
+			if target == "" || target == source || !nearbyGenres[target][source] {
+				return entity.ErrInvalidGenreRelation
+			}
+		}
+	}
+	return nil
+}
+
 func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition RecommendationCondition, seenArtist bool, stage int) bool {
 	sameGenre := candidateMatchesGenres(value, condition.Genres)
 	nearGenre := candidateIsNearbyGenre(value, condition.Genres)
@@ -305,17 +341,6 @@ func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition R
 			return nearGenre || (!seenGenre && unknownArtist)
 		}
 		return !sameGenre || unknownArtist
-	}
-}
-
-func reasonFor(kind entity.RecommendationType, value entity.RecommendationSongCandidate) string {
-	switch kind {
-	case entity.RecommendationTypeYourMatch:
-		return fmt.Sprintf("今の気分と好みに近い%sの楽曲です", value.Artist.Name)
-	case entity.RecommendationTypeNewFavorite:
-		return "好みに近く、まだ出会う機会が少ない楽曲です"
-	default:
-		return "好みとの接点を残しながら、新しい音楽体験を広げる1曲です"
 	}
 }
 

@@ -92,6 +92,12 @@ func start(ctx context.Context) error {
 	recommendationRepository := repository.NewRecommendationRepository(postgres)
 	recommendationLockRepository := repository.NewRecommendationLockRepository(redisClient)
 	recommendationConfig := loadRecommendationConfig()
+	if err := usecase.ValidateRecommendationScoreWeights(recommendationConfig.ScoreWeights); err != nil {
+		return fmt.Errorf("recommendation weight config: %w", err)
+	}
+	if err := usecase.ValidateGenreRelations(); err != nil {
+		return fmt.Errorf("recommendation genre relation config: %w", err)
+	}
 	recommendationCalculator := usecase.NewRecommendationCalculator(recommendationConfig.ScoreWeights)
 	recommendationUsecase := usecase.NewRecommendationUsecase(
 		userRepository,
@@ -109,7 +115,7 @@ func start(ctx context.Context) error {
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
 	dailyDiscoveryConfig := usecase.DailyDiscoveryV1Config(recommendationConfig)
 	recommendationConditionBuilder := usecase.NewRecommendationConditionBuilder(questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, authTransactionManager)
-	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, authTransactionManager, clock, recommendationConditionBuilder, dailyDiscoveryConfig)
+	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, authTransactionManager, clock, recommendationConditionBuilder, dailyDiscoveryConfig, recommendationLockRepository, recommendationCalculator)
 	dailyDiscoveryController := controller.NewDailyDiscoveryController(dailyDiscoveryUsecase)
 	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository)
 	recommendationHistoryController := controller.NewRecommendationHistoryController(recommendationHistoryUsecase)

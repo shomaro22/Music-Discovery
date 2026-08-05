@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"music-discovery/backend/entity"
 	"music-discovery/backend/usecase"
+
+	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 )
 
 type SaveFeedbackRequest struct {
@@ -55,11 +56,18 @@ func (c *feedbackController) Save(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return writeAPIError(ctx, 400, "INVALID_REQUEST", "Request形式が不正です")
 	}
-	result, err := c.usecase.Save(ctx.Request().Context(), uid, usecase.SaveFeedbackInput{RecommendationDetailID: detailID, FeedbackType: request.FeedbackType})
+	result, err := c.usecase.Save(ctx.Request().Context(), uid, usecase.SaveFeedbackInput{
+		RecommendationDetailID: detailID,
+		FeedbackType:           request.FeedbackType})
 	if err != nil {
 		return c.handle(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, SaveFeedbackResponse{FeedbackID: result.Feedback.ID, RecommendationDetailID: result.Feedback.RecommendationDetailID, FeedbackType: result.Feedback.Type, Created: result.Created, UpdatedAt: result.Feedback.UpdatedAt})
+	return ctx.JSON(http.StatusOK, SaveFeedbackResponse{
+		FeedbackID:             result.Feedback.ID,
+		RecommendationDetailID: result.Feedback.RecommendationDetailID,
+		FeedbackType:           result.Feedback.Type,
+		Created:                result.Created,
+		UpdatedAt:              result.Feedback.UpdatedAt})
 }
 func (c *feedbackController) Get(ctx echo.Context) error {
 	uid, ok := authUserID(ctx)
@@ -74,7 +82,10 @@ func (c *feedbackController) Get(ctx echo.Context) error {
 	if err != nil {
 		return c.handle(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, FeedbackDetailResponse{RecommendationDetailID: value.RecommendationDetailID, FeedbackStatus: value.Status, UpdatedAt: value.UpdatedAt})
+	return ctx.JSON(http.StatusOK, FeedbackDetailResponse{
+		RecommendationDetailID: value.RecommendationDetailID,
+		FeedbackStatus:         value.Status,
+		UpdatedAt:              value.UpdatedAt})
 }
 func (c *feedbackController) handle(ctx echo.Context, err error) error {
 	switch {
