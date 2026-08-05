@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -75,26 +76,6 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
 	}
-	if len(candidates) < 3 && u.candidateImport != nil {
-		imported, importErr := u.candidateImport.Import(ctx, condition.Genres)
-		if importErr != nil {
-			return nil, importErr
-		}
-		if imported > 0 {
-			// Spotify取込直後のSongには独自Tagを付与しない。管理者による
-			// Tag確認が完了するまで推薦対象外として扱う。
-			candidates, err = u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
-			if err != nil {
-				return nil, entity.ErrRecommendationGenerateFailed
-			}
-			if len(candidates) < 3 {
-				return nil, entity.ErrRecommendationCandidatesImportedPendingReview
-			}
-		}
-	}
-	if len(candidates) < 3 {
-		return nil, entity.ErrRecommendationCandidatesNotFound
-	}
 	artistCounts, err := u.recommendations.CountByArtist(ctx, userID)
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
@@ -111,9 +92,34 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	condition.RecentGenreCounts = recency.GenreCounts
 	firstRecommendation := len(artistCounts) == 0 && len(songCounts) == 0
 
-	details, err := u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
-	if err != nil {
-		return nil, err
+	var details []entity.RecommendationDetail
+	selectionErr := entity.ErrRecommendationCandidatesNotFound
+	if len(candidates) >= 3 {
+		details, selectionErr = u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
+	}
+
+	// Repository上の候補数が3件以上でも、推薦枠ごとの条件によって
+	// Your Match / New Favorite / Try Something Newを埋められない場合がある。
+	// 実際の選出失敗を契機にSpotify候補を取り込み、候補を再取得して再選出する。
+	if errors.Is(selectionErr, entity.ErrRecommendationCandidatesNotFound) && u.candidateImport != nil {
+		importResult, importErr := u.candidateImport.Import(ctx, condition.Genres)
+		if importErr != nil {
+			return nil, importErr
+		}
+		if importResult.AutoApproved > 0 {
+			// 必須情報とGenre Tagを持つ高信頼候補はAUTO_APPROVEDとして
+			// 即時推薦対象になる。情報不足の候補はPENDINGのまま除外する。
+			candidates, err = u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
+			if err != nil {
+				return nil, entity.ErrRecommendationGenerateFailed
+			}
+			if len(candidates) >= 3 {
+				details, selectionErr = u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
+			}
+		}
+	}
+	if selectionErr != nil {
+		return nil, selectionErr
 	}
 	recommendation := &entity.Recommendation{UserID: userID, Source: entity.RecommendationSourceNormal, RecommendedAt: now, AlgorithmVersion: u.config.AlgorithmVersion, Details: details}
 	if err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error { return u.recommendations.Create(ctx, tx, recommendation) }); err != nil {

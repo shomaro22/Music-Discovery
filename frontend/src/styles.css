@@ -465,8 +465,8 @@ a {
 }
 
 
-.withdraw-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: #f5f5f5; }
-.withdraw-card { width: min(640px, 100%); padding: 36px; border: 1px solid #dedede; border-radius: 16px; background: #fff; box-shadow: 0 20px 50px rgba(0,0,0,.08); }
+.withdraw-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; background: #050505; color: #ffffff; }
+.withdraw-card { width: min(640px, 100%); padding: 36px; border: 1px solid #27272a; border-radius: 16px; background: #111827; color: #ffffff; box-shadow: 0 24px 70px rgba(0,0,0,.42); }
 .withdraw-kicker { margin: 0 0 8px; font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .withdraw-card h1 { margin: 0 0 24px; }
 .withdraw-warning { margin-bottom: 24px; padding: 18px; border-left: 4px solid #b42318; background: #fff5f4; }
@@ -592,25 +592,28 @@ a {
   opacity: 0.55;
 }
 
-/* Withdraw page: dark-mode inheritanceを受けても読めるよう明示 */
-.withdraw-page,
-.withdraw-card,
+/* Withdraw page: Top／Login／Signupと統一したダークデザイン */
+.withdraw-kicker {
+  color: #a1a1aa;
+}
+
+.withdraw-card h1,
+.withdraw-form label {
+  color: #ffffff;
+}
+
+.withdraw-warning {
+  border-left-color: #ef4444;
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+}
+
 .confirm-dialog {
   color: #111111;
 }
 
-.withdraw-kicker {
-  color: #6b7280;
-}
-
-.withdraw-card h1,
-.confirm-dialog h2,
-.withdraw-form label {
+.confirm-dialog h2 {
   color: #111111;
-}
-
-.withdraw-warning {
-  color: #7a271a;
 }
 
 .withdraw-form input {
