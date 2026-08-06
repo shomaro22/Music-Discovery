@@ -109,7 +109,7 @@ type dailyConditionBuilderStub struct {
 	err       error
 }
 
-func (s *dailyConditionBuilderStub) Build(context.Context, uuid.UUID) (RecommendationCondition, error) {
+func (s *dailyConditionBuilderStub) Build(context.Context, uuid.UUID, RecommendationConditionPeriod) (RecommendationCondition, error) {
 	return s.condition, s.err
 }
 
@@ -307,18 +307,17 @@ func TestDailyDiscoveryGetTodayMapsConditionBuilderFailure(t *testing.T) {
 	}
 }
 
-func TestDailyDiscoveryGetTodayDoesNotIgnoreRepositoryError(t *testing.T) {
+func TestDailyDiscoveryGetTodayDoesNotIgnoreConditionRepositoryError(t *testing.T) {
 	userID := uuid.New()
-	repo := &dailyRecommendationRepositoryStub{excludedErr: entity.ErrInternal}
 	u := NewDailyDiscoveryUsecase(
 		&dailyUserRepositoryStub{user: &entity.User{ID: userID, Status: entity.UserStatusActive}},
 		&dailyProfileRepositoryStub{profile: &entity.UserProfile{Timezone: "Asia/Tokyo"}},
-		repo,
+		&dailyRecommendationRepositoryStub{},
 		&dailyLockRepositoryStub{},
 		&dailyTransactionStub{},
 		dailyCalculator(DailyDiscoveryConfig{DuplicateDays: 30}),
 		dailyClockStub{now: time.Now()},
-		&dailyConditionBuilderStub{condition: RecommendationCondition{}},
+		&dailyConditionBuilderStub{err: entity.ErrRecommendationGenerateFailed},
 		DailyDiscoveryConfig{DuplicateDays: 30})
 	_, _, err := u.GetToday(context.Background(), userID)
 	if !errors.Is(err, entity.ErrDailyDiscoveryGenerateFailed) {

@@ -4,14 +4,21 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"music-discovery/backend/entity"
 	"music-discovery/backend/repository"
 )
 
+type RecommendationConditionPeriod struct {
+	DuplicateFrom time.Time
+	RecencyFrom   time.Time
+	To            time.Time
+}
+
 type IRecommendationConditionBuilder interface {
-	Build(context.Context, uuid.UUID) (RecommendationCondition, error)
+	Build(context.Context, uuid.UUID, RecommendationConditionPeriod) (RecommendationCondition, error)
 }
 
 type recommendationConditionBuilder struct {
@@ -35,7 +42,7 @@ func NewRecommendationConditionBuilder(
 	}
 }
 
-func (b *recommendationConditionBuilder) Build(ctx context.Context, userID uuid.UUID) (RecommendationCondition, error) {
+func (b *recommendationConditionBuilder) Build(ctx context.Context, userID uuid.UUID, period RecommendationConditionPeriod) (RecommendationCondition, error) {
 	session, err := b.answers.GetLatest(ctx, userID)
 	if errors.Is(err, entity.ErrNotFound) {
 		return RecommendationCondition{}, entity.ErrQuestionAnswerRequired
@@ -143,5 +150,22 @@ func (b *recommendationConditionBuilder) Build(ctx context.Context, userID uuid.
 	for _, genre := range historyGenres {
 		condition.RecommendedGenres[normalized(genre)] = true
 	}
+
+	excluded, err := b.recommendations.FindRecommendedSongIDs(ctx, userID, period.DuplicateFrom, period.To)
+	if err != nil {
+		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
+	}
+	condition.ExcludedSongIDs = make(map[uuid.UUID]bool, len(excluded))
+	for _, songID := range excluded {
+		condition.ExcludedSongIDs[songID] = true
+	}
+
+	recency, err := b.recommendations.FindRecentDisplayCounts(ctx, userID, period.RecencyFrom)
+	if err != nil {
+		return RecommendationCondition{}, entity.ErrRecommendationGenerateFailed
+	}
+	condition.RecentArtistCounts = recency.ArtistCounts
+	condition.RecentGenreCounts = recency.GenreCounts
+
 	return condition, nil
 }

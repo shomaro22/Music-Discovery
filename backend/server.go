@@ -99,22 +99,20 @@ func start(ctx context.Context) error {
 		return fmt.Errorf("recommendation genre relation config: %w", err)
 	}
 	recommendationCalculator := usecase.NewRecommendationCalculator(recommendationConfig.ScoreWeights)
+	recommendationConditionBuilder := usecase.NewRecommendationConditionBuilder(questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, authTransactionManager)
 	recommendationUsecase := usecase.NewRecommendationUsecase(
 		userRepository,
-		questionRepository,
-		questionAnswerRepository,
-		userProfileRepository,
 		recommendationRepository,
 		recommendationLockRepository,
 		authTransactionManager,
 		recommendationCalculator,
+		recommendationConditionBuilder,
 		spotifyCandidateImportUsecase,
 		clock,
 		recommendationConfig,
 	)
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
 	dailyDiscoveryConfig := usecase.DailyDiscoveryV1Config(recommendationConfig)
-	recommendationConditionBuilder := usecase.NewRecommendationConditionBuilder(questionRepository, questionAnswerRepository, userProfileRepository, recommendationRepository, authTransactionManager)
 	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, recommendationLockRepository, authTransactionManager, recommendationCalculator, clock, recommendationConditionBuilder, dailyDiscoveryConfig)
 	dailyDiscoveryController := controller.NewDailyDiscoveryController(dailyDiscoveryUsecase)
 	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository)
@@ -186,6 +184,7 @@ func loadRecommendationConfig() usecase.RecommendationConfig {
 		AlgorithmVersion:    usecase.RecommendationAlgorithmVersion,
 		WeightConfigVersion: usecase.RecommendationWeightConfigVersion,
 		MinimumMatchScore:   usecase.RecommendationMinimumMatchScore,
+		MinimumContactScore: usecase.RecommendationMinimumContactScore,
 		ScoreWeights:        usecase.DefaultRecommendationScoreWeights(),
 	}
 }

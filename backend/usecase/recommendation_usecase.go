@@ -17,27 +17,36 @@ type IRecommendationUsecase interface {
 	GetByID(context.Context, uuid.UUID, uuid.UUID) (*entity.Recommendation, error)
 }
 type recommendationUsecase struct {
-	users           repository.IUserRepository
-	questions       repository.IQuestionRepository
-	answers         repository.IQuestionAnswerRepository
-	profiles        repository.IUserProfileRepository
-	recommendations repository.IRecommendationRepository
-	locks           repository.IRecommendationLockRepository
-	tx              repository.ITransactionManager
-	calculator      IRecommendationCalculator
-	candidateImport ISpotifyCandidateImportUsecase
-	clock           IClock
-	config          RecommendationConfig
+	users            repository.IUserRepository
+	recommendations  repository.IRecommendationRepository
+	conditionBuilder IRecommendationConditionBuilder
+	locks            repository.IRecommendationLockRepository
+	tx               repository.ITransactionManager
+	calculator       IRecommendationCalculator
+	candidateImport  ISpotifyCandidateImportUsecase
+	clock            IClock
+	config           RecommendationConfig
 }
 
-func NewRecommendationUsecase(users repository.IUserRepository, questions repository.IQuestionRepository, answers repository.IQuestionAnswerRepository, profiles repository.IUserProfileRepository, recommendations repository.IRecommendationRepository, locks repository.IRecommendationLockRepository, tx repository.ITransactionManager, calculator IRecommendationCalculator, candidateImport ISpotifyCandidateImportUsecase, clock IClock, config RecommendationConfig) IRecommendationUsecase {
-	return &recommendationUsecase{users: users, questions: questions, answers: answers, profiles: profiles, recommendations: recommendations, locks: locks, tx: tx, calculator: calculator, candidateImport: candidateImport, clock: clock, config: config}
+func NewRecommendationUsecase(
+	users repository.IUserRepository,
+	recommendations repository.IRecommendationRepository,
+	locks repository.IRecommendationLockRepository,
+	tx repository.ITransactionManager,
+	calculator IRecommendationCalculator,
+	conditionBuilder IRecommendationConditionBuilder,
+	candidateImport ISpotifyCandidateImportUsecase,
+	clock IClock,
+	config RecommendationConfig,
+) IRecommendationUsecase {
+	return &recommendationUsecase{
+		users: users, recommendations: recommendations, conditionBuilder: conditionBuilder,
+		locks: locks, tx: tx, calculator: calculator, candidateImport: candidateImport,
+		clock: clock, config: config,
+	}
 }
 
 func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
-	if err := ValidateRecommendationScoreWeights(u.config.ScoreWeights); err != nil {
-		return nil, err
-	}
 	lockTTLSeconds := u.config.LockTTLSeconds
 	if lockTTLSeconds <= 0 {
 		lockTTLSeconds = 120
@@ -67,18 +76,15 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 		return nil, entity.ErrRecommendationAlreadyGenerated
 	}
 
-	condition, err := u.buildCondition(ctx, userID)
+	condition, err := u.conditionBuilder.Build(ctx, userID, RecommendationConditionPeriod{
+		DuplicateFrom: now.AddDate(0, 0, -u.config.DuplicateDays),
+		RecencyFrom:   now.AddDate(0, 0, -u.config.RecencyDays),
+		To:            now,
+	})
 	if err != nil {
 		return nil, err
 	}
-	excluded, err := u.recommendations.FindRecommendedSongIDs(ctx, userID, now.AddDate(0, 0, -u.config.DuplicateDays), now)
-	if err != nil {
-		return nil, entity.ErrRecommendationGenerateFailed
-	}
-	condition.ExcludedSongIDs = make(map[uuid.UUID]bool, len(excluded))
-	for _, songID := range excluded {
-		condition.ExcludedSongIDs[songID] = true
-	}
+	excluded := recommendationConditionSongIDs(condition.ExcludedSongIDs)
 	candidates, err := u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
@@ -91,12 +97,6 @@ func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, entity.ErrRecommendationGenerateFailed
 	}
-	recency, err := u.recommendations.FindRecentDisplayCounts(ctx, userID, now.AddDate(0, 0, -u.config.RecencyDays))
-	if err != nil {
-		return nil, entity.ErrRecommendationGenerateFailed
-	}
-	condition.RecentArtistCounts = recency.ArtistCounts
-	condition.RecentGenreCounts = recency.GenreCounts
 	firstRecommendation := len(artistCounts) == 0 && len(songCounts) == 0
 
 	var details []entity.RecommendationDetail
@@ -212,7 +212,7 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 			if selectedSongs[candidate.Data.Song.ID] {
 				continue
 			}
-			contact := hasMinimumContact(candidate, condition)
+			contact := hasMinimumContact(candidate, condition, u.config.MinimumContactScore)
 			genreMatch := candidateMatchesGenres(candidate.Data, condition.Genres)
 			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
 			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
@@ -267,11 +267,38 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 	return SongCandidate{}, 0, false
 }
 
-func hasMinimumContact(candidate SongCandidate, condition RecommendationCondition) bool {
-	return candidate.Score.Mood > 0 ||
-		candidate.Score.Element > 0 ||
-		candidate.Score.Atmosphere > 0 ||
-		candidateIsNearbyGenre(candidate.Data, condition.Genres)
+func minimumContactScore(candidate SongCandidate, condition RecommendationCondition) float64 {
+	score := 0.0
+	if candidate.Score.Mood > 0 {
+		score++
+	}
+	if candidate.Score.Element > 0 {
+		score++
+	}
+	if candidate.Score.Atmosphere > 0 {
+		score++
+	}
+	if candidateIsNearbyGenre(candidate.Data, condition.Genres) {
+		score++
+	}
+	return score
+}
+
+func hasMinimumContact(candidate SongCandidate, condition RecommendationCondition, minimum float64) bool {
+	if minimum <= 0 {
+		minimum = 1
+	}
+	return minimumContactScore(candidate, condition) >= minimum
+}
+
+func recommendationConditionSongIDs(values map[uuid.UUID]bool) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(values))
+	for id, excluded := range values {
+		if excluded {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func candidateGenreKeys(value entity.RecommendationSongCandidate) []string {
@@ -375,10 +402,6 @@ func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition R
 	}
 }
 
-func (u *recommendationUsecase) buildCondition(ctx context.Context, userID uuid.UUID) (RecommendationCondition, error) {
-	builder := NewRecommendationConditionBuilder(u.questions, u.answers, u.profiles, u.recommendations, u.tx)
-	return builder.Build(ctx, userID)
-}
 func (u *recommendationUsecase) GetLatest(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
 	return u.recommendations.FindLatest(ctx, userID, entity.RecommendationSourceNormal)
 }
