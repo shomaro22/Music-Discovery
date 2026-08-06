@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 )
 
@@ -47,7 +48,15 @@ func (c *recommendationController) Generate(ctx echo.Context) error {
 	}
 	value, err := c.usecase.Generate(ctx.Request().Context(), id)
 	if err != nil {
+		ctx.Set(middleware.SystemLogEventKey, "recommendation_failed")
 		return c.handleError(ctx, err)
+	}
+	ctx.Set(middleware.SystemLogEventKey, "recommendation_succeeded")
+	for _, detail := range value.Details {
+		if detail.FallbackUsed {
+			ctx.Set(middleware.SystemLogFallbackUsedKey, true)
+			break
+		}
 	}
 	return ctx.JSON(http.StatusCreated, toRecommendationResponse(value))
 }
@@ -103,6 +112,8 @@ func (c *recommendationController) handleError(ctx echo.Context, err error) erro
 	case errors.Is(err, entity.ErrRecommendationCandidatesImportedPendingReview):
 		return writeAPIError(ctx, 422, "RECOMMENDATION_CANDIDATES_IMPORTED_PENDING_REVIEW", "Spotifyから候補を取り込みました。管理者によるTag確認後に推薦できます")
 	case errors.Is(err, entity.ErrSpotifyCandidateImportFailed):
+		ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
+		ctx.Set(middleware.SystemLogSpotifyErrorKey, true)
 		return writeAPIError(ctx, 503, "SPOTIFY_CANDIDATE_IMPORT_FAILED", "Spotifyから推薦候補を取得できませんでした")
 	case errors.Is(err, entity.ErrRecommendationCandidatesNotFound):
 		return writeAPIError(ctx, 422, "RECOMMENDATION_CANDIDATES_NOT_FOUND", "推薦候補が不足しています")

@@ -53,7 +53,6 @@ export interface MetricsSnapshot {
   fallback_count: number;
   feedback_count: number;
   daily_discovery_count: number;
-  database_errors: number;
   spotify_api_errors: number;
   rate_limit_exceeded: number;
 }

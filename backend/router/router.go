@@ -154,6 +154,7 @@ func registerSystemAdminRoutes(
 	group.GET("/logs/:logId", logController.GetSystemLog)
 	group.GET("/metrics", monitoringController.Metrics)
 	group.GET("/alerts", monitoringController.Alerts)
+	group.POST("/alerts/test", monitoringController.TestAlert)
 }
 
 func loadAllowedOrigins() []string {

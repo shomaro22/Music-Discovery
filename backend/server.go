@@ -168,9 +168,13 @@ func start(ctx context.Context) error {
 		stats := healthRepository.DatabaseStats()
 		return usecase.DatabaseMetrics{OpenConnections: stats.OpenConnections, InUseConnections: stats.InUse, IdleConnections: stats.Idle, WaitCount: stats.WaitCount}
 	})
-	healthUsecase := usecase.NewHealthUsecase(healthRepository, appVersion, time.Duration(envPositiveInt("HEALTH_CHECK_TIMEOUT_MS", 2000))*time.Millisecond)
+	healthUsecase := usecase.NewHealthUsecase(healthRepository, appVersion, time.Duration(envPositiveInt("HEALTH_CHECK_TIMEOUT_MS", 2000))*time.Millisecond, logger)
 	alertUsecase := usecase.NewAlertUsecase(metricsUsecase, envFloat("ALERT_ERROR_RATE_THRESHOLD", 0.05), envFloat("ALERT_P95_THRESHOLD_MS", 1000))
-	monitoringController := controller.NewMonitoringController(metricsUsecase, appVersion, controller.WithHealthUsecase(healthUsecase), controller.WithAlertUsecase(alertUsecase))
+	alertNotifier := usecase.NewWebhookAlertNotifier(os.Getenv("ALERT_WEBHOOK_URL"), time.Duration(envPositiveInt("ALERT_NOTIFICATION_TIMEOUT_MS", 5000))*time.Millisecond)
+	alertStateRepository := repository.NewAlertStateRepository(postgres)
+	alertMonitor := usecase.NewAlertMonitor(alertUsecase, healthUsecase, alertNotifier, alertStateRepository)
+	go runAlertEvaluation(ctx, logger, alertMonitor, time.Duration(envPositiveInt("ALERT_EVALUATION_INTERVAL_SECONDS", 60))*time.Second)
+	monitoringController := controller.NewMonitoringController(metricsUsecase, appVersion, controller.WithHealthUsecase(healthUsecase), controller.WithAlertUsecase(alertUsecase), controller.WithAlertMonitor(alertMonitor))
 
 	spotifyAdminUsecase := usecase.NewSpotifyAdminUsecase(spotifyClient)
 	spotifyAdminController := controller.NewSpotifyAdminController(spotifyAdminUsecase)
@@ -200,13 +204,40 @@ func start(ctx context.Context) error {
 		rateLimit,
 		authMiddleware,
 	)
-	e.Pre(appMiddleware.NewSystemLogMiddleware(systemLogUsecase, appMiddleware.SystemLogConfig{Environment: appEnvironment, Service: serviceName, Version: appVersion, Logger: logger, Metrics: metricsUsecase, SaveTimeout: 2 * time.Second}))
+	e.Pre(appMiddleware.NewSystemLogMiddleware(systemLogUsecase, appMiddleware.SystemLogConfig{Environment: appEnvironment, Service: serviceName, Version: appVersion, Logger: logger, Metrics: metricsUsecase, SaveTimeout: 2 * time.Second, SlowThreshold: time.Duration(envPositiveInt("SLOW_REQUEST_THRESHOLD_MS", 1000)) * time.Millisecond}))
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	return e.Start(":" + port)
+}
+
+func runAlertEvaluation(ctx context.Context, logger *slog.Logger, monitor usecase.IAlertMonitor, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	evaluate := func() {
+		evalCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := monitor.EvaluateAndPublish(evalCtx); err != nil {
+			logger.Error("alert evaluation or notification failed", "error", err)
+		}
+	}
+
+	// 起動直後にも一度評価し、Alert一覧が初回Tickerまで空になるのを防ぐ。
+	evaluate()
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			evaluate()
+		}
+	}
 }
 
 func runLogRetention(ctx context.Context, logger *slog.Logger, retention usecase.ILogRetentionUsecase) {

@@ -2,15 +2,19 @@ package usecase
 
 import (
 	"context"
+	"log/slog"
 	"time"
-
-	"music-discovery/backend/repository"
 )
+
+type HealthCheckPort interface {
+	PingPostgres(context.Context) error
+	PingRedis(context.Context) error
+}
 
 type DependencyHealth struct {
 	Status    string    `json:"status"`
 	LatencyMs int64     `json:"latency_ms"`
-	Error     string    `json:"error,omitempty"`
+	ErrorCode string    `json:"error_code,omitempty"`
 	CheckedAt time.Time `json:"checked_at"`
 }
 
@@ -26,16 +30,21 @@ type IHealthUsecase interface {
 }
 
 type healthUsecase struct {
-	repository repository.IHealthCheckRepository
-	version    string
-	timeout    time.Duration
+	port    HealthCheckPort
+	version string
+	timeout time.Duration
+	logger  *slog.Logger
 }
 
-func NewHealthUsecase(repository repository.IHealthCheckRepository, version string, timeout time.Duration) IHealthUsecase {
+func NewHealthUsecase(port HealthCheckPort, version string, timeout time.Duration, loggers ...*slog.Logger) IHealthUsecase {
 	if timeout <= 0 {
 		timeout = 2 * time.Second
 	}
-	return &healthUsecase{repository: repository, version: version, timeout: timeout}
+	logger := slog.Default()
+	if len(loggers) > 0 && loggers[0] != nil {
+		logger = loggers[0]
+	}
+	return &healthUsecase{port: port, version: version, timeout: timeout, logger: logger}
 }
 
 func (u *healthUsecase) Readiness(ctx context.Context) ReadinessResult {
@@ -44,7 +53,8 @@ func (u *healthUsecase) Readiness(ctx context.Context) ReadinessResult {
 		name  string
 		check func(context.Context) error
 	}{
-		{"postgres", u.repository.PingPostgres}, {"redis", u.repository.PingRedis},
+		{"postgres", u.port.PingPostgres},
+		{"redis", u.port.PingRedis},
 	}
 	for _, item := range checks {
 		started := time.Now()
@@ -54,8 +64,9 @@ func (u *healthUsecase) Readiness(ctx context.Context) ReadinessResult {
 		health := DependencyHealth{Status: "up", LatencyMs: time.Since(started).Milliseconds(), CheckedAt: time.Now().UTC()}
 		if err != nil {
 			health.Status = "down"
-			health.Error = err.Error()
+			health.ErrorCode = "CONNECTION_FAILED"
 			result.Status = "not_ready"
+			u.logger.ErrorContext(ctx, "readiness dependency check failed", "dependency", item.name, "error", err)
 		}
 		result.Dependencies[item.name] = health
 	}

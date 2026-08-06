@@ -2,9 +2,13 @@ package usecase
 
 import (
 	"context"
-	"music-discovery/backend/repository"
 	"time"
 )
+
+type LogRetentionPort interface {
+	DeleteExpiredSystemLogs(context.Context, time.Time, time.Time) (int64, error)
+	DeleteExpiredAuditLogs(context.Context, time.Time) (int64, error)
+}
 
 type LogRetentionConfig struct {
 	SystemDays    int
@@ -19,11 +23,16 @@ type ILogRetentionUsecase interface {
 	Cleanup(context.Context) (LogRetentionResult, error)
 }
 type logRetentionUsecase struct {
-	repository repository.ILogRetentionRepository
-	config     LogRetentionConfig
+	port   LogRetentionPort
+	config LogRetentionConfig
+	now    func() time.Time
 }
 
-func NewLogRetentionUsecase(repository repository.ILogRetentionRepository, config LogRetentionConfig) ILogRetentionUsecase {
+func NewLogRetentionUsecase(port LogRetentionPort, config LogRetentionConfig) ILogRetentionUsecase {
+	return newLogRetentionUsecase(port, config, func() time.Time { return time.Now().UTC() })
+}
+
+func newLogRetentionUsecase(port LogRetentionPort, config LogRetentionConfig, now func() time.Time) ILogRetentionUsecase {
 	if config.SystemDays <= 0 {
 		config.SystemDays = 90
 	}
@@ -33,14 +42,14 @@ func NewLogRetentionUsecase(repository repository.ILogRetentionRepository, confi
 	if config.AuditDays <= 0 {
 		config.AuditDays = 365
 	}
-	return &logRetentionUsecase{repository: repository, config: config}
+	return &logRetentionUsecase{port: port, config: config, now: now}
 }
 func (u *logRetentionUsecase) Cleanup(ctx context.Context) (LogRetentionResult, error) {
-	now := time.Now().UTC()
-	system, err := u.repository.DeleteExpiredSystemLogs(ctx, now.AddDate(0, 0, -u.config.SystemDays), now.AddDate(0, 0, -u.config.SensitiveDays))
+	now := u.now()
+	system, err := u.port.DeleteExpiredSystemLogs(ctx, now.AddDate(0, 0, -u.config.SystemDays), now.AddDate(0, 0, -u.config.SensitiveDays))
 	if err != nil {
 		return LogRetentionResult{}, err
 	}
-	audit, err := u.repository.DeleteExpiredAuditLogs(ctx, now.AddDate(0, 0, -u.config.AuditDays))
+	audit, err := u.port.DeleteExpiredAuditLogs(ctx, now.AddDate(0, 0, -u.config.AuditDays))
 	return LogRetentionResult{SystemDeleted: system, AuditDeleted: audit}, err
 }

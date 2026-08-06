@@ -7,7 +7,7 @@ import (
 )
 
 func CreateAdminTables(db *gorm.DB) error {
-	if err := db.AutoMigrate(&entity.Artist{}, &entity.Song{}, &entity.Tag{}, &entity.ArtistTag{}, &entity.SongTag{}, &entity.AuditLog{}, &entity.SystemLog{}); err != nil {
+	if err := db.AutoMigrate(&entity.Artist{}, &entity.Song{}, &entity.Tag{}, &entity.ArtistTag{}, &entity.SongTag{}, &entity.AuditLog{}, &entity.SystemLog{}, &entity.AlertStateRecord{}); err != nil {
 		return fmt.Errorf("migrate admin tables: %w", err)
 	}
 	// review_status導入前から存在するSongは、管理者確認済みの既存

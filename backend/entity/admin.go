@@ -123,3 +123,17 @@ type SystemLog struct {
 	UserAgent       string          `json:"user_agent,omitempty" gorm:"size:500"`
 	CreatedAt       time.Time       `json:"created_at" gorm:"index"`
 }
+
+type AlertStateRecord struct {
+	ID                 uuid.UUID  `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Code               string     `json:"code" gorm:"size:64;not null;uniqueIndex"`
+	Severity           string     `json:"severity" gorm:"size:16;not null"`
+	Status             string     `json:"status" gorm:"size:16;not null;index"`
+	Message            string     `json:"message" gorm:"size:500;not null"`
+	Value              float64    `json:"value"`
+	Threshold          float64    `json:"threshold"`
+	LastNotifiedAt     *time.Time `json:"last_notified_at,omitempty"`
+	LastNotifiedStatus string     `json:"last_notified_status,omitempty" gorm:"size:16"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
