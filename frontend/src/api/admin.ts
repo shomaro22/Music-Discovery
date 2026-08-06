@@ -9,6 +9,8 @@ import type {
   SpotifySearchResponse,
   SpotifyTrackSearchItem,
   SystemLog,
+  MonitoringMetrics,
+  AlertResponse,
   Tag,
   TagRef,
 } from "../types/admin";
@@ -108,3 +110,6 @@ export const searchSpotifyTracks = (query: string, limit = 10) =>
     `/api/admin/spotify/tracks?${qs({ q: query, limit })}`,
     { method: "GET" },
   );
+
+export const getMonitoringMetrics = () => request<MonitoringMetrics>("/api/system/metrics", { method: "GET" });
+export const getMonitoringAlerts = () => request<AlertResponse>("/api/system/alerts", { method: "GET" });

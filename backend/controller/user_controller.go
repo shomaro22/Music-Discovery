@@ -241,6 +241,8 @@ func cookieName(envName, fallback string) string {
 }
 
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
+	ctx.Set(middleware.SystemLogErrorCodeKey, code)
+	ctx.Set(middleware.SystemLogMessageKey, message)
 	return ctx.JSON(status, entity.APIErrorResponse{
 		Status:    status,
 		Code:      code,

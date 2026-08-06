@@ -134,6 +134,9 @@ type AuditLogListResponse struct {
 }
 type SystemLogListResponse struct {
 	ID              uuid.UUID  `json:"id"`
+	Environment     string     `json:"environment"`
+	Service         string     `json:"service"`
+	Version         string     `json:"version"`
 	Level           string     `json:"level"`
 	Category        string     `json:"category"`
 	Event           string     `json:"event"`
@@ -255,7 +258,7 @@ func query(in PageInput) (repository.PageQuery, error) {
 	if err != nil {
 		return repository.PageQuery{}, err
 	}
-	if !allowed(in.Role, "user", "content_admin", "system_admin") || !allowed(in.Status, "active", "suspended") || !allowed(in.Level, "debug", "info", "warn", "error", "fatal") || !allowed(in.Category, "application", "http", "database", "redis", "auth", "external_service", "recommendation", "job", "transaction") || (in.Method != "" && func() bool { _, ok := allowedHTTPMethods[strings.ToUpper(in.Method)]; return !ok }()) || (in.StatusCode != nil && (*in.StatusCode < 100 || *in.StatusCode > 599)) {
+	if !allowed(in.Role, "user", "content_admin", "system_admin") || !allowed(in.Status, "active", "suspended") || !allowed(in.Level, "debug", "info", "warn", "error", "fatal") || !allowed(in.Category, "application", "access", "security", "http", "database", "redis", "auth", "external_service", "recommendation", "job", "transaction") || (in.Method != "" && func() bool { _, ok := allowedHTTPMethods[strings.ToUpper(in.Method)]; return !ok }()) || (in.StatusCode != nil && (*in.StatusCode < 100 || *in.StatusCode > 599)) {
 		return repository.PageQuery{}, entity.ErrInvalidInput
 	}
 	if in.TagCategory != "" {

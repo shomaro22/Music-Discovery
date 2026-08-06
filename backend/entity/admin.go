@@ -101,6 +101,9 @@ type AuditLog struct {
 
 type SystemLog struct {
 	ID              uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Environment     string          `json:"environment" gorm:"size:32;index"`
+	Service         string          `json:"service" gorm:"size:100;index"`
+	Version         string          `json:"version" gorm:"size:100;index"`
 	Level           string          `json:"level" gorm:"size:16;not null;index"`
 	Category        string          `json:"category" gorm:"size:32;not null;index"`
 	Event           string          `json:"event" gorm:"size:64;not null;index"`

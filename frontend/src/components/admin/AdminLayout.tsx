@@ -4,7 +4,7 @@ import { ApiRequestError } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import { ROLE } from "../../constants/role";
 
-type AdminSection = "artists" | "songs" | "tags" | "users" | "audit" | "logs";
+type AdminSection = "artists" | "songs" | "tags" | "users" | "audit" | "logs" | "monitoring";
 
 interface AdminLayoutProps {
   title: string;
@@ -23,6 +23,7 @@ const systemItems: Array<{ id: AdminSection; label: string }> = [
   { id: "users", label: "Users" },
   { id: "audit", label: "Audit Log" },
   { id: "logs", label: "System Log" },
+  { id: "monitoring", label: "Monitoring" },
 ];
 
 export function AdminLayout({ title, activeSection, onSectionChange, children }: AdminLayoutProps) {

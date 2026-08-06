@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"music-discovery/backend/controller"
 	"music-discovery/backend/entity"
 	appMiddleware "music-discovery/backend/middleware"
+	"music-discovery/backend/usecase"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -173,6 +175,8 @@ func newRoleTestRouter() (*echo.Echo, *routerUserControllerStub, *routerAdminMan
 		admins,
 		admins,
 		admins,
+		controller.NewMonitoringController(usecase.NewMetricsUsecase(0, "test"), "test"),
+		usecase.NewMetricsUsecase(0, "test"),
 		passRateLimit{},
 		auth,
 	)

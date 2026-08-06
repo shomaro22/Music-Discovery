@@ -10,6 +10,7 @@ import (
 	"music-discovery/backend/entity"
 	"music-discovery/backend/middleware"
 	appMiddleware "music-discovery/backend/middleware"
+	"music-discovery/backend/usecase"
 
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
@@ -37,13 +38,15 @@ func NewRouter(
 	userAdminController controller.IUserAdminController,
 	roleAdminController controller.IRoleAdminController,
 	logAdminController controller.ILogAdminController,
+	monitoringController controller.IMonitoringController,
+	metrics usecase.IMetricsUsecase,
 	rateLimit middleware.IRateLimitMiddleware,
 	authMiddleware middleware.IAuthMiddleware,
 ) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = appMiddleware.NewHTTPErrorHandler(logger)
-	e.Use(echoMiddleware.RequestID(), echoMiddleware.Recover(), echoMiddleware.Logger(), echoMiddleware.Secure())
+	e.Use(appMiddleware.NewRequestIDMiddleware(), echoMiddleware.Recover(), echoMiddleware.Logger(), echoMiddleware.Secure(), appMiddleware.NewMetricsMiddleware(metrics))
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 		AllowOrigins:     loadAllowedOrigins(),
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
@@ -57,6 +60,9 @@ func NewRouter(
 	systemAdminOnly := mustRoleMiddleware(logger, entity.RoleSystemAdmin)
 	csrf := appMiddleware.NewCSRFMiddleware(os.Getenv("CSRF_COOKIE_NAME"))
 	requireJSON := appMiddleware.NewRequireJSONMiddleware()
+
+	e.GET("/health", monitoringController.Health)
+	e.GET("/ready", monitoringController.Ready)
 
 	publicAuth := e.Group("/api/auth")
 	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, requireJSON)
@@ -86,7 +92,7 @@ func NewRouter(
 	registerContentAdminRoutes(content, artistAdminController, songAdminController, tagAdminController, spotifyAdminController)
 
 	system := e.Group("/api/system", authMiddleware.Authenticate, systemAdminOnly.Authorize)
-	registerSystemAdminRoutes(system, userAdminController, roleAdminController, logAdminController)
+	registerSystemAdminRoutes(system, userAdminController, roleAdminController, logAdminController, monitoringController)
 
 	return e
 }
@@ -134,6 +140,7 @@ func registerSystemAdminRoutes(
 	userController controller.IUserAdminController,
 	roleController controller.IRoleAdminController,
 	logController controller.ILogAdminController,
+	monitoringController controller.IMonitoringController,
 ) {
 	group.GET("/users", userController.ListUsers)
 	group.GET("/users/:userId", userController.GetUser)
@@ -145,6 +152,8 @@ func registerSystemAdminRoutes(
 	group.GET("/audit-logs/:auditLogId", logController.GetAuditLog)
 	group.GET("/logs", logController.ListSystemLogs)
 	group.GET("/logs/:logId", logController.GetSystemLog)
+	group.GET("/metrics", monitoringController.Metrics)
+	group.GET("/alerts", monitoringController.Alerts)
 }
 
 func loadAllowedOrigins() []string {
