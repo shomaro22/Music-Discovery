@@ -60,6 +60,7 @@ type RecommendationConfig struct {
 	AlgorithmVersion    string
 	WeightConfigVersion string
 	MinimumMatchScore   float64
+	MinimumContactScore float64
 	ScoreWeights        RecommendationScoreWeights
 }
 

@@ -4,21 +4,18 @@ import (
 	"context"
 
 	"music-discovery/backend/entity"
+	"music-discovery/backend/repository"
 )
-
-type ISystemLogRepository interface {
-	CreateSystemLog(context.Context, *entity.SystemLog) error
-}
 
 type ISystemLogUsecase interface {
 	CreateSystemLog(context.Context, *entity.SystemLog) error
 }
 
 type systemLogUsecase struct {
-	repository ISystemLogRepository
+	repository repository.ISystemLogRepository
 }
 
-func NewSystemLogUsecase(repository ISystemLogRepository) ISystemLogUsecase {
+func NewSystemLogUsecase(repository repository.ISystemLogRepository) ISystemLogUsecase {
 	return &systemLogUsecase{repository: repository}
 }
 

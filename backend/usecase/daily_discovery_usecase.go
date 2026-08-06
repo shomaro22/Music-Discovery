@@ -135,27 +135,19 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 		return nil, false, entity.ErrDailyDiscoveryFetchFailed
 	}
 
-	condition, err := u.conditionBuilder.Build(ctx, userID)
+	now := u.clock.Now()
+	condition, err := u.conditionBuilder.Build(ctx, userID, RecommendationConditionPeriod{
+		DuplicateFrom: now.AddDate(0, 0, -u.config.DuplicateDays),
+		RecencyFrom:   now.AddDate(0, 0, -u.config.RecencyDays),
+		To:            now,
+	})
 	if err != nil {
 		if errors.Is(err, entity.ErrQuestionAnswerRequired) || errors.Is(err, entity.ErrUserProfileRequired) {
 			return nil, false, err
 		}
 		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
 	}
-	now := u.clock.Now()
-	excluded, err := u.recommendations.FindRecommendedSongIDs(
-		ctx,
-		userID,
-		now.AddDate(0, 0, -u.config.DuplicateDays),
-		now,
-	)
-	if err != nil {
-		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
-	}
-	condition.ExcludedSongIDs = make(map[uuid.UUID]bool, len(excluded))
-	for _, songID := range excluded {
-		condition.ExcludedSongIDs[songID] = true
-	}
+	excluded := recommendationConditionSongIDs(condition.ExcludedSongIDs)
 	candidates, err := u.recommendations.FindCandidates(
 		ctx,
 		repository.RecommendationCandidateCondition{
@@ -178,17 +170,6 @@ func (u *dailyDiscoveryUsecase) GetToday(ctx context.Context, userID uuid.UUID) 
 	if err != nil {
 		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
 	}
-	recency, err := u.recommendations.FindRecentDisplayCounts(
-		ctx,
-		userID,
-		now.AddDate(0, 0, -u.config.RecencyDays),
-	)
-	if err != nil {
-		return nil, false, entity.ErrDailyDiscoveryGenerateFailed
-	}
-	condition.RecentArtistCounts = recency.ArtistCounts
-	condition.RecentGenreCounts = recency.GenreCounts
-
 	matchRanked, err := u.calculator.Calculate(condition, candidates, entity.RecommendationTypeDailyMatchOne, artistCounts, songCounts)
 	if err != nil {
 		return nil, false, err
@@ -312,7 +293,7 @@ func (u *dailyDiscoveryUsecase) selectChallenge(
 			if selectedSongs[candidate.Data.Song.ID] {
 				continue
 			}
-			if !hasMinimumContact(candidate, condition) {
+			if !hasMinimumContact(candidate, condition, u.config.MinimumContactScore) {
 				continue
 			}
 			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
