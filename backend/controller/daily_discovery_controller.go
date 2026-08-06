@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 	"net/http"
 	"strconv"
@@ -55,6 +56,15 @@ func (c *dailyDiscoveryController) GetToday(x echo.Context) error {
 	v, g, e := c.usecase.GetToday(x.Request().Context(), id)
 	if e != nil {
 		return c.handle(x, e)
+	}
+	if g {
+		x.Set(middleware.SystemLogEventKey, "daily_discovery_generated")
+		for _, detail := range v.Details {
+			if detail.FallbackUsed {
+				x.Set(middleware.SystemLogFallbackUsedKey, true)
+				break
+			}
+		}
 	}
 	return x.JSON(200, dailyResponse(v, g))
 }

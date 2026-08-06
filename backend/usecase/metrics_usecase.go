@@ -28,7 +28,6 @@ type MetricsSnapshot struct {
 	FallbackCount          uint64         `json:"fallback_count"`
 	FeedbackCount          uint64         `json:"feedback_count"`
 	DailyDiscoveryCount    uint64         `json:"daily_discovery_count"`
-	DatabaseErrors         uint64         `json:"database_errors"`
 	SpotifyAPIErrors       uint64         `json:"spotify_api_errors"`
 	RateLimitExceeded      uint64         `json:"rate_limit_exceeded"`
 }
@@ -53,10 +52,21 @@ type MonitoringMetrics struct {
 	GeneratedAt time.Time       `json:"generated_at"`
 }
 
+type requestMetricEvent struct {
+	at       time.Time
+	status   int
+	duration time.Duration
+}
+type counterMetricEvent struct {
+	at   time.Time
+	name string
+}
+
 type IMetricsUsecase interface {
 	RecordRequest(context.Context, int, time.Duration)
 	Increment(context.Context, string)
 	Snapshot(context.Context) MetricsSnapshot
+	WindowSnapshot(context.Context, time.Duration) MetricsSnapshot
 	Monitoring(context.Context) MonitoringMetrics
 	SetDatabaseStatsProvider(func() DatabaseMetrics)
 }
@@ -71,17 +81,26 @@ type metricsUsecase struct {
 	version                      string
 	counters                     map[string]uint64
 	databaseStats                func() DatabaseMetrics
+	requestEvents                []requestMetricEvent
+	counterEvents                []counterMetricEvent
+	now                          func() time.Time
 }
 
 func NewMetricsUsecase(slowThreshold time.Duration, version string) IMetricsUsecase {
 	if slowThreshold <= 0 {
 		slowThreshold = time.Second
 	}
-	return &metricsUsecase{statusCounts: map[int]uint64{}, durationsMs: make([]float64, 0, metricsSampleLimit), slowThreshold: slowThreshold, version: version, counters: map[string]uint64{}}
+	return &metricsUsecase{
+		statusCounts: map[int]uint64{}, durationsMs: make([]float64, 0, metricsSampleLimit),
+		slowThreshold: slowThreshold, version: version, counters: map[string]uint64{},
+		requestEvents: make([]requestMetricEvent, 0, metricsSampleLimit), counterEvents: make([]counterMetricEvent, 0, metricsSampleLimit),
+		now: time.Now,
+	}
 }
 func (u *metricsUsecase) RecordRequest(_ context.Context, status int, duration time.Duration) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	now := u.now().UTC()
 	u.requestCount++
 	u.statusCounts[status]++
 	if status >= 500 {
@@ -97,11 +116,34 @@ func (u *metricsUsecase) RecordRequest(_ context.Context, status int, duration t
 	} else {
 		u.durationsMs = append(u.durationsMs, v)
 	}
+	u.requestEvents = appendRequestWindow(u.requestEvents, requestMetricEvent{at: now, status: status, duration: duration}, now.Add(-alertEvaluationWindow))
 }
 func (u *metricsUsecase) Increment(_ context.Context, name string) {
 	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.counters[name]++
-	u.mu.Unlock()
+	now := u.now().UTC()
+	u.counterEvents = appendCounterWindow(u.counterEvents, counterMetricEvent{at: now, name: name}, now.Add(-alertEvaluationWindow))
+}
+func appendRequestWindow(values []requestMetricEvent, value requestMetricEvent, cutoff time.Time) []requestMetricEvent {
+	first := 0
+	for first < len(values) && values[first].at.Before(cutoff) {
+		first++
+	}
+	if first > 0 {
+		values = append([]requestMetricEvent(nil), values[first:]...)
+	}
+	return append(values, value)
+}
+func appendCounterWindow(values []counterMetricEvent, value counterMetricEvent, cutoff time.Time) []counterMetricEvent {
+	first := 0
+	for first < len(values) && values[first].at.Before(cutoff) {
+		first++
+	}
+	if first > 0 {
+		values = append([]counterMetricEvent(nil), values[first:]...)
+	}
+	return append(values, value)
 }
 func (u *metricsUsecase) SetDatabaseStatsProvider(provider func() DatabaseMetrics) {
 	u.mu.Lock()
@@ -111,13 +153,54 @@ func (u *metricsUsecase) SetDatabaseStatsProvider(provider func() DatabaseMetric
 func (u *metricsUsecase) Snapshot(_ context.Context) MetricsSnapshot {
 	u.mu.RLock()
 	defer u.mu.RUnlock()
+	return snapshotFrom(u.requestCount, u.statusCounts, u.errorCount, u.slowRequestCount, u.durationsMs, u.counters)
+}
+func (u *metricsUsecase) WindowSnapshot(_ context.Context, window time.Duration) MetricsSnapshot {
+	if window <= 0 {
+		window = 5 * time.Minute
+	}
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	cutoff := u.now().UTC().Add(-window)
 	statuses := map[int]uint64{}
-	for k, v := range u.statusCounts {
+	counters := map[string]uint64{}
+	var requests, errors, slow uint64
+	durations := make([]float64, 0)
+	for _, event := range u.requestEvents {
+		if event.at.Before(cutoff) {
+			continue
+		}
+		requests++
+		statuses[event.status]++
+		if event.status >= 500 {
+			errors++
+		}
+		if event.duration >= u.slowThreshold {
+			slow++
+		}
+		durations = append(durations, float64(event.duration.Microseconds())/1000)
+	}
+	for _, event := range u.counterEvents {
+		if !event.at.Before(cutoff) {
+			counters[event.name]++
+		}
+	}
+	return snapshotFrom(requests, statuses, errors, slow, durations, counters)
+}
+func snapshotFrom(requestCount uint64, statusCounts map[int]uint64, errorCount, slowCount uint64, durations []float64, counters map[string]uint64) MetricsSnapshot {
+	statuses := map[int]uint64{}
+	for k, v := range statusCounts {
 		statuses[k] = v
 	}
-	values := append([]float64(nil), u.durationsMs...)
+	values := append([]float64(nil), durations...)
 	sort.Float64s(values)
-	r := MetricsSnapshot{RequestCount: u.requestCount, StatusCounts: statuses, ErrorCount: u.errorCount, SlowRequestCount: u.slowRequestCount, SystemLogSaveFailures: u.counters["system_log_save_failure"], LoginSuccesses: u.counters["login_success"], LoginFailures: u.counters["login_failure"], RecommendationCount: u.counters["recommendation_success"], RecommendationFailures: u.counters["recommendation_failure"], FallbackCount: u.counters["recommendation_fallback"], FeedbackCount: u.counters["feedback_saved"], DailyDiscoveryCount: u.counters["daily_discovery_success"], DatabaseErrors: u.counters["database_error"], SpotifyAPIErrors: u.counters["spotify_api_error"], RateLimitExceeded: u.counters["rate_limit_exceeded"]}
+	r := MetricsSnapshot{
+		RequestCount: requestCount, StatusCounts: statuses, ErrorCount: errorCount, SlowRequestCount: slowCount,
+		SystemLogSaveFailures: counters["system_log_save_failure"], LoginSuccesses: counters["login_success"], LoginFailures: counters["login_failure"],
+		RecommendationCount: counters["recommendation_success"], RecommendationFailures: counters["recommendation_failure"], FallbackCount: counters["recommendation_fallback"],
+		FeedbackCount: counters["feedback_saved"], DailyDiscoveryCount: counters["daily_discovery_success"],
+		SpotifyAPIErrors: counters["spotify_api_error"], RateLimitExceeded: counters["rate_limit_exceeded"],
+	}
 	if r.RequestCount > 0 {
 		r.ErrorRate = float64(r.ErrorCount) / float64(r.RequestCount)
 	}

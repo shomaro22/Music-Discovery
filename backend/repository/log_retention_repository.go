@@ -7,13 +7,9 @@ import (
 	"time"
 )
 
-type ILogRetentionRepository interface {
-	DeleteExpiredSystemLogs(context.Context, time.Time, time.Time) (int64, error)
-	DeleteExpiredAuditLogs(context.Context, time.Time) (int64, error)
-}
 type logRetentionRepository struct{ db *gorm.DB }
 
-func NewLogRetentionRepository(db *gorm.DB) ILogRetentionRepository {
+func NewLogRetentionRepository(db *gorm.DB) *logRetentionRepository {
 	return &logRetentionRepository{db: db}
 }
 func (r *logRetentionRepository) DeleteExpiredSystemLogs(ctx context.Context, standardCutoff, sensitiveCutoff time.Time) (int64, error) {

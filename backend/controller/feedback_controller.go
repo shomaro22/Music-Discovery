@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 
 	"github.com/google/uuid"
@@ -62,6 +63,7 @@ func (c *feedbackController) Save(ctx echo.Context) error {
 	if err != nil {
 		return c.handle(ctx, err)
 	}
+	ctx.Set(middleware.SystemLogEventKey, "feedback_saved")
 	return ctx.JSON(http.StatusOK, SaveFeedbackResponse{
 		FeedbackID:             result.Feedback.ID,
 		RecommendationDetailID: result.Feedback.RecommendationDetailID,

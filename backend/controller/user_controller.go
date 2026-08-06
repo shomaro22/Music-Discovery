@@ -100,6 +100,7 @@ func (c *userController) SignUp(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Set(middleware.SystemLogEventKey, "signup_succeeded")
 	return ctx.JSON(http.StatusCreated, SignUpResponse{
 		AccessToken: result.AccessToken,
 		TokenType:   "Bearer",
@@ -125,6 +126,7 @@ func (c *userController) Login(ctx echo.Context) error {
 	if err != nil {
 		switch {
 		case errors.Is(err, entity.ErrInvalidCredentials):
+			ctx.Set(middleware.SystemLogEventKey, "login_failed")
 			return writeAPIError(ctx, http.StatusUnauthorized, "INVALID_CREDENTIALS", "メールアドレスまたはパスワードが正しくありません。")
 		case errors.Is(err, entity.ErrUserSuspended):
 			return writeAPIError(ctx, http.StatusForbidden, "USER_SUSPENDED", "このアカウントは現在利用できません。")
@@ -135,6 +137,7 @@ func (c *userController) Login(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Set(middleware.SystemLogEventKey, "login_succeeded")
 	return ctx.JSON(http.StatusOK, LoginResponse{
 		AccessToken: result.AccessToken,
 		TokenType:   "Bearer", ExpiresIn: result.ExpiresIn,
@@ -172,6 +175,7 @@ func (c *userController) Refresh(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Set(middleware.SystemLogEventKey, "refresh_token_rotated")
 	return ctx.JSON(http.StatusOK, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn})
 }
 
@@ -243,6 +247,18 @@ func cookieName(envName, fallback string) string {
 func writeAPIError(ctx echo.Context, status int, code, message string) error {
 	ctx.Set(middleware.SystemLogErrorCodeKey, code)
 	ctx.Set(middleware.SystemLogMessageKey, message)
+	path := ctx.Request().URL.Path
+	if ctx.Get(middleware.SystemLogEventKey) == nil {
+		switch {
+		case strings.Contains(path, "/recommendations") && ctx.Request().Method == http.MethodPost:
+			ctx.Set(middleware.SystemLogEventKey, "recommendation_failed")
+		case strings.Contains(path, "/daily-discovery"):
+			ctx.Set(middleware.SystemLogEventKey, "daily_discovery_failed")
+		case strings.Contains(path, "/spotify/"):
+			ctx.Set(middleware.SystemLogEventKey, "spotify_api_failed")
+			ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
+		}
+	}
 	return ctx.JSON(status, entity.APIErrorResponse{
 		Status:    status,
 		Code:      code,

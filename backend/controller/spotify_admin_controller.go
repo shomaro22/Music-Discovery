@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"music-discovery/backend/entity"
+	"music-discovery/backend/middleware"
 	"music-discovery/backend/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -82,6 +83,11 @@ func (c *spotifyAdminController) SearchArtists(ctx echo.Context) error {
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.SearchArtists(ctx.Request().Context(), query, limit)
+	if err != nil {
+		ctx.Set(middleware.SystemLogEventKey, "spotify_api_failed")
+		ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
+		ctx.Set(middleware.SystemLogSpotifyErrorKey, true)
+	}
 	return adminJSON(ctx, http.StatusOK, spotifyArtistSearchResponse(value), err)
 }
 
@@ -91,6 +97,11 @@ func (c *spotifyAdminController) SearchTracks(ctx echo.Context) error {
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.SearchTracks(ctx.Request().Context(), query, limit)
+	if err != nil {
+		ctx.Set(middleware.SystemLogEventKey, "spotify_api_failed")
+		ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
+		ctx.Set(middleware.SystemLogSpotifyErrorKey, true)
+	}
 	return adminJSON(ctx, http.StatusOK, spotifyTrackSearchResponse(value), err)
 }
 

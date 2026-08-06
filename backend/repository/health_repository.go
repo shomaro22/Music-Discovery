@@ -8,18 +8,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type IHealthCheckRepository interface {
-	PingPostgres(context.Context) error
-	PingRedis(context.Context) error
-	DatabaseStats() sql.DBStats
-}
-
 type healthCheckRepository struct {
 	postgres *sql.DB
 	redis    *redis.Client
 }
 
-func NewHealthCheckRepository(postgres *gorm.DB, redisClient *redis.Client) (IHealthCheckRepository, error) {
+func NewHealthCheckRepository(postgres *gorm.DB, redisClient *redis.Client) (*healthCheckRepository, error) {
 	sqlDB, err := postgres.DB()
 	if err != nil {
 		return nil, err

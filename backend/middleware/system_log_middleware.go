@@ -24,15 +24,18 @@ const (
 	SystemLogExternalServiceKey = "system_log_external_service"
 	SystemLogErrorDetailKey     = "system_log_error_detail"
 	SystemLogCategoryKey        = "system_log_category"
+	SystemLogFallbackUsedKey    = "system_log_fallback_used"
+	SystemLogSpotifyErrorKey    = "system_log_spotify_error"
 )
 
 type SystemLogConfig struct {
-	Environment string
-	Service     string
-	Version     string
-	Logger      *slog.Logger
-	Metrics     usecase.IMetricsUsecase
-	SaveTimeout time.Duration
+	Environment   string
+	Service       string
+	Version       string
+	Logger        *slog.Logger
+	Metrics       usecase.IMetricsUsecase
+	SaveTimeout   time.Duration
+	SlowThreshold time.Duration
 }
 
 func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase, configs ...SystemLogConfig) echo.MiddlewareFunc {
@@ -42,6 +45,9 @@ func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase, configs ...SystemL
 	}
 	if config.SaveTimeout <= 0 {
 		config.SaveTimeout = 2 * time.Second
+	}
+	if config.SlowThreshold <= 0 {
+		config.SlowThreshold = time.Second
 	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) (err error) {
@@ -83,18 +89,51 @@ func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase, configs ...SystemL
 			if event == "request_completed" && status >= 400 {
 				switch status {
 				case http.StatusUnauthorized:
-					event, code, message = "authentication_failed", "UNAUTHORIZED", "authentication failed"
+					event = "authentication_failed"
+					if code == "" {
+						code = "UNAUTHORIZED"
+					}
+					if message == "" || message == "request completed" {
+						message = "authentication failed"
+					}
 				case http.StatusForbidden:
-					event, code, message = "authorization_denied", "FORBIDDEN", "authorization denied"
+					event = "authorization_denied"
+					if code == "" {
+						code = "FORBIDDEN"
+					}
+					if message == "" || message == "request completed" {
+						message = "authorization denied"
+					}
 				case http.StatusTooManyRequests:
-					event, code, message = "rate_limit_exceeded", "RATE_LIMITED", "rate limit exceeded"
+					event = "rate_limit_exceeded"
+					if code == "" {
+						code = "RATE_LIMITED"
+					}
+					if message == "" || message == "request completed" {
+						message = "rate limit exceeded"
+					}
 				default:
 					if status >= 500 {
-						event, code, message = "server_error", "INTERNAL_ERROR", "server error"
+						event = "server_error"
+						if code == "" {
+							code = "INTERNAL_ERROR"
+						}
+						if message == "" || message == "request completed" {
+							message = "server error"
+						}
 					} else {
-						event, code, message = "client_error", http.StatusText(status), "client request failed"
+						event = "client_error"
+						if code == "" {
+							code = http.StatusText(status)
+						}
+						if message == "" || message == "request completed" {
+							message = "client request failed"
+						}
 					}
 				}
+			}
+			if status < 400 && event == "request_completed" && time.Since(startedAt) >= config.SlowThreshold {
+				event, message = "slow_request", "request exceeded slow request threshold"
 			}
 			persistSystemLog(ctx, writer, config, status, event, code, message, "")
 			return err
@@ -119,7 +158,7 @@ func persistSystemLog(ctx echo.Context, writer usecase.ISystemLogUsecase, config
 	defer cancel()
 	err := writer.CreateSystemLog(saveCtx, &entity.SystemLog{
 		ID: uuid.New(), Environment: config.Environment, Service: config.Service, Version: config.Version,
-		Level: levelForStatus(status), Category: systemLogCategory(ctx, event), Event: event, ErrorCode: code,
+		Level: levelForEvent(status, event), Category: systemLogCategory(ctx, event), Event: event, ErrorCode: code,
 		Message: message, RequestID: requestID, UserID: userID, Method: ctx.Request().Method, Path: ctx.Request().URL.Path,
 		StatusCode: status, ExternalService: contextString(ctx, SystemLogExternalServiceKey), DurationMs: durationMilliseconds(ctx),
 		ErrorDetail: contextString(ctx, SystemLogErrorDetailKey), Metadata: metadata, StackTrace: stack,
@@ -134,18 +173,21 @@ func persistSystemLog(ctx echo.Context, writer usecase.ISystemLogUsecase, config
 		}
 	}
 	if config.Metrics != nil {
-		recordEventMetric(config.Metrics, event, status)
+		recordEventMetric(config.Metrics, ctx, event)
+		if used, _ := ctx.Get(SystemLogFallbackUsedKey).(bool); used {
+			config.Metrics.Increment(context.Background(), "recommendation_fallback")
+		}
 	}
 }
 
 func isMonitoringPath(path string) bool {
 	return path == "/health" || path == "/ready" || path == "/api/system/metrics" || path == "/api/system/alerts"
 }
-func recordEventMetric(metrics usecase.IMetricsUsecase, event string, status int) {
+func recordEventMetric(metrics usecase.IMetricsUsecase, ctx echo.Context, event string) {
 	switch event {
 	case "login_succeeded":
 		metrics.Increment(context.Background(), "login_success")
-	case "authentication_failed":
+	case "login_failed":
 		metrics.Increment(context.Background(), "login_failure")
 	case "recommendation_succeeded":
 		metrics.Increment(context.Background(), "recommendation_success")
@@ -159,15 +201,16 @@ func recordEventMetric(metrics usecase.IMetricsUsecase, event string, status int
 		metrics.Increment(context.Background(), "daily_discovery_success")
 	case "rate_limit_exceeded":
 		metrics.Increment(context.Background(), "rate_limit_exceeded")
-	case "spotify_api_failed", "spotify_api_rate_limited":
-		metrics.Increment(context.Background(), "spotify_api_error")
 	}
-	if status >= 500 {
-		metrics.Increment(context.Background(), "database_error")
+	if spotifyError, _ := ctx.Get(SystemLogSpotifyErrorKey).(bool); spotifyError {
+		metrics.Increment(context.Background(), "spotify_api_error")
 	}
 }
 
-func levelForStatus(status int) string {
+func levelForEvent(status int, event string) string {
+	if event == "slow_request" {
+		return "warn"
+	}
 	if status >= 500 {
 		return "error"
 	}
@@ -188,6 +231,15 @@ func durationMilliseconds(ctx echo.Context) int64 {
 	}
 	return time.Since(startedAt).Milliseconds()
 }
+func systemLogCategoryForEvent(event string) string {
+	switch event {
+	case "database_connection_failed", "database_query_failed", "database_transaction_failed":
+		return "database"
+	default:
+		return ""
+	}
+}
+
 func systemLogCategory(ctx echo.Context, event string) string {
 	if value := contextString(ctx, SystemLogCategoryKey); value != "" {
 		return value
