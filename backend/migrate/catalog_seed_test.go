@@ -37,6 +37,31 @@ func TestSystemTagSeedsFollowQuestionChoices(t *testing.T) {
 	}
 }
 
+func TestCuratedSubgenreTagSeedsAreIndependentFromProfileTags(t *testing.T) {
+	profileTags := systemTagSeeds()
+	allTags := allTagSeeds()
+
+	if len(profileTags) != 26 {
+		t.Fatalf("profile tag seed count = %d, want 26", len(profileTags))
+	}
+	if len(allTags) != 36 {
+		t.Fatalf("all tag seed count = %d, want 36", len(allTags))
+	}
+
+	names := map[string]bool{}
+	slugs := map[string]bool{}
+	for _, value := range allTags {
+		if names[value.Name] {
+			t.Fatalf("duplicated tag name: %s", value.Name)
+		}
+		if slugs[value.Slug] {
+			t.Fatalf("duplicated tag slug: %s", value.Slug)
+		}
+		names[value.Name] = true
+		slugs[value.Slug] = true
+	}
+}
+
 func TestDevelopmentCatalogTagDistributionCoversEveryProfileTag(t *testing.T) {
 	usage := map[string]int{}
 	for index, seed := range developmentCatalogSeeds {

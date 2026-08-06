@@ -212,6 +212,9 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 			if selectedSongs[candidate.Data.Song.ID] {
 				continue
 			}
+			if !candidateAllowedForRecommendationType(candidate, kind, stage) {
+				continue
+			}
 			contact := hasMinimumContact(candidate, condition, u.config.MinimumContactScore)
 			genreMatch := candidateMatchesGenres(candidate.Data, condition.Genres)
 			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
@@ -265,6 +268,46 @@ func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entit
 		}
 	}
 	return SongCandidate{}, 0, false
+}
+
+// candidateAllowedForRecommendationType keeps automatically imported
+// Spotify candidates away from the high-confidence slot.
+//
+// APPROVED songs are available to every slot.
+// AUTO_APPROVED songs are:
+//   - excluded from YOUR_MATCH,
+//   - used by NEW_FAVORITE only at the final fallback stage,
+//   - available to TRY_SOMETHING_NEW, whose purpose is exploration.
+//
+// This prevents a newly imported, unfamiliar artist from becoming the user's
+// primary match merely because its inferred tags and novelty score are high.
+func candidateAllowedForRecommendationType(
+	candidate SongCandidate,
+	kind entity.RecommendationType,
+	stage int,
+) bool {
+	status := candidate.Data.Song.ReviewStatus
+
+	// Older test fixtures and legacy in-memory candidates may not set the
+	// status. The entity's historical default is APPROVED, so preserve that
+	// behavior outside persisted repository results.
+	if status == "" || status == entity.ContentReviewStatusApproved {
+		return true
+	}
+	if status != entity.ContentReviewStatusAutoApproved {
+		return false
+	}
+
+	switch kind {
+	case entity.RecommendationTypeYourMatch:
+		return false
+	case entity.RecommendationTypeNewFavorite:
+		return stage >= 2
+	case entity.RecommendationTypeTrySomethingNew:
+		return true
+	default:
+		return false
+	}
 }
 
 func minimumContactScore(candidate SongCandidate, condition RecommendationCondition) float64 {

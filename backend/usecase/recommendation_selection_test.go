@@ -171,3 +171,90 @@ func TestTrySomethingNewNeverSelectsCurrentRecommendationArtist(t *testing.T) {
 		t.Fatalf("selected artist=%v want=%v", got.Data.Artist.ID, otherArtist)
 	}
 }
+
+func TestCandidateAllowedForRecommendationTypeKeepsAutoApprovedOutOfYourMatch(t *testing.T) {
+	candidate := discoveryCandidate(uuid.New(), uuid.New(), "rock")
+	candidate.Data.Song.ReviewStatus = entity.ContentReviewStatusAutoApproved
+
+	for stage := 0; stage < 3; stage++ {
+		if candidateAllowedForRecommendationType(
+			candidate,
+			entity.RecommendationTypeYourMatch,
+			stage,
+		) {
+			t.Fatalf("AUTO_APPROVED candidate must not be allowed for YOUR_MATCH at stage %d", stage)
+		}
+	}
+}
+
+func TestCandidateAllowedForRecommendationTypePrefersApprovedForNewFavorite(t *testing.T) {
+	autoApproved := discoveryCandidate(uuid.New(), uuid.New(), "rock")
+	autoApproved.Data.Song.ReviewStatus = entity.ContentReviewStatusAutoApproved
+
+	if candidateAllowedForRecommendationType(
+		autoApproved,
+		entity.RecommendationTypeNewFavorite,
+		0,
+	) {
+		t.Fatal("AUTO_APPROVED candidate must not be used by NEW_FAVORITE strict stage")
+	}
+	if candidateAllowedForRecommendationType(
+		autoApproved,
+		entity.RecommendationTypeNewFavorite,
+		1,
+	) {
+		t.Fatal("AUTO_APPROVED candidate must not be used by NEW_FAVORITE relaxed stage")
+	}
+	if !candidateAllowedForRecommendationType(
+		autoApproved,
+		entity.RecommendationTypeNewFavorite,
+		2,
+	) {
+		t.Fatal("AUTO_APPROVED candidate should be available to NEW_FAVORITE final fallback")
+	}
+}
+
+func TestCandidateAllowedForRecommendationTypeAllowsAutoApprovedForTrySomethingNew(t *testing.T) {
+	candidate := discoveryCandidate(uuid.New(), uuid.New(), "rock")
+	candidate.Data.Song.ReviewStatus = entity.ContentReviewStatusAutoApproved
+
+	if !candidateAllowedForRecommendationType(
+		candidate,
+		entity.RecommendationTypeTrySomethingNew,
+		0,
+	) {
+		t.Fatal("AUTO_APPROVED candidate should be allowed for TRY_SOMETHING_NEW")
+	}
+}
+
+func TestPickCandidateYourMatchSkipsHigherScoredAutoApprovedSong(t *testing.T) {
+	autoApproved := discoveryCandidate(uuid.New(), uuid.New(), "rock")
+	autoApproved.Data.Song.ReviewStatus = entity.ContentReviewStatusAutoApproved
+	autoApproved.Score.Total = 100
+
+	approved := discoveryCandidate(uuid.New(), uuid.New(), "rock")
+	approved.Data.Song.ReviewStatus = entity.ContentReviewStatusApproved
+	approved.Score.Total = 10
+
+	condition := RecommendationCondition{
+		Genres:         []string{"rock"},
+		DiscoveryLevel: "low",
+	}
+
+	got, _, ok := selectionUsecase().pickCandidate(
+		[]SongCandidate{autoApproved, approved},
+		entity.RecommendationTypeYourMatch,
+		condition,
+		map[uuid.UUID]int64{},
+		map[uuid.UUID]int64{},
+		map[uuid.UUID]bool{},
+		map[uuid.UUID]bool{},
+		true,
+	)
+	if !ok {
+		t.Fatal("expected an APPROVED YOUR_MATCH candidate")
+	}
+	if got.Data.Song.ID != approved.Data.Song.ID {
+		t.Fatalf("selected song=%s, want approved song=%s", got.Data.Song.ID, approved.Data.Song.ID)
+	}
+}

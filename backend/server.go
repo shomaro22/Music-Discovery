@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
 	"music-discovery/backend/controller"
 	"music-discovery/backend/db"
@@ -75,17 +76,38 @@ func start(ctx context.Context) error {
 	spotifyClient, err := spotify.NewClient(spotify.Config{
 		ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
 		ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+		Market:       envString("SPOTIFY_MARKET", "JP"),
 	})
 	if err != nil {
 		return fmt.Errorf("spotify client: %w", err)
 	}
 	spotifyCandidateRepository := repository.NewSpotifyCandidateRepository(postgres)
+	if os.Getenv("SEED_CURATED_CATALOG") == "true" {
+		curatedCatalogUsecase := usecase.NewCuratedCatalogImportUsecase(
+			spotifyClient,
+			repository.NewCuratedCatalogRepository(postgres),
+		)
+		result, importErr := curatedCatalogUsecase.Import(ctx, usecase.DefaultCuratedCatalogSeeds())
+		if importErr != nil {
+			return fmt.Errorf("seed curated catalog: %w", importErr)
+		}
+		logger.Info(
+			"curated catalog seed completed",
+			"defined", result.Defined,
+			"existing", result.Existing,
+			"imported", result.Imported,
+			"not_found", result.NotFound,
+		)
+	}
 	spotifyCandidateImportUsecase := usecase.NewSpotifyCandidateImportUsecase(
 		spotifyClient,
 		spotifyCandidateRepository,
 		usecase.SpotifyCandidateImportConfig{
-			SearchLimit: envPositiveInt("SPOTIFY_CANDIDATE_SEARCH_LIMIT", 10),
-			MaxQueries:  envPositiveInt("SPOTIFY_CANDIDATE_MAX_QUERIES", 3),
+			SearchLimit:        envPositiveInt("SPOTIFY_CANDIDATE_SEARCH_LIMIT", 10),
+			MaxQueries:         envPositiveInt("SPOTIFY_CANDIDATE_MAX_QUERIES", 3),
+			MinimumPopularity:  envNonNegativeInt("SPOTIFY_CANDIDATE_MIN_POPULARITY", 35),
+			MaxTracksPerArtist: envPositiveInt("SPOTIFY_CANDIDATE_MAX_TRACKS_PER_ARTIST", 2),
+			MaxPagesPerQuery:   envPositiveInt("SPOTIFY_CANDIDATE_MAX_PAGES_PER_QUERY", 3),
 		},
 	)
 
@@ -169,6 +191,22 @@ func start(ctx context.Context) error {
 func envPositiveInt(name string, fallback int) int {
 	value, err := strconv.Atoi(os.Getenv(name))
 	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func envNonNegativeInt(name string, fallback int) int {
+	value, err := strconv.Atoi(os.Getenv(name))
+	if err != nil || value < 0 {
+		return fallback
+	}
+	return value
+}
+
+func envString(name, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
 		return fallback
 	}
 	return value

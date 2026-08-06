@@ -21,6 +21,7 @@ type Config struct {
 	ClientSecret string
 	AccountsURL  string
 	APIURL       string
+	Market       string
 	Timeout      time.Duration
 }
 
@@ -165,6 +166,9 @@ func (c *client) search(ctx context.Context, query, kind string, limit, offset i
 	values.Set("type", kind)
 	values.Set("limit", strconv.Itoa(limit))
 	values.Set("offset", strconv.Itoa(offset))
+	if market := strings.ToUpper(strings.TrimSpace(c.config.Market)); market != "" {
+		values.Set("market", market)
+	}
 	endpoint.RawQuery = values.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {

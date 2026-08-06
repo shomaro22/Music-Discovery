@@ -12,8 +12,11 @@ import (
 )
 
 type SpotifyCandidateImportConfig struct {
-	SearchLimit int
-	MaxQueries  int
+	SearchLimit        int
+	MaxQueries         int
+	MinimumPopularity  int
+	MaxTracksPerArtist int
+	MaxPagesPerQuery   int
 }
 
 type SpotifyCandidateImportResult struct {
@@ -45,11 +48,24 @@ func (u *spotifyCandidateImportUsecase) Import(ctx context.Context, genres []str
 		limit = 10
 	}
 
-	// Search farther than the first page when the popular results already exist
-	// in the database. Five pages means at most 50 tracks per query.
-	const maxPagesPerQuery = 5
+	minimumPopularity := u.config.MinimumPopularity
+	if minimumPopularity < 0 || minimumPopularity > 100 {
+		minimumPopularity = 35
+	}
+	maxTracksPerArtist := u.config.MaxTracksPerArtist
+	if maxTracksPerArtist <= 0 {
+		maxTracksPerArtist = 2
+	}
+	maxPagesPerQuery := u.config.MaxPagesPerQuery
+	if maxPagesPerQuery <= 0 {
+		maxPagesPerQuery = 3
+	}
+	if maxPagesPerQuery > 10 {
+		maxPagesPerQuery = 10
+	}
 
 	byTrackID := make(map[string]entity.SpotifyCandidate)
+	artistTrackCounts := make(map[string]int)
 	processed := 0
 	for _, query := range queries {
 		tagSlugs := spotifyCandidateTagSlugs(query)
@@ -79,7 +95,11 @@ func (u *spotifyCandidateImportUsecase) Import(ctx context.Context, genres []str
 			for _, track := range result.Items {
 				_, alreadyExists := existingIDs[track.ID]
 				candidate, ok := spotifyTrackCandidate(track)
-				if !ok {
+				if !ok || !spotifyTrackMeetsImportQuality(track, minimumPopularity) {
+					continue
+				}
+				artistID := strings.TrimSpace(candidate.Artist.SpotifyArtistID)
+				if _, found := byTrackID[track.ID]; !found && artistTrackCounts[artistID] >= maxTracksPerArtist {
 					continue
 				}
 				candidate.TagSlugs = append([]string(nil), tagSlugs...)
@@ -87,6 +107,7 @@ func (u *spotifyCandidateImportUsecase) Import(ctx context.Context, genres []str
 					candidate.TagSlugs = mergeStrings(existing.TagSlugs, candidate.TagSlugs)
 				} else if !alreadyExists {
 					newOnPage++
+					artistTrackCounts[artistID]++
 				}
 				byTrackID[track.ID] = candidate
 			}
@@ -105,7 +126,7 @@ func (u *spotifyCandidateImportUsecase) Import(ctx context.Context, genres []str
 	values := make([]entity.SpotifyCandidate, 0, len(byTrackID))
 	for _, value := range byTrackID {
 		value.Song.ReviewStatus = entity.ContentReviewStatusPending
-		if isHighConfidenceSpotifyCandidate(value) {
+		if isHighConfidenceSpotifyCandidate(value) && value.Song.Popularity >= minimumPopularity {
 			value.Song.ReviewStatus = entity.ContentReviewStatusAutoApproved
 		}
 		values = append(values, value)
@@ -190,6 +211,19 @@ func spotifyTrackCandidate(track spotify.Track) (entity.SpotifyCandidate, bool) 
 			Explicit:       track.Explicit,
 		},
 	}, true
+}
+
+func spotifyTrackMeetsImportQuality(track spotify.Track, minimumPopularity int) bool {
+	if track.Popularity < minimumPopularity {
+		return false
+	}
+	title := strings.ToLower(strings.TrimSpace(track.Name))
+	for _, marker := range []string{"skit", "interlude", "intro", "outro"} {
+		if strings.Contains(title, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 func parseSpotifyReleaseDate(value string) time.Time {
