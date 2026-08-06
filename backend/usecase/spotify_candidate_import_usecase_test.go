@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"music-discovery/backend/entity"
+	"music-discovery/backend/spotify"
 )
 
 func TestSpotifyCandidateQueriesNormalizesQuestionChoiceCodes(t *testing.T) {
@@ -120,5 +121,52 @@ func TestHighConfidenceSpotifyCandidateRequiresContactTag(t *testing.T) {
 	}
 	if isHighConfidenceSpotifyCandidate(value) {
 		t.Fatal("genre-only candidate must remain pending")
+	}
+}
+
+func TestSpotifyTrackMeetsImportQualityRejectsLowPopularityAndNonSongContent(t *testing.T) {
+	base := spotify.Track{Name: "Regular Song", Popularity: 40}
+	if !spotifyTrackMeetsImportQuality(base, 35) {
+		t.Fatal("regular track above threshold must be accepted")
+	}
+
+	lowPopularity := base
+	lowPopularity.Popularity = 34
+	if spotifyTrackMeetsImportQuality(lowPopularity, 35) {
+		t.Fatal("track below popularity threshold must be rejected")
+	}
+
+	for _, title := range []string{"Album Intro", "Leaked Audio - Skit", "Closing Outro", "Short Interlude"} {
+		track := base
+		track.Name = title
+		if spotifyTrackMeetsImportQuality(track, 35) {
+			t.Fatalf("non-song content %q must be rejected", title)
+		}
+	}
+}
+
+func TestHighConfidenceSpotifyCandidateStillRequiresMinimumPopularityAtImportDecision(t *testing.T) {
+	value := entity.SpotifyCandidate{
+		Artist: entity.Artist{
+			SpotifyArtistID: "artist-id",
+			Name:            "Artist",
+			SpotifyURL:      "https://open.spotify.com/artist/artist-id",
+		},
+		Song: entity.Song{
+			SpotifyTrackID: "track-id",
+			Name:           "Song",
+			AlbumName:      "Album",
+			ImageURL:       "https://example.com/artwork.jpg",
+			SpotifyURL:     "https://open.spotify.com/track/track-id",
+			DurationMs:     180000,
+			Popularity:     34,
+		},
+		TagSlugs: []string{"genre-pop", "mood-uplifting", "element-vocal", "atmosphere-bright"},
+	}
+	if !isHighConfidenceSpotifyCandidate(value) {
+		t.Fatal("metadata completeness and popularity threshold are intentionally separate checks")
+	}
+	if value.Song.Popularity >= 35 {
+		t.Fatal("test setup must remain below the automatic approval threshold")
 	}
 }

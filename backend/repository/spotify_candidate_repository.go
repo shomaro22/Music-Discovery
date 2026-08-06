@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -21,9 +22,20 @@ type ISpotifyCandidateRepository interface {
 	UpsertCandidates(context.Context, []entity.SpotifyCandidate) (SpotifyCandidateSaveResult, error)
 }
 
+// ICuratedCatalogRepository persists the trusted, Japan-oriented foundation catalog.
+// It is intentionally separate from automatic Spotify candidate import.
+type ICuratedCatalogRepository interface {
+	FindApprovedSongKeys(context.Context) (map[string]bool, error)
+	UpsertApprovedCandidates(context.Context, []entity.SpotifyCandidate) (int, error)
+}
+
 type spotifyCandidateRepository struct{ db *gorm.DB }
 
 func NewSpotifyCandidateRepository(db *gorm.DB) ISpotifyCandidateRepository {
+	return &spotifyCandidateRepository{db: db}
+}
+
+func NewCuratedCatalogRepository(db *gorm.DB) ICuratedCatalogRepository {
 	return &spotifyCandidateRepository{db: db}
 }
 
@@ -77,6 +89,119 @@ func (r *spotifyCandidateRepository) UpsertCandidates(ctx context.Context, value
 		return SpotifyCandidateSaveResult{}, err
 	}
 	return result, nil
+}
+
+func (r *spotifyCandidateRepository) FindApprovedSongKeys(ctx context.Context) (map[string]bool, error) {
+	type row struct {
+		ArtistName string
+		SongName   string
+	}
+	var rows []row
+	if err := r.db.WithContext(ctx).
+		Table("songs").
+		Select("artists.name AS artist_name, songs.name AS song_name").
+		Joins("JOIN artists ON artists.id = songs.artist_id").
+		Where("songs.deleted_at IS NULL").
+		Where("artists.deleted_at IS NULL").
+		Where("songs.review_status = ?", entity.ContentReviewStatusApproved).
+		Scan(&rows).Error; err != nil {
+		return nil, entity.ErrInternal
+	}
+	result := make(map[string]bool, len(rows))
+	for _, value := range rows {
+		result[curatedSongKey(value.ArtistName, value.SongName)] = true
+	}
+	return result, nil
+}
+
+func (r *spotifyCandidateRepository) UpsertApprovedCandidates(
+	ctx context.Context,
+	values []entity.SpotifyCandidate,
+) (int, error) {
+	if len(values) == 0 {
+		return 0, nil
+	}
+	count := 0
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, value := range values {
+			if err := upsertApprovedCandidate(tx, value); err != nil {
+				return err
+			}
+			count++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func upsertApprovedCandidate(tx *gorm.DB, value entity.SpotifyCandidate) error {
+	artist, _, err := findOrCreateSpotifyArtist(tx, value.Artist)
+	if err != nil {
+		return entity.ErrInternal
+	}
+	if artist.DeletedAt.Valid {
+		if err := tx.Unscoped().Model(&artist).Updates(map[string]interface{}{
+			"deleted_at":  nil,
+			"name":        value.Artist.Name,
+			"image_url":   value.Artist.ImageURL,
+			"spotify_url": value.Artist.SpotifyURL,
+			"popularity":  value.Artist.Popularity,
+		}).Error; err != nil {
+			return entity.ErrInternal
+		}
+	}
+
+	song := value.Song
+	song.ArtistID = artist.ID
+	song.ReviewStatus = entity.ContentReviewStatusApproved
+	if err := tx.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "spotify_track_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"artist_id":     song.ArtistID,
+			"name":          song.Name,
+			"album_name":    song.AlbumName,
+			"image_url":     song.ImageURL,
+			"spotify_url":   song.SpotifyURL,
+			"preview_url":   song.PreviewURL,
+			"duration_ms":   song.DurationMs,
+			"popularity":    song.Popularity,
+			"release_date":  song.ReleaseDate,
+			"explicit":      song.Explicit,
+			"review_status": entity.ContentReviewStatusApproved,
+			"deleted_at":    nil,
+		}),
+	}).Create(&song).Error; err != nil {
+		return entity.ErrInternal
+	}
+	if err := tx.Unscoped().Where("spotify_track_id = ?", song.SpotifyTrackID).First(&song).Error; err != nil {
+		return entity.ErrInternal
+	}
+
+	tags, err := findCandidateTags(tx, value.TagSlugs)
+	if err != nil || !hasRequiredCandidateTags(tags) {
+		return entity.ErrInternal
+	}
+	if err := upsertAutoApprovedSongTags(tx, song.ID, tags); err != nil {
+		return entity.ErrInternal
+	}
+	if err := upsertAutoApprovedArtistTags(tx, artist.ID, tags); err != nil {
+		return entity.ErrInternal
+	}
+	return nil
+}
+
+func curatedSongKey(artist, song string) string {
+	return normalizeCuratedKey(artist) + "|" + normalizeCuratedKey(song)
+}
+
+func normalizeCuratedKey(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	value = strings.ReplaceAll(value, "　", " ")
+	value = strings.ReplaceAll(value, "’", "'")
+	return strings.Join(strings.Fields(value), " ")
 }
 
 func insertSpotifyCandidate(tx *gorm.DB, value entity.SpotifyCandidate) (bool, entity.ContentReviewStatus, error) {

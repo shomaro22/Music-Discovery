@@ -14,6 +14,13 @@ func CreateRecommendationTables(db *gorm.DB) error {
 		return err
 	}
 
+	// A previous AutoMigrate may already have added the new columns as nullable
+	// before failing while applying NOT NULL. Backfill legacy rows first so the
+	// next AutoMigrate can safely tighten the constraints.
+	if err := backfillRecommendationAlgorithmColumns(db); err != nil {
+		return err
+	}
+
 	if err := db.AutoMigrate(
 		&entity.Recommendation{},
 		&entity.RecommendationDetail{},
@@ -109,6 +116,69 @@ func renameLegacyRecommendationTypeColumn(db *gorm.DB) error {
 	if err := db.Exec(statement).Error; err != nil {
 		return fmt.Errorf(
 			"rename legacy recommendation type column: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+func backfillRecommendationAlgorithmColumns(db *gorm.DB) error {
+	const statement = `
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'score_breakdown'
+			) THEN
+				UPDATE recommendation_details
+				SET score_breakdown = '{}'::jsonb
+				WHERE score_breakdown IS NULL;
+
+				ALTER TABLE recommendation_details
+				ALTER COLUMN score_breakdown SET DEFAULT '{}'::jsonb;
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'fallback_used'
+			) THEN
+				UPDATE recommendation_details
+				SET fallback_used = FALSE
+				WHERE fallback_used IS NULL;
+
+				ALTER TABLE recommendation_details
+				ALTER COLUMN fallback_used SET DEFAULT FALSE;
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendations'
+				  AND column_name = 'weight_config_version'
+			) THEN
+				UPDATE recommendations
+				SET weight_config_version = 'weights-v1'
+				WHERE weight_config_version IS NULL
+				   OR BTRIM(weight_config_version) = '';
+
+				ALTER TABLE recommendations
+				ALTER COLUMN weight_config_version SET DEFAULT 'weights-v1';
+			END IF;
+		END
+		$$;
+	`
+
+	if err := db.Exec(statement).Error; err != nil {
+		return fmt.Errorf(
+			"backfill recommendation algorithm columns: %w",
 			err,
 		)
 	}

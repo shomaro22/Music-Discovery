@@ -71,3 +71,33 @@ func TestNewClientWithoutCredentialsReturnsUnavailableClient(t *testing.T) {
 		t.Fatalf("SearchTracks error = %v, want ErrUnavailable", err)
 	}
 }
+
+func TestClientSearchTracksAddsConfiguredMarket(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"token","expires_in":3600}`))
+		case "/v1/search":
+			if got := r.URL.Query().Get("market"); got != "JP" {
+				t.Fatalf("market=%q want=JP", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"tracks":{"items":[],"total":0}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	value, err := NewClient(Config{
+		ClientID: "client", ClientSecret: "secret",
+		AccountsURL: server.URL, APIURL: server.URL + "/v1", Market: "jp",
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if _, err := value.SearchTracks(context.Background(), `genre:"pop"`, 10); err != nil {
+		t.Fatalf("SearchTracks: %v", err)
+	}
+}

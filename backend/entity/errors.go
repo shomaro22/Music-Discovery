@@ -52,6 +52,7 @@ var (
 	ErrRecommendationCandidatesNotFound              = errors.New("recommendation candidates not found")
 	ErrRecommendationCandidatesImportedPendingReview = errors.New("recommendation candidates imported pending review")
 	ErrSpotifyCandidateImportFailed                  = errors.New("spotify candidate import failed")
+	ErrCuratedCatalogImportFailed                    = errors.New("curated catalog import failed")
 	ErrSpotifyUnavailable                            = errors.New("spotify unavailable")
 	ErrRecommendationGenerateFailed                  = errors.New("recommendation generate failed")
 	ErrRecommendationSaveFailed                      = errors.New("recommendation save failed")
