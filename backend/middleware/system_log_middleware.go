@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -24,45 +26,61 @@ const (
 	SystemLogCategoryKey        = "system_log_category"
 )
 
-func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase) echo.MiddlewareFunc {
+type SystemLogConfig struct {
+	Environment string
+	Service     string
+	Version     string
+	Logger      *slog.Logger
+	Metrics     usecase.IMetricsUsecase
+	SaveTimeout time.Duration
+}
+
+func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase, configs ...SystemLogConfig) echo.MiddlewareFunc {
+	config := SystemLogConfig{Environment: "local", Service: "music-discovery-api", Version: "development", SaveTimeout: 2 * time.Second}
+	if len(configs) > 0 {
+		config = configs[0]
+	}
+	if config.SaveTimeout <= 0 {
+		config.SaveTimeout = 2 * time.Second
+	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) (err error) {
 			startedAt := time.Now()
 			ctx.Set(SystemLogStartedAtKey, startedAt)
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					stack := string(debug.Stack())
-					persistSystemLog(ctx, writer, http.StatusInternalServerError, "panic", "PANIC", "panic recovered", stack)
+					persistSystemLog(ctx, writer, config, http.StatusInternalServerError, "panic", "PANIC", "panic recovered", string(debug.Stack()))
 					panic(recovered)
 				}
 			}()
 			err = next(ctx)
 			status := ctx.Response().Status
-			code := ""
-			event := "request_error"
-			message := "request failed"
-			if value, ok := ctx.Get(SystemLogEventKey).(string); ok && value != "" {
-				event = value
-			}
-			if value, ok := ctx.Get(SystemLogErrorCodeKey).(string); ok && value != "" {
-				code = value
-			}
-			if value, ok := ctx.Get(SystemLogMessageKey).(string); ok && value != "" {
-				message = value
-			}
 			if err != nil {
 				var httpError *echo.HTTPError
 				if errors.As(err, &httpError) {
 					status = httpError.Code
+				} else if status == 0 || status < 400 {
+					status = http.StatusInternalServerError
 				}
 			}
 			if status == 0 {
 				status = http.StatusOK
 			}
-			if status < 400 {
+			if status < 400 && isMonitoringPath(ctx.Request().URL.Path) {
 				return err
 			}
-			if event == "request_error" {
+
+			event, code, message := "request_completed", "", "request completed"
+			if value := contextString(ctx, SystemLogEventKey); value != "" {
+				event = value
+			}
+			if value := contextString(ctx, SystemLogErrorCodeKey); value != "" {
+				code = value
+			}
+			if value := contextString(ctx, SystemLogMessageKey); value != "" {
+				message = value
+			}
+			if event == "request_completed" && status >= 400 {
 				switch status {
 				case http.StatusUnauthorized:
 					event, code, message = "authentication_failed", "UNAUTHORIZED", "authentication failed"
@@ -78,13 +96,13 @@ func NewSystemLogMiddleware(writer usecase.ISystemLogUsecase) echo.MiddlewareFun
 					}
 				}
 			}
-			persistSystemLog(ctx, writer, status, event, code, message, "")
+			persistSystemLog(ctx, writer, config, status, event, code, message, "")
 			return err
 		}
 	}
 }
 
-func persistSystemLog(ctx echo.Context, writer usecase.ISystemLogUsecase, status int, event, code, message, stack string) {
+func persistSystemLog(ctx echo.Context, writer usecase.ISystemLogUsecase, config SystemLogConfig, status int, event, code, message, stack string) {
 	if writer == nil {
 		return
 	}
@@ -97,20 +115,72 @@ func persistSystemLog(ctx echo.Context, writer usecase.ISystemLogUsecase, status
 	if requestID == "" {
 		requestID = ctx.Request().Header.Get(echo.HeaderXRequestID)
 	}
-	_ = writer.CreateSystemLog(ctx.Request().Context(), &entity.SystemLog{ID: uuid.New(), Level: levelForStatus(status), Category: systemLogCategory(ctx, event), Event: event, ErrorCode: code, Message: message, RequestID: requestID, UserID: userID, Method: ctx.Request().Method, Path: ctx.Request().URL.Path, StatusCode: status, ExternalService: contextString(ctx, SystemLogExternalServiceKey), DurationMs: durationMilliseconds(ctx), ErrorDetail: contextString(ctx, SystemLogErrorDetailKey), Metadata: metadata, StackTrace: stack, IPAddress: ctx.RealIP(), UserAgent: ctx.Request().UserAgent(), CreatedAt: time.Now().UTC()})
+	saveCtx, cancel := context.WithTimeout(context.Background(), config.SaveTimeout)
+	defer cancel()
+	err := writer.CreateSystemLog(saveCtx, &entity.SystemLog{
+		ID: uuid.New(), Environment: config.Environment, Service: config.Service, Version: config.Version,
+		Level: levelForStatus(status), Category: systemLogCategory(ctx, event), Event: event, ErrorCode: code,
+		Message: message, RequestID: requestID, UserID: userID, Method: ctx.Request().Method, Path: ctx.Request().URL.Path,
+		StatusCode: status, ExternalService: contextString(ctx, SystemLogExternalServiceKey), DurationMs: durationMilliseconds(ctx),
+		ErrorDetail: contextString(ctx, SystemLogErrorDetailKey), Metadata: metadata, StackTrace: stack,
+		IPAddress: ctx.RealIP(), UserAgent: ctx.Request().UserAgent(), CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		if config.Metrics != nil {
+			config.Metrics.Increment(context.Background(), "system_log_save_failure")
+		}
+		if config.Logger != nil {
+			config.Logger.Error("system log persistence failed", "error", err, "request_id", requestID, "event", event)
+		}
+	}
+	if config.Metrics != nil {
+		recordEventMetric(config.Metrics, event, status)
+	}
 }
+
+func isMonitoringPath(path string) bool {
+	return path == "/health" || path == "/ready" || path == "/api/system/metrics" || path == "/api/system/alerts"
+}
+func recordEventMetric(metrics usecase.IMetricsUsecase, event string, status int) {
+	switch event {
+	case "login_succeeded":
+		metrics.Increment(context.Background(), "login_success")
+	case "authentication_failed":
+		metrics.Increment(context.Background(), "login_failure")
+	case "recommendation_succeeded":
+		metrics.Increment(context.Background(), "recommendation_success")
+	case "recommendation_failed":
+		metrics.Increment(context.Background(), "recommendation_failure")
+	case "recommendation_fallback":
+		metrics.Increment(context.Background(), "recommendation_fallback")
+	case "feedback_saved":
+		metrics.Increment(context.Background(), "feedback_saved")
+	case "daily_discovery_generated":
+		metrics.Increment(context.Background(), "daily_discovery_success")
+	case "rate_limit_exceeded":
+		metrics.Increment(context.Background(), "rate_limit_exceeded")
+	case "spotify_api_failed", "spotify_api_rate_limited":
+		metrics.Increment(context.Background(), "spotify_api_error")
+	}
+	if status >= 500 {
+		metrics.Increment(context.Background(), "database_error")
+	}
+}
+
 func levelForStatus(status int) string {
 	if status >= 500 {
 		return "error"
 	}
-	return "warn"
+	if status >= 400 {
+		return "warn"
+	}
+	return "info"
 }
 
 func contextString(ctx echo.Context, key string) string {
 	value, _ := ctx.Get(key).(string)
 	return value
 }
-
 func durationMilliseconds(ctx echo.Context) int64 {
 	startedAt, ok := ctx.Get(SystemLogStartedAtKey).(time.Time)
 	if !ok {
@@ -118,14 +188,15 @@ func durationMilliseconds(ctx echo.Context) int64 {
 	}
 	return time.Since(startedAt).Milliseconds()
 }
-
 func systemLogCategory(ctx echo.Context, event string) string {
 	if value := contextString(ctx, SystemLogCategoryKey); value != "" {
 		return value
 	}
 	switch event {
-	case "authentication_failed", "suspended_user_login_attempt", "access_token_invalid", "token_version_mismatch":
-		return "auth"
+	case "request_completed":
+		return "access"
+	case "authentication_failed", "authorization_denied", "rate_limit_exceeded", "suspended_user_login_attempt", "access_token_invalid", "token_version_mismatch":
+		return "security"
 	case "database_connection_failed":
 		return "database"
 	case "redis_connection_failed":

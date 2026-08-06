@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"music-discovery/backend/controller"
 	"music-discovery/backend/db"
@@ -20,7 +21,11 @@ import (
 )
 
 func start(ctx context.Context) error {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	appEnvironment := envString("APP_ENV", "local")
+	serviceName := envString("SERVICE_NAME", "music-discovery-api")
+	appVersion := envString("APP_VERSION", "development")
+	logger := newLogger(appEnvironment, serviceName, appVersion)
+	logger.Info("application starting")
 
 	postgres, err := db.NewPostgres()
 	if err != nil {
@@ -146,12 +151,26 @@ func start(ctx context.Context) error {
 	adminRepository := repository.NewAdminRepository(postgres)
 	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
 	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
+	logRetentionUsecase := usecase.NewLogRetentionUsecase(repository.NewLogRetentionRepository(postgres), usecase.LogRetentionConfig{SystemDays: envPositiveInt("SYSTEM_LOG_RETENTION_DAYS", 90), SensitiveDays: envPositiveInt("ERROR_SECURITY_LOG_RETENTION_DAYS", 180), AuditDays: envPositiveInt("AUDIT_LOG_RETENTION_DAYS", 365)})
+	go runLogRetention(ctx, logger, logRetentionUsecase)
 	artistAdminController := controller.NewArtistAdminController(adminManagementUsecase)
 	songAdminController := controller.NewSongAdminController(adminManagementUsecase)
 	tagAdminController := controller.NewTagAdminController(adminManagementUsecase)
 	userAdminController := controller.NewUserAdminController(adminManagementUsecase)
 	roleAdminController := controller.NewRoleAdminController(adminManagementUsecase)
 	logAdminController := controller.NewLogAdminController(adminManagementUsecase)
+	metricsUsecase := usecase.NewMetricsUsecase(time.Duration(envPositiveInt("SLOW_REQUEST_THRESHOLD_MS", 1000))*time.Millisecond, appVersion)
+	healthRepository, err := repository.NewHealthCheckRepository(postgres, redisClient)
+	if err != nil {
+		return fmt.Errorf("health repository: %w", err)
+	}
+	metricsUsecase.SetDatabaseStatsProvider(func() usecase.DatabaseMetrics {
+		stats := healthRepository.DatabaseStats()
+		return usecase.DatabaseMetrics{OpenConnections: stats.OpenConnections, InUseConnections: stats.InUse, IdleConnections: stats.Idle, WaitCount: stats.WaitCount}
+	})
+	healthUsecase := usecase.NewHealthUsecase(healthRepository, appVersion, time.Duration(envPositiveInt("HEALTH_CHECK_TIMEOUT_MS", 2000))*time.Millisecond)
+	alertUsecase := usecase.NewAlertUsecase(metricsUsecase, envFloat("ALERT_ERROR_RATE_THRESHOLD", 0.05), envFloat("ALERT_P95_THRESHOLD_MS", 1000))
+	monitoringController := controller.NewMonitoringController(metricsUsecase, appVersion, controller.WithHealthUsecase(healthUsecase), controller.WithAlertUsecase(alertUsecase))
 
 	spotifyAdminUsecase := usecase.NewSpotifyAdminUsecase(spotifyClient)
 	spotifyAdminController := controller.NewSpotifyAdminController(spotifyAdminUsecase)
@@ -176,16 +195,64 @@ func start(ctx context.Context) error {
 		userAdminController,
 		roleAdminController,
 		logAdminController,
+		monitoringController,
+		metricsUsecase,
 		rateLimit,
 		authMiddleware,
 	)
-	e.Use(appMiddleware.NewSystemLogMiddleware(systemLogUsecase))
+	e.Pre(appMiddleware.NewSystemLogMiddleware(systemLogUsecase, appMiddleware.SystemLogConfig{Environment: appEnvironment, Service: serviceName, Version: appVersion, Logger: logger, Metrics: metricsUsecase, SaveTimeout: 2 * time.Second}))
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	return e.Start(":" + port)
+}
+
+func runLogRetention(ctx context.Context, logger *slog.Logger, retention usecase.ILogRetentionUsecase) {
+	run := func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		result, err := retention.Cleanup(cleanupCtx)
+		if err != nil {
+			logger.Error("log retention cleanup failed", "error", err)
+			return
+		}
+		logger.Info("log retention cleanup completed", "system_deleted", result.SystemDeleted, "audit_deleted", result.AuditDeleted)
+	}
+	run()
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
+}
+
+func newLogger(environment, service, version string) *slog.Logger {
+	level := new(slog.LevelVar)
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL"))) {
+	case "debug":
+		level.Set(slog.LevelDebug)
+	case "warn":
+		level.Set(slog.LevelWarn)
+	case "error":
+		level.Set(slog.LevelError)
+	default:
+		level.Set(slog.LevelInfo)
+	}
+	options := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
+	if environment == "local" || environment == "development" {
+		handler = slog.NewTextHandler(os.Stdout, options)
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, options)
+	}
+	return slog.New(handler).With("environment", environment, "service", service, "version", version)
 }
 
 func envPositiveInt(name string, fallback int) int {

@@ -39,7 +39,7 @@ func (u *adminManagementUsecase) ListSystemLogs(ctx context.Context, in PageInpu
 	}
 	values := make([]SystemLogListResponse, 0, len(items))
 	for _, item := range items {
-		values = append(values, SystemLogListResponse{ID: item.ID, Level: item.Level, Category: item.Category, Event: item.Event, ErrorCode: item.ErrorCode, Message: item.Message, RequestID: item.RequestID, UserID: item.UserID, Method: item.Method, Path: item.Path, StatusCode: item.StatusCode, ExternalService: item.ExternalService, DurationMs: item.DurationMs, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
+		values = append(values, SystemLogListResponse{ID: item.ID, Environment: item.Environment, Service: item.Service, Version: item.Version, Level: item.Level, Category: item.Category, Event: item.Event, ErrorCode: item.ErrorCode, Message: item.Message, RequestID: item.RequestID, UserID: item.UserID, Method: item.Method, Path: item.Path, StatusCode: item.StatusCode, ExternalService: item.ExternalService, DurationMs: item.DurationMs, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
 	}
 	return page(values, total, in)
 }

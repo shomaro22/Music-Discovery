@@ -35,3 +35,28 @@ export interface SpotifyTrackSearchItem {
   spotify_url: string;
 }
 export interface SpotifySearchResponse<T> { items: T[]; total: number }
+
+export interface MetricsSnapshot {
+  request_count: number;
+  status_counts: Record<string, number>;
+  error_count: number;
+  error_rate: number;
+  response_time_p50_ms: number;
+  response_time_p95_ms: number;
+  response_time_p99_ms: number;
+  slow_request_count: number;
+  system_log_save_failures: number;
+  login_successes: number;
+  login_failures: number;
+  recommendation_count: number;
+  recommendation_failures: number;
+  fallback_count: number;
+  feedback_count: number;
+  daily_discovery_count: number;
+  database_errors: number;
+  spotify_api_errors: number;
+  rate_limit_exceeded: number;
+}
+export interface MonitoringMetrics { application: MetricsSnapshot; runtime: { goroutines:number; heap_alloc_bytes:number; heap_inuse_bytes:number; system_bytes:number }; database:{ open_connections:number; in_use_connections:number; idle_connections:number; wait_count:number }; version:string; generated_at:string }
+export interface AlertState { code:string; severity:string; status:"firing"|"resolved"; message:string; value:number; threshold:number; checked_at:string }
+export interface AlertResponse { alerts:AlertState[]; generated_at:string }

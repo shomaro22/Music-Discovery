@@ -12,8 +12,9 @@ import {
 import type { AdminUser, AuditLog, SystemLog } from "../../types/admin";
 import { AdminLayout } from "../../components/admin/AdminLayout";
 import { AdminListPage } from "./AdminListPage";
+import { MonitoringDashboard } from "./MonitoringDashboard";
 
-type Tab = "users" | "audit" | "logs";
+type Tab = "users" | "audit" | "logs" | "monitoring";
 
 export function SystemAdminPage() {
   const [tab, setTab] = useState<Tab>("users");
@@ -22,6 +23,7 @@ export function SystemAdminPage() {
       {tab === "users" && <Users />}
       {tab === "audit" && <Audit />}
       {tab === "logs" && <Logs />}
+      {tab === "monitoring" && <MonitoringDashboard />}
     </AdminLayout>
   );
 }
