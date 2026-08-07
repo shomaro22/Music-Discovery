@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiRequestError } from "../api/client";
 import { getRecommendationHistory } from "../api/recommendationHistory";
+import { DateDropdownInput } from "../components/common/DateDropdownInput";
 import { ROUTES } from "../constants/routes";
 import type { FeedbackStatus } from "../types/feedback";
 import type { RecommendationType } from "../types/recommendation";
@@ -9,24 +10,12 @@ import type { RecommendationHistoryItem, RecommendationSource } from "../types/r
 
 const LIMIT = 10;
 const sourceLabel = (source: RecommendationSource) => source === "NORMAL" ? "通常推薦" : "Daily Discovery";
-const FEEDBACK_LABELS: Record<FeedbackStatus, string> = {
-  NONE: "未回答",
-  LIKE: "好き",
-  MAYBE: "まあまあ",
-  SKIP: "スキップ",
-};
-
+const FEEDBACK_LABELS: Record<FeedbackStatus, string> = { NONE: "未回答", LIKE: "好き", MAYBE: "まあまあ", SKIP: "スキップ" };
 const RECOMMENDATION_TYPE_LABELS: Record<RecommendationType, string> = {
-  YOUR_MATCH: "Your Match",
-  NEW_FAVORITE: "New Favorite",
-  TRY_SOMETHING_NEW: "Try Something New",
-  DAILY_MATCH_ONE: "Daily Match",
-  DAILY_MATCH_TWO: "Daily Match",
-  DAILY_CHALLENGE: "Daily Challenge",
+  YOUR_MATCH: "Your Match", NEW_FAVORITE: "New Favorite", TRY_SOMETHING_NEW: "Try Something New",
+  DAILY_MATCH_ONE: "Daily Match", DAILY_MATCH_TWO: "Daily Match", DAILY_CHALLENGE: "Daily Challenge",
 };
-
-const feedbackLabel = (status: FeedbackStatus | null): string =>
-  FEEDBACK_LABELS[status ?? "NONE"];
+const feedbackLabel = (status: FeedbackStatus | null): string => FEEDBACK_LABELS[status ?? "NONE"];
 
 export function RecommendationHistoryPage() {
   const [params, setParams] = useSearchParams();
@@ -74,16 +63,17 @@ export function RecommendationHistoryPage() {
 
   return <main className="history-page">
     <div className="history-shell">
-      <header className="history-header"><div><p className="history-kicker">Recommendation Archive</p><h1>推薦履歴</h1><p>通常推薦とDaily Discoveryをまとめて振り返れます。</p></div><Link className="recommendation-home-button" to={ROUTES.top}>TOPページへ戻る</Link></header>
+      <Link className="recommendation-home-button" to={ROUTES.top}>TOPページへ戻る</Link>
+      <header className="history-header"><div><p className="history-kicker">Recommendation Archive</p><h1>推薦履歴</h1><p>通常推薦とDaily Discoveryをまとめて振り返れます。</p></div></header>
       <form className="history-filter" onSubmit={search}>
-        <label>推薦区分<select value={source} onChange={(e) => setSource(e.target.value)}><option value="">すべて</option><option value="NORMAL">通常推薦</option><option value="DAILY_DISCOVERY">Daily Discovery</option></select></label>
-        <label>開始日<input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label>
-        <label>終了日<input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+        <label className="history-source-filter">推薦区分<select value={source} onChange={(e) => setSource(e.target.value)}><option value="">すべて</option><option value="NORMAL">通常推薦</option><option value="DAILY_DISCOVERY">Daily Discovery</option></select></label>
+        <DateDropdownInput id="history-start-date" label="開始日" value={startDate} onChange={setStartDate} />
+        <DateDropdownInput id="history-end-date" label="終了日" value={endDate} onChange={setEndDate} />
         <div className="history-filter-actions"><button type="submit">検索</button><button type="button" onClick={reset}>リセット</button></div>
       </form>
       {loading && <p className="history-state">読み込み中...</p>}
       {!loading && error && <div className="history-state"><p>{error}</p><button onClick={() => void load()}>再取得</button></div>}
-      {!loading && !error && items.length === 0 && <div className="history-state"><h2>履歴はまだありません</h2><p>質問に回答して最初の推薦を受け取ってください。</p><Link to={ROUTES.questions}>質問回答へ進む</Link></div>}
+      {!loading && !error && items.length === 0 && <div className="history-state"><h2>履歴はまだありません</h2><p>質問に回答すると、あなたに合った最初の3曲をおすすめします。</p><Link to={ROUTES.questions}>質問回答へ進む</Link></div>}
       {!loading && !error && items.length > 0 && <><p className="history-count">{total}件の履歴</p><section className="history-list">{items.map((item) => <Link className="history-card" key={item.recommendation_id} to={`/recommendation-history/${item.recommendation_id}?${params.toString()}`}>
         <div className="history-card-heading"><span>{sourceLabel(item.source)}</span><time>{new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(new Date(item.recommended_at))}</time>{item.target_date && <small>対象日 {item.target_date}</small>}</div>
         <div className="history-song-grid">{item.songs.map((song) => <article key={song.recommendation_detail_id}>{song.artwork_url ? <img src={song.artwork_url} alt="" /> : <div className="history-artwork-placeholder">♪</div>}<div><h2>{song.song_name || "利用できない楽曲"}</h2><p>{song.artist_name || "不明なArtist"}</p><p className="history-recommendation-type">{RECOMMENDATION_TYPE_LABELS[song.recommendation_type]}</p><p className="history-reason">{song.reason}</p><small>{feedbackLabel(song.feedback_status)}</small></div></article>)}</div>

@@ -24,6 +24,16 @@ beforeEach(() => {
 });
 
 describe("WithdrawPage", () => {
+  it("toggles current password visibility", async () => {
+    const user = userEvent.setup(); renderPage();
+    const input = screen.getByLabelText<HTMLInputElement>("現在のパスワード");
+    expect(input).toHaveAttribute("type", "password");
+    await user.click(screen.getByRole("button", { name: "パスワードを表示する" }));
+    expect(input).toHaveAttribute("type", "text");
+    await user.click(screen.getByRole("button", { name: "パスワードを非表示にする" }));
+    expect(input).toHaveAttribute("type", "password");
+  });
+
   it("keeps the page, password, and authentication state after password mismatch", async () => {
     withdrawMock.mockRejectedValue(new ApiRequestError({ status: 401, code: "CURRENT_PASSWORD_MISMATCH", message: "mismatch", request_id: "r1" }));
     const user = userEvent.setup(); renderPage();

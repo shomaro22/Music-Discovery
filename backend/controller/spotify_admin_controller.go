@@ -108,10 +108,12 @@ func (c *spotifyAdminController) SearchTracks(ctx echo.Context) error {
 func spotifyArtistSearchResponse(value usecase.SpotifyArtistSearchResult) SpotifyArtistSearchResponse {
 	items := make([]SpotifyArtistPreviewResponse, 0, len(value.Items))
 	for _, item := range value.Items {
+		genres := make([]string, len(item.Genres))
+		copy(genres, item.Genres)
 		items = append(items, SpotifyArtistPreviewResponse{
 			SpotifyArtistID: item.SpotifyArtistID,
 			Name:            item.Name,
-			Genres:          append([]string(nil), item.Genres...),
+			Genres:          genres,
 			ImageURL:        item.ImageURL,
 			SpotifyURL:      item.SpotifyURL,
 			Popularity:      item.Popularity,

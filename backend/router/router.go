@@ -68,6 +68,13 @@ func NewRouter(
 	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, requireJSON)
 	publicAuth.POST("/login", userController.Login, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
 	publicAuth.POST("/refresh", userController.Refresh, echoMiddleware.BodyLimit(refreshBodyLimit), rateLimit.Refresh, csrf)
+	if passwordResetController, ok := userController.(interface {
+		RequestPasswordReset(echo.Context) error
+		ConfirmPasswordReset(echo.Context) error
+	}); ok {
+		publicAuth.POST("/password-reset/request", passwordResetController.RequestPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
+		publicAuth.POST("/password-reset/confirm", passwordResetController.ConfirmPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
+	}
 
 	authenticated := e.Group("/api", authMiddleware.Authenticate)
 	authenticated.GET("/users/me", userController.CurrentUser, allAuthenticated.Authorize)

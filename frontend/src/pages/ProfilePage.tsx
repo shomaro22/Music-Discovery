@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiRequestError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { ROUTES } from "../constants/routes";
 
 export function ProfilePage() {
   const { user, updateProfile } = useAuth();
@@ -38,7 +39,7 @@ export function ProfilePage() {
       <button type="button" className="question-top-button" onClick={() => navigate("/")}>TOPページへ戻る</button>
       <p className="top-kicker">Profile</p>
       <h1>プロフィール変更</h1>
-      <p className="profile-edit-description">表示名とメールアドレスを変更できます。音楽の好みはTOPページの「好みを変更」から更新してください。</p>
+      <p className="profile-edit-description">表示名とメールアドレスを変更できます。<br />音楽の好みはTOPページの「好みを変更」から更新してください。</p>
       <form onSubmit={(event) => void submit(event)}>
         <label className="field"><span>名前</span><input value={name} maxLength={50} required onChange={(event) => setName(event.target.value)} /></label>
         <label className="field"><span>メールアドレス</span><input type="email" value={email} maxLength={254} required onChange={(event) => setEmail(event.target.value)} /></label>
@@ -46,6 +47,19 @@ export function ProfilePage() {
         {message && <p role="status" className="form-success">{message}</p>}
         <button className="top-primary-button profile-save-button" type="submit" disabled={isSaving}>{isSaving ? "更新中..." : "変更を保存"}</button>
       </form>
+      <div className="profile-password-reset">
+        <div>
+          <h2>パスワード再設定</h2>
+          <p>登録メールアドレスに再設定用の案内を送ります。</p>
+        </div>
+        <button
+          type="button"
+          className="profile-password-reset-button"
+          onClick={() => navigate(ROUTES.forgotPassword, { state: { email: user?.email ?? "" } })}
+        >
+          パスワードを再設定
+        </button>
+      </div>
     </section>
   </main>;
 }

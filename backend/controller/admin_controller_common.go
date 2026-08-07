@@ -156,6 +156,8 @@ func resolveAdminError(err error) adminErrorResponse {
 		return adminErrorResponse{http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください"}
 	case errors.Is(err, entity.ErrNotFound), errors.Is(err, entity.ErrUserNotFound):
 		return adminErrorResponse{http.StatusNotFound, "NOT_FOUND", "対象が見つかりません"}
+	case errors.Is(err, entity.ErrArtistAlreadyExists):
+		return adminErrorResponse{http.StatusConflict, "ARTIST_ALREADY_EXISTS", "このSpotify Artistはすでに登録されています"}
 	case errors.Is(err, entity.ErrConflict), errors.Is(err, entity.ErrAlreadyActive), errors.Is(err, entity.ErrAlreadySuspended), errors.Is(err, entity.ErrLastSystemAdmin):
 		return adminErrorResponse{http.StatusConflict, "CONFLICT", "現在の状態では操作できません"}
 	case errors.Is(err, entity.ErrForbidden):

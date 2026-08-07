@@ -168,8 +168,12 @@ describe("RecommendationHistoryPage", () => {
     await screen.findByText("Normal Song One");
 
     expect(screen.getByLabelText("推薦区分")).toHaveValue("DAILY_DISCOVERY");
-    expect(screen.getByLabelText("開始日")).toHaveValue("2026-08-01");
-    expect(screen.getByLabelText("終了日")).toHaveValue("2026-08-05");
+    expect(screen.getByLabelText("開始日 年")).toHaveValue("2026");
+    expect(screen.getByLabelText("開始日 月")).toHaveValue("8");
+    expect(screen.getByLabelText("開始日 日")).toHaveValue("1");
+    expect(screen.getByLabelText("終了日 年")).toHaveValue("2026");
+    expect(screen.getByLabelText("終了日 月")).toHaveValue("8");
+    expect(screen.getByLabelText("終了日 日")).toHaveValue("5");
     expect(getHistoryMock).toHaveBeenCalledWith({
       page: 2,
       limit: 10,
@@ -179,14 +183,33 @@ describe("RecommendationHistoryPage", () => {
     });
   });
 
+  it("年・月・日すべてで候補を下に表示して選択できる", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Normal Song One");
+
+    await user.click(screen.getByRole("button", { name: "開始日 年の候補を表示" }));
+    const yearOptions = screen.getByRole("listbox", { name: "開始日 年の候補" });
+    expect(within(yearOptions).getByRole("option", { name: String(new Date().getFullYear()) })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "開始日 日の候補を表示" }));
+    const dayOptions = screen.getByRole("listbox", { name: "開始日 日の候補" });
+    await user.click(within(dayOptions).getByRole("option", { name: "15" }));
+    expect(screen.getByLabelText("開始日 日")).toHaveValue("15");
+  });
+
   it("Source・開始日・終了日検索時にPageを1へ戻す", async () => {
     const user = userEvent.setup();
     renderPage("/recommendation-history?page=3");
     await screen.findByText("Normal Song One");
 
     await user.selectOptions(screen.getByLabelText("推薦区分"), "NORMAL");
-    await user.type(screen.getByLabelText("開始日"), "2026-08-01");
-    await user.type(screen.getByLabelText("終了日"), "2026-08-05");
+    await user.type(screen.getByLabelText("開始日 年"), "2026");
+    await user.type(screen.getByLabelText("開始日 月"), "8");
+    await user.type(screen.getByLabelText("開始日 日"), "1");
+    await user.type(screen.getByLabelText("終了日 年"), "2026");
+    await user.type(screen.getByLabelText("終了日 月"), "8");
+    await user.type(screen.getByLabelText("終了日 日"), "5");
     await user.click(screen.getByRole("button", { name: "検索" }));
 
     await waitFor(() =>
@@ -218,8 +241,12 @@ describe("RecommendationHistoryPage", () => {
       }),
     );
     expect(screen.getByLabelText("推薦区分")).toHaveValue("");
-    expect(screen.getByLabelText("開始日")).toHaveValue("");
-    expect(screen.getByLabelText("終了日")).toHaveValue("");
+    expect(screen.getByLabelText("開始日 年")).toHaveValue("");
+    expect(screen.getByLabelText("開始日 月")).toHaveValue("");
+    expect(screen.getByLabelText("開始日 日")).toHaveValue("");
+    expect(screen.getByLabelText("終了日 年")).toHaveValue("");
+    expect(screen.getByLabelText("終了日 月")).toHaveValue("");
+    expect(screen.getByLabelText("終了日 日")).toHaveValue("");
   });
 
   it("前・次Page操作でFilter条件を維持する", async () => {

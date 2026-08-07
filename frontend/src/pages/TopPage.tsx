@@ -127,7 +127,7 @@ export function TopPage() {
                 <span className="top-menu-icon" aria-hidden="true">P</span>
                 <span>
                   <strong>プロフィールを変更</strong>
-                  <small>名前・メールアドレスを編集</small>
+                  <small>名前・メールアドレス・パスワードを変更</small>
                 </span>
               </button>
             </div>

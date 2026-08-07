@@ -106,7 +106,7 @@ describe("LoginPage", () => {
     expect(screen.getByText("content admin")).toBeInTheDocument();
   });
 
-  it("shows API error and request id", async () => {
+  it("shows API error without exposing the request id", async () => {
     loginMock.mockRejectedValue(
       new ApiRequestError({
         status: 401,
@@ -123,7 +123,7 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: "ログイン" }));
 
     expect(await screen.findByText("認証に失敗しました")).toBeInTheDocument();
-    expect(screen.getByText("Request ID: req-login-1")).toBeInTheDocument();
+    expect(screen.queryByText("Request ID: req-login-1")).not.toBeInTheDocument();
     expect(screen.getByLabelText<HTMLInputElement>("パスワード")).toHaveValue("");
   });
 });

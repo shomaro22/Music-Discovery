@@ -79,6 +79,11 @@ describe("TopPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows password change in the profile menu description", () => {
+    renderTopPage();
+    expect(screen.getByText("名前・メールアドレス・パスワードを変更")).toBeInTheDocument();
+  });
+
   it("moves to the profile page", () => {
     renderTopPage();
     fireEvent.click(screen.getByRole("button", { name: "プロフィールを変更" }));

@@ -1,4 +1,6 @@
 export const API_PATHS = {
+  passwordResetRequest: "/api/auth/password-reset/request",
+  passwordResetConfirm: "/api/auth/password-reset/confirm",
   questions: "/api/questions",
   latestQuestionAnswers: "/api/user-answers/latest",
   saveQuestionAnswers: "/api/user-answers",

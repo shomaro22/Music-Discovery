@@ -26,6 +26,9 @@ func (*adminRepoStub) ListArtists(context.Context, repository.PageQuery) ([]repo
 func (*adminRepoStub) FindArtist(context.Context, uuid.UUID) (*entity.Artist, error) {
 	return nil, entity.ErrNotFound
 }
+func (*adminRepoStub) FindArtistBySpotifyID(context.Context, string) (*entity.Artist, error) {
+	return nil, entity.ErrNotFound
+}
 func (*adminRepoStub) FindArtistDetail(context.Context, uuid.UUID) (*repository.ArtistDetail, error) {
 	return nil, entity.ErrNotFound
 }
@@ -94,6 +97,9 @@ func (s *adminRepoStub) ListAuditLogs(_ context.Context, q repository.PageQuery)
 }
 func (*adminRepoStub) FindAuditLog(context.Context, uuid.UUID) (*entity.AuditLog, error) {
 	return nil, entity.ErrNotFound
+}
+func (*adminRepoStub) ResolveAuditTarget(context.Context, string, string) (string, string) {
+	return "", ""
 }
 func (s *adminRepoStub) ListSystemLogs(_ context.Context, q repository.PageQuery) ([]entity.SystemLog, int64, error) {
 	s.lastQuery = q
