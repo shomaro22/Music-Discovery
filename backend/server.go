@@ -70,7 +70,9 @@ func start(ctx context.Context) error {
 		tokenService,
 		clock,
 	)
-	userController := controller.NewUserController(userUsecase)
+	passwordResetRepository := repository.NewPasswordResetRepository(postgres)
+	passwordResetUsecase := usecase.NewPasswordResetUsecase(userRepository, passwordResetRepository, usecase.NewPasswordHasher(), usecase.NewPasswordResetMailerFromEnv(), clock)
+	userController := controller.NewUserController(userUsecase, controller.WithPasswordResetUsecase(passwordResetUsecase))
 	questionRepository := repository.NewQuestionRepository(postgres)
 	questionAnswerRepository := repository.NewQuestionAnswerRepository(postgres)
 	userProfileRepository := repository.NewUserProfileRepository(postgres)

@@ -199,3 +199,33 @@ func (r *adminRepository) CreateSystemLog(ctx context.Context, value *entity.Sys
 	}
 	return nil
 }
+
+func (r *adminRepository) ResolveAuditTarget(ctx context.Context, targetType, targetID string) (string, string) {
+	id, err := uuid.Parse(targetID)
+	if err != nil {
+		return targetID, ""
+	}
+	switch targetType {
+	case "user", "role":
+		var value entity.User
+		if err := r.db.WithContext(ctx).Unscoped().Select("name", "email").First(&value, "id = ?", id).Error; err == nil {
+			return value.Name, value.Email
+		}
+	case "artist":
+		var value entity.Artist
+		if err := r.db.WithContext(ctx).Unscoped().Select("name", "spotify_artist_id").First(&value, "id = ?", id).Error; err == nil {
+			return value.Name, value.SpotifyArtistID
+		}
+	case "song":
+		var value entity.Song
+		if err := r.db.WithContext(ctx).Unscoped().Select("name", "spotify_track_id").First(&value, "id = ?", id).Error; err == nil {
+			return value.Name, value.SpotifyTrackID
+		}
+	case "tag":
+		var value entity.Tag
+		if err := r.db.WithContext(ctx).Unscoped().Select("name", "slug").First(&value, "id = ?", id).Error; err == nil {
+			return value.Name, value.Slug
+		}
+	}
+	return targetID, ""
+}

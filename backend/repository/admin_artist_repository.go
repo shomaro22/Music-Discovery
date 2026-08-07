@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,14 +13,19 @@ import (
 func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]ArtistListItem, int64, error) {
 	db := addKeyword(r.db.WithContext(ctx).Model(&entity.Artist{}), q.Keyword, "artists.name", "artists.spotify_artist_id")
 	if q.TagID != nil {
-		db = db.Joins("JOIN artist_tags ON artist_tags.artist_id = artists.id").Where("artist_tags.tag_id = ?", *q.TagID).Distinct("artists.*")
+		db = db.Joins("JOIN artist_tags ON artist_tags.artist_id = artists.id").Where("artist_tags.tag_id = ?", *q.TagID)
 	}
 	var total int64
-	if err := db.Count(&total).Error; err != nil {
+	// artist_tags has a unique (artist_id, tag_id) constraint. Filtering by one
+	// tag therefore returns at most one JOIN row per artist and does not need
+	// DISTINCT. Avoiding DISTINCT here also prevents PostgreSQL/GORM from
+	// producing a fragile COUNT(DISTINCT artists.*) query.
+	if err := db.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, repoError(err)
 	}
 	var artists []entity.Artist
-	if err := db.Order(safeOrder(q.Sort, q.Order, map[string]string{"name": "artists.name", "popularity": "artists.popularity", "created_at": "artists.created_at", "updated_at": "artists.updated_at"}, "artists.updated_at")).Offset(offset(q)).Limit(q.Limit).Find(&artists).Error; err != nil {
+	listDB := db.Session(&gorm.Session{})
+	if err := listDB.Order(safeOrder(q.Sort, q.Order, map[string]string{"name": "artists.name", "popularity": "artists.popularity", "created_at": "artists.created_at", "updated_at": "artists.updated_at"}, "artists.updated_at")).Offset(offset(q)).Limit(q.Limit).Find(&artists).Error; err != nil {
 		return nil, 0, repoError(err)
 	}
 	items := make([]ArtistListItem, 0, len(artists))
@@ -49,6 +55,13 @@ func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]Artis
 func (r *adminRepository) FindArtist(ctx context.Context, id uuid.UUID) (*entity.Artist, error) {
 	var value entity.Artist
 	if err := r.db.WithContext(ctx).First(&value, "id = ?", id).Error; err != nil {
+		return nil, repoError(err)
+	}
+	return &value, nil
+}
+func (r *adminRepository) FindArtistBySpotifyID(ctx context.Context, spotifyArtistID string) (*entity.Artist, error) {
+	var value entity.Artist
+	if err := r.db.WithContext(ctx).Unscoped().First(&value, "spotify_artist_id = ?", spotifyArtistID).Error; err != nil {
 		return nil, repoError(err)
 	}
 	return &value, nil
@@ -84,7 +97,11 @@ func replaceArtistTags(tx *gorm.DB, artistID uuid.UUID, tagIDs []uuid.UUID, now 
 func (r *adminRepository) SaveArtistWithTagsAndAudit(ctx context.Context, value *entity.Artist, tagIDs []uuid.UUID, a AuditContext) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(value).Error; err != nil {
-			return repoError(err)
+			mapped := repoError(err)
+			if errors.Is(mapped, entity.ErrConflict) {
+				return entity.ErrArtistAlreadyExists
+			}
+			return mapped
 		}
 		if err := replaceArtistTags(tx, value.ID, tagIDs, a.CreatedAt); err != nil {
 			return err

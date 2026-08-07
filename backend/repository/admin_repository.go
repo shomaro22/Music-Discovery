@@ -106,6 +106,7 @@ type AuditContext struct {
 type IContentAdminRepository interface {
 	ListArtists(context.Context, PageQuery) ([]ArtistListItem, int64, error)
 	FindArtist(context.Context, uuid.UUID) (*entity.Artist, error)
+	FindArtistBySpotifyID(context.Context, string) (*entity.Artist, error)
 	FindArtistDetail(context.Context, uuid.UUID) (*ArtistDetail, error)
 	SaveArtistWithTagsAndAudit(context.Context, *entity.Artist, []uuid.UUID, AuditContext) error
 	DeleteArtistWithAudit(context.Context, uuid.UUID, AuditContext) error
@@ -130,6 +131,7 @@ type ISystemAdminRepository interface {
 	ChangeUserRoleWithAudit(context.Context, uuid.UUID, entity.Role, time.Time, AuditContext) error
 	ListAuditLogs(context.Context, PageQuery) ([]entity.AuditLog, int64, error)
 	FindAuditLog(context.Context, uuid.UUID) (*entity.AuditLog, error)
+	ResolveAuditTarget(context.Context, string, string) (string, string)
 	ListSystemLogs(context.Context, PageQuery) ([]entity.SystemLog, int64, error)
 	FindSystemLog(context.Context, uuid.UUID) (*entity.SystemLog, error)
 	CreateSystemLog(context.Context, *entity.SystemLog) error

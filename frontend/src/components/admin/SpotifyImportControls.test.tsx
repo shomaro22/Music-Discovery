@@ -76,4 +76,16 @@ describe("Spotify import controls", () => {
     await user.click(screen.getByRole("button", { name: "登録フォームへ" }));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ spotify_track_id: "track-1" }));
   });
+  it("renders artists even when Spotify genres is null", async () => {
+    artistsMock.mockResolvedValue({
+      total: 1,
+      items: [{ spotify_artist_id: "artist-null-genres", name: "No Genre Artist", genres: null, image_url: "", spotify_url: "https://spotify/artist", popularity: 50 }],
+    });
+    const user = userEvent.setup();
+    render(<SpotifyArtistImport onSelect={vi.fn()} />);
+    await user.type(screen.getByLabelText("Spotify Artist検索キーワード"), "No Genre Artist");
+    await user.click(screen.getByRole("button", { name: "検索" }));
+    expect(await screen.findByText("Genre情報なし")).toBeInTheDocument();
+  });
+
 });

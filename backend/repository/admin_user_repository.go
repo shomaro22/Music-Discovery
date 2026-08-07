@@ -15,7 +15,10 @@ func (r *adminRepository) ListUsers(ctx context.Context, q PageQuery) ([]entity.
 	if q.IncludeDeleted {
 		db = db.Unscoped()
 	}
-	db = addKeyword(db, q.Keyword, "name", "email")
+	if q.Keyword != "" {
+		like := "%" + q.Keyword + "%"
+		db = db.Where("name ILIKE ? OR email ILIKE ? OR CAST(id AS TEXT) ILIKE ?", like, like, like)
+	}
 	if q.Role != "" {
 		db = db.Where("role = ?", q.Role)
 	}

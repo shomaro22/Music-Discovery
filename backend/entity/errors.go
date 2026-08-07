@@ -19,6 +19,7 @@ var (
 	ErrForbidden                = errors.New("forbidden")
 	ErrNotFound                 = errors.New("not found")
 	ErrConflict                 = errors.New("conflict")
+	ErrArtistAlreadyExists      = errors.New("artist already exists")
 	ErrAlreadyActive            = errors.New("user already active")
 	ErrAlreadySuspended         = errors.New("user already suspended")
 	ErrLastSystemAdmin          = errors.New("last active system admin")
@@ -93,3 +94,5 @@ var (
 	ErrRecommendationHistoryNotFound     = errors.New("recommendation history not found")
 	ErrRecommendationHistoryFetchFailed  = errors.New("recommendation history fetch failed")
 )
+
+var ErrInvalidPasswordResetToken = errors.New("invalid password reset token")

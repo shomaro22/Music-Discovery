@@ -74,7 +74,7 @@ export function RecommendationCard({ detail }: RecommendationCardProps) {
       <div className="recommendation-card-body">
         <h2>{detail.song_name}</h2>
         <p className="recommendation-artist">{detail.artist_name}</p>
-        <p>{detail.reason}</p>
+        <p className="recommendation-reason">{detail.reason}</p>
         <a
           className="spotify-button"
           href={detail.spotify_url}

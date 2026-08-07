@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { PasswordToggleIcon } from "../components/common/PasswordToggleIcon";
 
 import { ApiRequestError } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
@@ -11,42 +12,6 @@ type FormField = keyof SignUpInput | "passwordConfirmation";
 type FieldErrors = Partial<Record<FormField, string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function EyeIcon({ hidden }: { hidden: boolean }) {
-  return hidden ? (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width="20"
-      height="20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m3 3 18 18" />
-      <path d="M10.6 10.7a2 2 0 0 0 2.7 2.7" />
-      <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5.4 0 9 5.5 9 8a9.2 9.2 0 0 1-2.1 3.5" />
-      <path d="M6.6 6.6C4.4 8.1 3 10.5 3 12c0 2.5 3.6 8 9 8 1.3 0 2.5-.3 3.6-.8" />
-    </svg>
-  ) : (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      width="20"
-      height="20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
-      <circle cx="12" cy="12" r="2.5" />
-    </svg>
-  );
-}
 
 export function SignupPage() {
   const navigate = useNavigate();
@@ -166,13 +131,8 @@ export function SignupPage() {
 
   return (
     <main className="auth-page signup-auth-page">
-      <header className="auth-header">
-        <Link className="auth-brand" to="/">Music Discovery</Link>
-      </header>
-
       <div className="auth-layout signup-auth-layout">
-        <section className="auth-copy" aria-label="Music Discoveryの紹介">
-          <p className="auth-kicker">Music Discovery</p>
+        <section className="auth-copy" aria-label="サービスの紹介">
           <h1>Start Your<br />Discovery.</h1>
           <p className="auth-copy-lead">あなたの次の一曲を、ここから見つけよう。</p>
           <p className="auth-copy-description">
@@ -206,7 +166,7 @@ export function SignupPage() {
               <div className="password-field">
                 <input id={passwordId} type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" placeholder="8文字以上で入力" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={passwordDescription} disabled={isSubmitting} />
                 <button type="button" className="password-toggle" aria-label={showPassword ? "パスワードを非表示にする" : "パスワードを表示する"} onClick={() => setShowPassword((current) => !current)} disabled={isSubmitting}>
-                  <EyeIcon hidden={showPassword} />
+                  <PasswordToggleIcon hidden={showPassword} />
                 </button>
               </div>
               <p className="field-hint" id={passwordHintId}>8文字以上で入力してください。</p>
@@ -218,15 +178,11 @@ export function SignupPage() {
               <div className="password-field">
                 <input id={passwordConfirmationId} type={showPasswordConfirmation ? "text" : "password"} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} autoComplete="new-password" placeholder="パスワードを再入力" aria-invalid={Boolean(fieldErrors.passwordConfirmation)} aria-describedby={confirmationErrorId} disabled={isSubmitting} />
                 <button type="button" className="password-toggle" aria-label={showPasswordConfirmation ? "パスワード確認を非表示にする" : "パスワード確認を表示する"} onClick={() => setShowPasswordConfirmation((current) => !current)} disabled={isSubmitting}>
-                  <EyeIcon hidden={showPasswordConfirmation} />
+                  <PasswordToggleIcon hidden={showPasswordConfirmation} />
                 </button>
               </div>
               {fieldErrors.passwordConfirmation && <p className="field-error" id={confirmationErrorId}>{fieldErrors.passwordConfirmation}</p>}
             </div>
-
-            <p className="signup-terms">
-              アカウントを作成することで、<a href="/terms">利用規約</a>と<a href="/privacy">プライバシーポリシー</a>に同意したものとみなされます。
-            </p>
 
             <button className="primary-button" type="submit" disabled={isSubmitting}>
               {isSubmitting ? "登録中..." : "アカウントを作成"}

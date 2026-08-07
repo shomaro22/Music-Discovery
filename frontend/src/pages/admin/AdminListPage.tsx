@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiRequestError } from "../../api/client";
 
@@ -15,34 +15,48 @@ interface Props<T> {
 export function AdminListPage<T>({ title, load, columns, rowKey, actions, filters, filterKey = "" }: Props<T>) {
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<T[]>([]);
-  const [keyword, setKeyword] = useState(params.get("keyword") ?? "");
-  const [page, setPage] = useState(Number(params.get("page") ?? 1) || 1);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const requestSequence = useRef(0);
 
-  const reload = useCallback(() => {
+  const reload = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     setLoading(true);
     setError("");
-    void load(keyword, page)
-      .then((response) => {
-        setItems(response.items);
-        setPages(Math.max(1, response.total_pages));
-        const next = new URLSearchParams(params);
-        if (keyword.trim()) next.set("keyword", keyword.trim());
-        else next.delete("keyword");
-        next.set("page", String(page));
-        setParams(next, { replace: true });
-      })
-      .catch((error: unknown) => {
-        setError(error instanceof ApiRequestError ? error.response.message : "取得に失敗しました");
-      })
-      .finally(() => setLoading(false));
-  }, [load, keyword, page, filterKey, params, setParams]);
+    try {
+      const response = await load(keyword, page);
+      if (sequence !== requestSequence.current) return;
+      setItems(response.items);
+      const nextPages = Math.max(1, response.total_pages);
+      setPages(nextPages);
+
+      // If deletion/filtering leaves us beyond the final page, move to the
+      // nearest valid page and let the effect reload it.
+      if (page > nextPages) {
+        setPage(nextPages);
+        return;
+      }
+
+      const next = new URLSearchParams(params);
+      if (keyword) next.set("keyword", keyword);
+      else next.delete("keyword");
+      next.set("page", String(page));
+      setParams(next, { replace: true });
+    } catch (caught: unknown) {
+      if (sequence !== requestSequence.current) return;
+      setError(caught instanceof ApiRequestError ? caught.response.message : "取得に失敗しました");
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
+  }, [load, keyword, page, params, setParams]);
 
   useEffect(() => {
-    reload();
-  }, [page, filterKey]);
+    void reload();
+  }, [page, keyword, filterKey]); // load is represented by filterKey; avoids URL-search-param reload loops.
 
   return (
     <main className="admin-panel">
@@ -57,13 +71,15 @@ export function AdminListPage<T>({ title, load, columns, rowKey, actions, filter
         className="admin-filter-card"
         onSubmit={(event) => {
           event.preventDefault();
-          if (page === 1) reload();
-          else setPage(1);
+          const nextKeyword = keywordInput.trim();
+          if (page !== 1) setPage(1);
+          if (nextKeyword !== keyword) setKeyword(nextKeyword);
+          else void reload();
         }}
       >
         <label className="admin-control admin-search-control">
           キーワード
-          <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="名前・メールアドレスなど" />
+          <input value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder="名前・メールアドレスなど" />
         </label>
         {filters}
         <button className="admin-primary-button" type="submit" disabled={loading}>検索</button>
@@ -83,14 +99,14 @@ export function AdminListPage<T>({ title, load, columns, rowKey, actions, filter
           <div className="admin-table-scroll">
             <table className="admin-table">
               <thead><tr>{columns.map((column) => <th key={column.label}>{column.label}</th>)}{actions && <th>操作</th>}</tr></thead>
-              <tbody>{items.map((item) => <tr key={rowKey(item)}>{columns.map((column) => <td key={column.label}>{column.render(item)}</td>)}{actions && <td><div className="admin-row-actions">{actions(item, reload)}</div></td>}</tr>)}</tbody>
+              <tbody>{items.map((item) => <tr key={rowKey(item)}>{columns.map((column) => <td key={column.label}>{column.render(item)}</td>)}{actions && <td><div className="admin-row-actions">{actions(item, () => void reload())}</div></td>}</tr>)}</tbody>
             </table>
           </div>
         )}
         <div className="admin-pagination">
-          <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)}>前へ</button>
+          <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(1, value - 1))}>前へ</button>
           <span>{page} / {pages}</span>
-          <button type="button" disabled={page >= pages || loading} onClick={() => setPage((value) => value + 1)}>次へ</button>
+          <button type="button" disabled={page >= pages || loading} onClick={() => setPage((value) => Math.min(pages, value + 1))}>次へ</button>
         </div>
       </section>
     </main>

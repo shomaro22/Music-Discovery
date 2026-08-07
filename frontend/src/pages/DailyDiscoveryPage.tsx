@@ -101,7 +101,7 @@ export function DailyDiscoveryPage() {
         <p className="question-code">Daily Discovery</p>
         <h1>今日の3曲</h1>
         <p>{data?.target_date}</p>
-        <Link to={ROUTES.dailyDiscoveryHistory}>過去のDaily Discovery</Link>
+        <Link className="recommendation-history-link" to={ROUTES.dailyDiscoveryHistory}>過去のDaily Discovery</Link>
       </section>
 
       {data && <RecommendationList recommendations={data.recommendations} />}

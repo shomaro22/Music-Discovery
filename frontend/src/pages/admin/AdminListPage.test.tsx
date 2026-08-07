@@ -36,7 +36,7 @@ describe("AdminListPage", () => {
     renderPage();
 
     expect(await screen.findByText("Alpha")).toBeInTheDocument();
-    expect(loadMock).toHaveBeenCalledWith("initial", 1);
+    expect(loadMock).toHaveBeenCalledWith("", 1);
 
     const keyword = screen.getByLabelText("キーワード");
     await user.clear(keyword);

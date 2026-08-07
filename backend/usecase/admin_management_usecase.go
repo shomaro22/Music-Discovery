@@ -118,19 +118,21 @@ type UserDetailResponse struct {
 	LastLoginAt         *time.Time `json:"last_login_at,omitempty"`
 }
 type AuditLogListResponse struct {
-	ID          uuid.UUID   `json:"id"`
-	ActorUserID uuid.UUID   `json:"actor_user_id"`
-	ActorRole   entity.Role `json:"actor_role"`
-	ActorName   string      `json:"actor_name"`
-	ActorEmail  string      `json:"actor_email"`
-	RequestID   string      `json:"request_id"`
-	Action      string      `json:"action"`
-	TargetType  string      `json:"target_type"`
-	TargetID    string      `json:"target_id"`
-	Summary     string      `json:"summary"`
-	IPAddress   string      `json:"ip_address"`
-	UserAgent   string      `json:"user_agent"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID           uuid.UUID   `json:"id"`
+	ActorUserID  uuid.UUID   `json:"actor_user_id"`
+	ActorRole    entity.Role `json:"actor_role"`
+	ActorName    string      `json:"actor_name"`
+	ActorEmail   string      `json:"actor_email"`
+	RequestID    string      `json:"request_id"`
+	Action       string      `json:"action"`
+	TargetType   string      `json:"target_type"`
+	TargetID     string      `json:"target_id"`
+	TargetName   string      `json:"target_name"`
+	TargetDetail string      `json:"target_detail"`
+	Summary      string      `json:"summary"`
+	IPAddress    string      `json:"ip_address"`
+	UserAgent    string      `json:"user_agent"`
+	CreatedAt    time.Time   `json:"created_at"`
 }
 type SystemLogListResponse struct {
 	ID              uuid.UUID  `json:"id"`
@@ -144,6 +146,8 @@ type SystemLogListResponse struct {
 	Message         string     `json:"message"`
 	RequestID       string     `json:"request_id"`
 	UserID          *uuid.UUID `json:"user_id,omitempty"`
+	UserName        string     `json:"user_name,omitempty"`
+	UserEmail       string     `json:"user_email,omitempty"`
 	Method          string     `json:"method"`
 	Path            string     `json:"path"`
 	StatusCode      int        `json:"status_code"`
