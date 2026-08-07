@@ -27,3 +27,10 @@ func TestPercentileNearestRankTwoValues(t *testing.T) {
 		t.Fatalf("p99=%v", got)
 	}
 }
+
+func TestRuntimeCPUUtilizationPercentIsBounded(t *testing.T) {
+	value := runtimeCPUUtilizationPercent()
+	if value < 0 || value > 100 {
+		t.Fatalf("cpu utilization=%v want 0..100", value)
+	}
+}

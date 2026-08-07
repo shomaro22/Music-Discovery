@@ -1,36 +1,26 @@
 package migrate
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"music-discovery/backend/entity"
+	testutil "music-discovery/backend/test"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func openQuestionMigrationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is not set; PostgreSQL integration test skipped")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
+	db := testutil.OpenTestDB(t)
 	if err := CreateUsers(db); err != nil {
 		t.Fatalf("create users: %v", err)
 	}
 	if err := CreateQuestionTables(db); err != nil {
 		t.Fatalf("create question tables: %v", err)
 	}
-	if err := db.Exec("TRUNCATE TABLE user_answer_choices, user_answers, question_answer_sessions, user_genre_weights, user_element_weights, user_atmosphere_weights, user_profiles, question_choices, questions, users CASCADE").Error; err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
+	testutil.ResetDatabase(t, db)
 	if err := CreateQuestionTables(db); err != nil {
 		t.Fatalf("reseed: %v", err)
 	}

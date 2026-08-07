@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -56,7 +57,10 @@ func start(ctx context.Context) error {
 	}
 
 	userValidator := validator.NewUserValidator()
-	clock := usecase.NewClock()
+	clock, err := loadApplicationClock(appEnvironment)
+	if err != nil {
+		return err
+	}
 	userUsecase := usecase.NewUserUsecase(
 		userRepository,
 		userValidator,
@@ -81,6 +85,8 @@ func start(ctx context.Context) error {
 	spotifyClient, err := spotify.NewClient(spotify.Config{
 		ClientID:     os.Getenv("SPOTIFY_CLIENT_ID"),
 		ClientSecret: os.Getenv("SPOTIFY_CLIENT_SECRET"),
+		AccountsURL:  envString("SPOTIFY_ACCOUNTS_URL", "https://accounts.spotify.com"),
+		APIURL:       envString("SPOTIFY_API_URL", "https://api.spotify.com/v1"),
 		Market:       envString("SPOTIFY_MARKET", "JP"),
 	})
 	if err != nil {
@@ -180,7 +186,11 @@ func start(ctx context.Context) error {
 	spotifyAdminController := controller.NewSpotifyAdminController(spotifyAdminUsecase)
 
 	rateLimitRepository := repository.NewRateLimitRepository(redisClient)
-	rateLimitUsecase := usecase.NewRateLimitUsecase(rateLimitRepository, clock)
+	rateLimitCapacityMultiplier, err := loadRateLimitCapacityMultiplier(appEnvironment)
+	if err != nil {
+		return err
+	}
+	rateLimitUsecase := usecase.NewRateLimitUsecaseWithCapacityMultiplier(rateLimitRepository, clock, rateLimitCapacityMultiplier)
 	rateLimit := appMiddleware.NewRateLimitMiddleware(rateLimitUsecase)
 	authMiddleware := appMiddleware.NewAuthMiddleware(tokenService, userUsecase)
 
@@ -284,6 +294,36 @@ func newLogger(environment, service, version string) *slog.Logger {
 		handler = slog.NewJSONHandler(os.Stdout, options)
 	}
 	return slog.New(handler).With("environment", environment, "service", service, "version", version)
+}
+
+func loadApplicationClock(appEnvironment string) (usecase.IClock, error) {
+	fixedNow := strings.TrimSpace(os.Getenv("TEST_FIXED_NOW"))
+	if fixedNow == "" {
+		return usecase.NewClock(), nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(appEnvironment), "test") {
+		return nil, errors.New("TEST_FIXED_NOW is only allowed when APP_ENV=test")
+	}
+	now, err := time.Parse(time.RFC3339, fixedNow)
+	if err != nil {
+		return nil, fmt.Errorf("TEST_FIXED_NOW must be RFC3339: %w", err)
+	}
+	return usecase.NewFixedClock(now), nil
+}
+
+func loadRateLimitCapacityMultiplier(appEnvironment string) (int, error) {
+	raw := strings.TrimSpace(os.Getenv("RATE_LIMIT_CAPACITY_MULTIPLIER"))
+	if raw == "" {
+		return 1, nil
+	}
+	multiplier, err := strconv.Atoi(raw)
+	if err != nil || multiplier < 1 {
+		return 0, errors.New("RATE_LIMIT_CAPACITY_MULTIPLIER must be a positive integer")
+	}
+	if multiplier != 1 && !strings.EqualFold(strings.TrimSpace(appEnvironment), "test") {
+		return 0, errors.New("RATE_LIMIT_CAPACITY_MULTIPLIER may only differ from 1 when APP_ENV=test")
+	}
+	return multiplier, nil
 }
 
 func envPositiveInt(name string, fallback int) int {
