@@ -1,26 +1,18 @@
 package migrate
 
 import (
-	"os"
 	"testing"
 
-	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"music-discovery/backend/entity"
+	testutil "music-discovery/backend/test"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func openCatalogSeedTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is not set; PostgreSQL integration test skipped")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	return db
+	return testutil.OpenTestDB(t)
 }
 
 func TestCatalogSeedsAreIdempotent(t *testing.T) {

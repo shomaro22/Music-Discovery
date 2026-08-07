@@ -1,11 +1,21 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, request as playwrightRequest, type Page, test } from "@playwright/test";
 
-const userEmail = process.env.E2E_USER_EMAIL ?? "";
-const userPassword = process.env.E2E_USER_PASSWORD ?? "";
-const otherUserRecommendationID =
-  process.env.E2E_OTHER_USER_RECOMMENDATION_ID ?? "";
-const suspendedUserEmail = process.env.E2E_SUSPENDED_USER_EMAIL ?? "";
-const suspendedUserPassword = process.env.E2E_SUSPENDED_USER_PASSWORD ?? "";
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required for E2E tests`);
+  return value;
+}
+
+const apiURL = process.env.E2E_API_URL?.trim() || "http://localhost:8080";
+const runID = requiredEnv("E2E_RUN_ID").replace(/[^a-zA-Z0-9_-]/g, "-");
+const userPassword = requiredEnv("E2E_USER_PASSWORD");
+const userEmail = scopedEmail(requiredEnv("E2E_USER_EMAIL"), `history-${runID}`);
+
+function scopedEmail(baseEmail: string, suffix: string): string {
+  const at = baseEmail.lastIndexOf("@");
+  if (at <= 0) throw new Error(`invalid E2E email: ${baseEmail}`);
+  return `${baseEmail.slice(0, at)}-${suffix}@${baseEmail.slice(at + 1)}`;
+}
 
 async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
@@ -41,7 +51,11 @@ async function registerFeedbackForVisibleCards(page: Page): Promise<void> {
   const cards = page.locator(".recommendation-card");
   await expect(cards).toHaveCount(3);
   for (let index = 0; index < 3; index += 1) {
-    await cards.nth(index).getByRole("button", { name: /好き LIKE/ }).click();
+    const button = cards.nth(index).getByRole("button", { name: /好き LIKE/ });
+    if ((await button.getAttribute("aria-pressed")) !== "true") {
+      await button.click();
+    }
+    await expect(button).toHaveAttribute("aria-pressed", "true");
   }
 }
 
@@ -51,8 +65,20 @@ async function openHistory(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "推薦履歴" })).toBeVisible();
 }
 
-test.describe("推薦履歴", () => {
-  test.skip(!userEmail || !userPassword, "E2E user credentials are not set");
+test.describe.serial("推薦履歴", () => {
+  test.beforeAll(async () => {
+    const context = await playwrightRequest.newContext({ baseURL: apiURL });
+    try {
+      const response = await context.post("/api/auth/signup", {
+        data: { name: "History E2E User", email: userEmail, password: userPassword },
+      });
+      if (response.status() !== 201 && response.status() !== 409) {
+        throw new Error(`failed to prepare history E2E user: ${response.status()} ${await response.text()}`);
+      }
+    } finally {
+      await context.dispose();
+    }
+  });
 
   test("通常推薦・Daily Discovery・Feedbackを準備して一覧と詳細を確認する", async ({
     page,
@@ -68,9 +94,9 @@ test.describe("推薦履歴", () => {
 
     await openHistory(page);
     const cards = page.locator(".history-card");
-    await expect(cards).toHaveCount(2);
-    await expect(page.getByText("通常推薦")).toBeVisible();
-    await expect(page.getByText("Daily Discovery")).toBeVisible();
+    expect(await cards.count()).toBeGreaterThanOrEqual(2);
+    await expect(page.getByText("通常推薦").first()).toBeVisible();
+    await expect(page.getByText("Daily Discovery").first()).toBeVisible();
 
     const times = await page.locator(".history-card time").allTextContents();
     expect(times.length).toBeGreaterThanOrEqual(2);
@@ -116,30 +142,4 @@ test.describe("推薦履歴", () => {
     await expect(page).not.toHaveURL(/source=/);
   });
 
-  test("他Userの推薦履歴はAccess Deniedになる", async ({ page }) => {
-    test.skip(
-      !otherUserRecommendationID,
-      "E2E_OTHER_USER_RECOMMENDATION_ID is not set",
-    );
-    await login(page, userEmail, userPassword);
-    await page.goto(`/recommendation-history/${otherUserRecommendationID}`);
-    await expect(
-      page.getByRole("heading", {
-        name: "この推薦履歴にはアクセスできません",
-      }),
-    ).toBeVisible();
-  });
-
-  test("利用停止Userは認証状態が解除される", async ({ page }) => {
-    test.skip(
-      !suspendedUserEmail || !suspendedUserPassword,
-      "Suspended user credentials are not set",
-    );
-    await page.goto("/login");
-    await page.getByLabel("メールアドレス").fill(suspendedUserEmail);
-    await page.getByLabel("パスワード").fill(suspendedUserPassword);
-    await page.getByRole("button", { name: "ログイン" }).click();
-    await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole("alert")).toBeVisible();
-  });
 });

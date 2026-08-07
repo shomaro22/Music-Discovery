@@ -3,52 +3,33 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
-	"time"
 
 	"music-discovery/backend/entity"
 	"music-discovery/backend/migrate"
+	testutil "music-discovery/backend/test"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func openTestPostgres(t *testing.T) *gorm.DB {
 	t.Helper()
-
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is not set; PostgreSQL integration test skipped")
+	db := testutil.OpenTestDB(t)
+	if err := migrate.Run(db, migrate.Config{AppEnvironment: "test"}); err != nil {
+		t.Fatalf("migrate test database: %v", err)
 	}
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
-	if err := migrate.CreateUsers(db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	if err := db.Exec("TRUNCATE TABLE users").Error; err != nil {
-		t.Fatalf("truncate: %v", err)
-	}
-
+	testutil.ResetDatabase(t, db)
+	t.Cleanup(func() { testutil.ResetDatabase(t, db) })
 	return db
 }
 
 func validUser(email string) *entity.User {
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	return &entity.User{
-		Name:         "Taro",
-		Email:        email,
-		PasswordHash: "hashed-password",
-		Role:         entity.UserRoleUser,
-		Status:       entity.UserStatusActive,
-		TokenVersion: 0,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
+	value := testutil.User(func(user *entity.User) {
+		user.Name = "Taro"
+		user.Email = email
+	})
+	return &value
 }
 
 func TestUserRepositoryCreateFindAndDuplicate(t *testing.T) {

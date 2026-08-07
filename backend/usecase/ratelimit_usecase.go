@@ -23,12 +23,20 @@ type IRateLimitUsecase interface {
 }
 
 type rateLimitUsecase struct {
-	repository repository.IRateLimitRepository
-	clock      IClock
+	repository         repository.IRateLimitRepository
+	clock              IClock
+	capacityMultiplier int
 }
 
 func NewRateLimitUsecase(repo repository.IRateLimitRepository, clock IClock) IRateLimitUsecase {
-	return &rateLimitUsecase{repository: repo, clock: clock}
+	return NewRateLimitUsecaseWithCapacityMultiplier(repo, clock, 1)
+}
+
+func NewRateLimitUsecaseWithCapacityMultiplier(repo repository.IRateLimitRepository, clock IClock, capacityMultiplier int) IRateLimitUsecase {
+	if capacityMultiplier < 1 {
+		capacityMultiplier = 1
+	}
+	return &rateLimitUsecase{repository: repo, clock: clock, capacityMultiplier: capacityMultiplier}
 }
 
 func (u *rateLimitUsecase) Allow(ctx context.Context, input RateLimitInput) (RateLimitDecision, error) {
@@ -38,7 +46,7 @@ func (u *rateLimitUsecase) Allow(ctx context.Context, input RateLimitInput) (Rat
 	}
 	var last RateLimitDecision
 	for _, policy := range policies {
-		result, allowErr := u.repository.Allow(ctx, policy.key, policy.rate, policy.capacity, 1, u.clock.Now())
+		result, allowErr := u.repository.Allow(ctx, policy.key, policy.rate*float64(u.capacityMultiplier), policy.capacity*u.capacityMultiplier, 1, u.clock.Now())
 		if allowErr != nil {
 			return RateLimitDecision{}, allowErr
 		}

@@ -1,24 +1,16 @@
 package migrate
 
 import (
-	"os"
+	testutil "music-discovery/backend/test"
 	"strings"
 	"testing"
 
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func openRecommendationMigrationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL is not set; PostgreSQL integration test skipped")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open postgres: %v", err)
-	}
+	db := testutil.OpenTestDB(t)
 	if err := CreateUsers(db); err != nil {
 		t.Fatalf("create users: %v", err)
 	}

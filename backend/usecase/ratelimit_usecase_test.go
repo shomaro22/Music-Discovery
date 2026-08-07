@@ -91,3 +91,22 @@ func TestRateLimitUsecaseRefreshPolicy(t *testing.T) {
 		t.Fatalf("decision=%+v", decision)
 	}
 }
+
+func TestRateLimitUsecaseCapacityMultiplierScalesPerformancePolicy(t *testing.T) {
+	repo := &fakeRateLimitRepository{results: []repository.RateLimitResult{{Allowed: true, Remaining: 4999}}}
+	u := NewRateLimitUsecaseWithCapacityMultiplier(repo, fixedRateLimitClock{}, 1000)
+	_, err := u.Allow(context.Background(), RateLimitInput{Scope: "recommendations", IP: "192.0.2.30"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.calls) != 1 {
+		t.Fatalf("calls=%d", len(repo.calls))
+	}
+	call := repo.calls[0]
+	if call.capacity != 5000 {
+		t.Fatalf("capacity=%d want=5000", call.capacity)
+	}
+	if call.rate != (5.0/60.0)*1000 {
+		t.Fatalf("rate=%f want=%f", call.rate, (5.0/60.0)*1000)
+	}
+}

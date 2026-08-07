@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "npm run lint && npm run test:coverage && npm run build",
+    "lint": "tsc -b --pretty false"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -26,6 +29,7 @@
     "@types/react-dom": "latest",
     "jsdom": "latest",
     "vitest": "latest",
-    "@playwright/test": "latest"
+    "@playwright/test": "latest",
+    "@vitest/coverage-v8": "4.1.10"
   }
 }
