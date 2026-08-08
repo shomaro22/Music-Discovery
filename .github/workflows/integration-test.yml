@@ -1,0 +1,55 @@
+name: Integration Test
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: music_discovery_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d music_discovery_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: "true"
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/music_discovery_test?sslmode=disable
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Download dependencies
+        run: go mod download
+      - name: Run PostgreSQL integration tests
+        run: go test -count=1 -coverprofile=integration-coverage.out ./...
+      - name: Verify test database is reachable after tests
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -U postgres -d music_discovery_test -c 'SELECT current_database();'
+      - name: Upload integration coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-coverage
+          path: backend/integration-coverage.out
+          if-no-files-found: warn
+          retention-days: 7
