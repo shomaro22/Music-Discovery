@@ -46,8 +46,8 @@ func (r *adminRepository) FindUserUnscoped(ctx context.Context, id uuid.UUID) (*
 	return &value, nil
 }
 
-func (r *adminRepository) FindUserMetrics(ctx context.Context, userID uuid.UUID) (*UserMetrics, error) {
-	value := &UserMetrics{ProfileStatus: "not_created"}
+func (r *adminRepository) FindUserMetrics(ctx context.Context, userID uuid.UUID) (*entity.UserMetrics, error) {
+	value := &entity.UserMetrics{ProfileStatus: "not_created"}
 	if r.db.Migrator().HasTable("user_profiles") {
 		var count int64
 		if err := r.db.WithContext(ctx).Table("user_profiles").Where("user_id = ?", userID).Count(&count).Error; err != nil {

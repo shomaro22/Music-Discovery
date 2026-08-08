@@ -9,7 +9,7 @@ import (
 	"music-discovery/backend/entity"
 )
 
-func (r *adminRepository) ListSongs(ctx context.Context, q PageQuery) ([]SongDetail, int64, error) {
+func (r *adminRepository) ListSongs(ctx context.Context, q PageQuery) ([]entity.SongDetail, int64, error) {
 	db := addKeyword(r.db.WithContext(ctx).Model(&entity.Song{}), q.Keyword, "songs.name", "songs.album_name", "songs.spotify_track_id")
 	if q.ArtistID != nil {
 		db = db.Where("songs.artist_id = ?", *q.ArtistID)
@@ -28,7 +28,7 @@ func (r *adminRepository) ListSongs(ctx context.Context, q PageQuery) ([]SongDet
 	if err := db.Order(safeOrder(q.Sort, q.Order, map[string]string{"name": "songs.name", "popularity": "songs.popularity", "release_date": "songs.release_date", "created_at": "songs.created_at", "updated_at": "songs.updated_at"}, "songs.updated_at")).Offset(offset(q)).Limit(q.Limit).Find(&songs).Error; err != nil {
 		return nil, 0, repoError(err)
 	}
-	items := make([]SongDetail, 0, len(songs))
+	items := make([]entity.SongDetail, 0, len(songs))
 	for _, song := range songs {
 		detail, err := r.songDetail(ctx, song)
 		if err != nil {
@@ -45,7 +45,7 @@ func (r *adminRepository) FindSong(ctx context.Context, id uuid.UUID) (*entity.S
 	}
 	return &value, nil
 }
-func (r *adminRepository) FindSongDetail(ctx context.Context, id uuid.UUID) (*SongDetail, error) {
+func (r *adminRepository) FindSongDetail(ctx context.Context, id uuid.UUID) (*entity.SongDetail, error) {
 	song, err := r.FindSong(ctx, id)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (r *adminRepository) FindSongDetail(ctx context.Context, id uuid.UUID) (*So
 	return r.songDetail(ctx, *song)
 }
 
-func (r *adminRepository) songDetail(ctx context.Context, song entity.Song) (*SongDetail, error) {
+func (r *adminRepository) songDetail(ctx context.Context, song entity.Song) (*entity.SongDetail, error) {
 	var artist entity.Artist
 	if err := r.db.WithContext(ctx).Unscoped().First(&artist, "id = ?", song.ArtistID).Error; err != nil {
 		return nil, repoError(err)
@@ -65,19 +65,19 @@ func (r *adminRepository) songDetail(ctx context.Context, song entity.Song) (*So
 	if err := r.db.WithContext(ctx).Table("tags").Select("tags.*, song_tags.weight").Joins("JOIN song_tags ON song_tags.tag_id = tags.id").Where("song_tags.song_id = ?", song.ID).Scan(&rows).Error; err != nil {
 		return nil, repoError(err)
 	}
-	tags := make([]SongTagDetail, 0, len(rows))
+	tags := make([]entity.SongTagDetail, 0, len(rows))
 	for _, row := range rows {
-		tags = append(tags, SongTagDetail{Tag: row.Tag, Weight: row.Weight})
+		tags = append(tags, entity.SongTagDetail{Tag: row.Tag, Weight: row.Weight})
 	}
 	metrics, err := r.songMetrics(ctx, song.ID)
 	if err != nil {
 		return nil, err
 	}
-	return &SongDetail{Song: song, Artist: artist, Tags: tags, Metrics: metrics}, nil
+	return &entity.SongDetail{Song: song, Artist: artist, Tags: tags, Metrics: metrics}, nil
 }
 
-func (r *adminRepository) songMetrics(ctx context.Context, songID uuid.UUID) (SongMetrics, error) {
-	var value SongMetrics
+func (r *adminRepository) songMetrics(ctx context.Context, songID uuid.UUID) (entity.SongMetrics, error) {
+	var value entity.SongMetrics
 	if r.db.Migrator().HasTable("recommendation_details") {
 		if err := r.db.WithContext(ctx).Table("recommendation_details").Where("song_id = ?", songID).Count(&value.RecommendationCount).Error; err != nil {
 			return value, repoError(err)

@@ -86,7 +86,7 @@ export const changeUserRole = (
   role: AdminUser["role"],
   reason: string,
 ) =>
-  request<{ user_id: string; before_role: string; after_role: string }>(
+  request<void>(
     `/api/system/users/${id}/role`,
     { method: "PATCH", body: JSON.stringify({ role, reason }) },
   );

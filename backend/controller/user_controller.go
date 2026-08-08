@@ -68,6 +68,13 @@ type RefreshResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
+type apiErrorResponse struct {
+	Status    int    `json:"status"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+}
+
 type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
@@ -76,6 +83,8 @@ type IUserController interface {
 	CurrentUser(c echo.Context) error
 	UpdateProfile(c echo.Context) error
 	Withdraw(c echo.Context) error
+	RequestPasswordReset(c echo.Context) error
+	ConfirmPasswordReset(c echo.Context) error
 }
 type userController struct {
 	userUsecase          usecase.IUserUsecase
@@ -335,7 +344,7 @@ func writeAPIError(ctx echo.Context, status int, code, message string) error {
 			ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
 		}
 	}
-	return ctx.JSON(status, entity.APIErrorResponse{
+	return ctx.JSON(status, apiErrorResponse{
 		Status:    status,
 		Code:      code,
 		Message:   message,

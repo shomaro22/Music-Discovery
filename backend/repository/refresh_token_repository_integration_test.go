@@ -64,7 +64,7 @@ func TestRefreshTokenRepositoryRotate(t *testing.T) {
 	if err := repo.db.First(&updated, "id = ?", current.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if updated.RevokedAt == nil || updated.ReplacedByID == nil || *updated.ReplacedByID != next.ID {
+	if updated.UsedAt == nil || updated.RevokedAt == nil || updated.ReplacedByID == nil || *updated.ReplacedByID != next.ID {
 		t.Fatalf("updated=%+v", updated)
 	}
 	var created entity.RefreshToken

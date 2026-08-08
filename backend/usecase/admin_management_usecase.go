@@ -26,11 +26,11 @@ type PageInput struct {
 	From, To                                         string
 }
 type PageResult[T any] struct {
-	Items      []T   `json:"items"`
-	Page       int   `json:"page"`
-	Limit      int   `json:"limit"`
-	Total      int64 `json:"total"`
-	TotalPages int   `json:"total_pages"`
+	Items      []T
+	Page       int
+	Limit      int
+	Total      int64
+	TotalPages int
 }
 type AuditInput struct{ IPAddress, UserAgent, RequestID string }
 type ArtistInput struct {
@@ -41,17 +41,17 @@ type ArtistInput struct {
 }
 type ArtistListResponse struct {
 	entity.Artist
-	Tags []entity.Tag `json:"tags"`
+	Tags []entity.Tag
 }
 
 type ArtistResponse struct {
 	entity.Artist
-	Tags      []entity.Tag `json:"tags"`
-	SongCount int64        `json:"song_count,omitempty"`
+	Tags      []entity.Tag
+	SongCount int64
 }
 type SongTagInput struct {
-	TagID  uuid.UUID `json:"tag_id"`
-	Weight float64   `json:"weight"`
+	TagID  uuid.UUID
+	Weight float64
 }
 type SongInput struct {
 	Song entity.Song
@@ -59,42 +59,42 @@ type SongInput struct {
 }
 type SongTagResponse struct {
 	entity.Tag
-	Weight float64 `json:"weight"`
+	Weight float64
 }
 type SongResponse struct {
 	entity.Song
-	Artist              entity.Artist     `json:"artist"`
-	Tags                []SongTagResponse `json:"tags"`
-	RecommendationCount int64             `json:"recommendation_count"`
-	LikeCount           int64             `json:"like_count"`
-	MaybeCount          int64             `json:"maybe_count"`
-	SkipCount           int64             `json:"skip_count"`
+	Artist              entity.Artist
+	Tags                []SongTagResponse
+	RecommendationCount int64
+	LikeCount           int64
+	MaybeCount          int64
+	SkipCount           int64
 }
 
 type TagResponse struct {
 	entity.Tag
-	ArtistCount     int64 `json:"artist_count"`
-	SongCount       int64 `json:"song_count"`
-	UserWeightCount int64 `json:"user_weight_count"`
+	ArtistCount     int64
+	SongCount       int64
+	UserWeightCount int64
 }
 type TagOptionResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Name     string    `json:"name"`
-	Slug     string    `json:"slug"`
-	Category string    `json:"category"`
+	ID       uuid.UUID
+	Name     string
+	Slug     string
+	Category string
 }
 type UserAdminResponse struct {
-	ID              uuid.UUID         `json:"id"`
-	Name            string            `json:"name"`
-	Email           string            `json:"email"`
-	Role            entity.UserRole   `json:"role"`
-	Status          entity.UserStatus `json:"status"`
-	SuspendedAt     *time.Time        `json:"suspended_at,omitempty"`
-	SuspendedReason string            `json:"suspended_reason,omitempty"`
-	SuspendedBy     *uuid.UUID        `json:"suspended_by,omitempty"`
-	CreatedAt       time.Time         `json:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at"`
-	DeletedAt       *time.Time        `json:"deleted_at,omitempty"`
+	ID              uuid.UUID
+	Name            string
+	Email           string
+	Role            entity.UserRole
+	Status          entity.UserStatus
+	SuspendedAt     *time.Time
+	SuspendedReason string
+	SuspendedBy     *uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       *time.Time
 }
 
 func newUserAdminResponse(user entity.User) UserAdminResponse {
@@ -112,50 +112,50 @@ func newUserAdminResponse(user entity.User) UserAdminResponse {
 
 type UserDetailResponse struct {
 	UserAdminResponse
-	ProfileStatus       string     `json:"profile_status"`
-	RecommendationCount int64      `json:"recommendation_count"`
-	FeedbackCount       int64      `json:"feedback_count"`
-	LastLoginAt         *time.Time `json:"last_login_at,omitempty"`
+	ProfileStatus       string
+	RecommendationCount int64
+	FeedbackCount       int64
+	LastLoginAt         *time.Time
 }
 type AuditLogListResponse struct {
-	ID           uuid.UUID   `json:"id"`
-	ActorUserID  uuid.UUID   `json:"actor_user_id"`
-	ActorRole    entity.Role `json:"actor_role"`
-	ActorName    string      `json:"actor_name"`
-	ActorEmail   string      `json:"actor_email"`
-	RequestID    string      `json:"request_id"`
-	Action       string      `json:"action"`
-	TargetType   string      `json:"target_type"`
-	TargetID     string      `json:"target_id"`
-	TargetName   string      `json:"target_name"`
-	TargetDetail string      `json:"target_detail"`
-	Summary      string      `json:"summary"`
-	IPAddress    string      `json:"ip_address"`
-	UserAgent    string      `json:"user_agent"`
-	CreatedAt    time.Time   `json:"created_at"`
+	ID           uuid.UUID
+	ActorUserID  uuid.UUID
+	ActorRole    entity.Role
+	ActorName    string
+	ActorEmail   string
+	RequestID    string
+	Action       string
+	TargetType   string
+	TargetID     string
+	TargetName   string
+	TargetDetail string
+	Summary      string
+	IPAddress    string
+	UserAgent    string
+	CreatedAt    time.Time
 }
 type SystemLogListResponse struct {
-	ID              uuid.UUID  `json:"id"`
-	Environment     string     `json:"environment"`
-	Service         string     `json:"service"`
-	Version         string     `json:"version"`
-	Level           string     `json:"level"`
-	Category        string     `json:"category"`
-	Event           string     `json:"event"`
-	ErrorCode       string     `json:"error_code"`
-	Message         string     `json:"message"`
-	RequestID       string     `json:"request_id"`
-	UserID          *uuid.UUID `json:"user_id,omitempty"`
-	UserName        string     `json:"user_name,omitempty"`
-	UserEmail       string     `json:"user_email,omitempty"`
-	Method          string     `json:"method"`
-	Path            string     `json:"path"`
-	StatusCode      int        `json:"status_code"`
-	ExternalService string     `json:"external_service,omitempty"`
-	DurationMs      int64      `json:"duration_ms,omitempty"`
-	IPAddress       string     `json:"ip_address,omitempty"`
-	UserAgent       string     `json:"user_agent,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID              uuid.UUID
+	Environment     string
+	Service         string
+	Version         string
+	Level           string
+	Category        string
+	Event           string
+	ErrorCode       string
+	Message         string
+	RequestID       string
+	UserID          *uuid.UUID
+	UserName        string
+	UserEmail       string
+	Method          string
+	Path            string
+	StatusCode      int
+	ExternalService string
+	DurationMs      int64
+	IPAddress       string
+	UserAgent       string
+	CreatedAt       time.Time
 }
 
 type UserStatusInput struct {
@@ -167,9 +167,9 @@ type RoleChangeInput struct {
 	Reason string
 }
 type RoleChangeResponse struct {
-	UserID     uuid.UUID   `json:"user_id"`
-	BeforeRole entity.Role `json:"before_role"`
-	AfterRole  entity.Role `json:"after_role"`
+	UserID     uuid.UUID
+	BeforeRole entity.Role
+	AfterRole  entity.Role
 }
 
 type IContentAdminUsecase interface {
@@ -352,7 +352,7 @@ func tagIDs(tags []entity.Tag) []uuid.UUID {
 	return ids
 }
 
-func songTagAuditValues(tags []repository.SongTagDetail) []SongTagInput {
+func songTagAuditValues(tags []entity.SongTagDetail) []SongTagInput {
 	values := make([]SongTagInput, 0, len(tags))
 	for _, tag := range tags {
 		values = append(values, SongTagInput{TagID: tag.Tag.ID, Weight: tag.Weight})

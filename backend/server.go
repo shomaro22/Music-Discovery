@@ -50,6 +50,8 @@ func start(ctx context.Context) error {
 	userRepository := repository.NewUserRepository(postgres)
 	refreshRepository := repository.NewRefreshTokenRepository(postgres)
 	authTransactionManager := repository.NewAuthTransactionManager(postgres)
+	adminRepository := repository.NewAdminRepository(postgres)
+	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
 
 	tokenService, err := usecase.NewTokenServiceFromEnv()
 	if err != nil {
@@ -71,7 +73,10 @@ func start(ctx context.Context) error {
 		clock,
 	)
 	passwordResetRepository := repository.NewPasswordResetRepository(postgres)
-	passwordResetUsecase := usecase.NewPasswordResetUsecase(userRepository, passwordResetRepository, usecase.NewPasswordHasher(), usecase.NewPasswordResetMailerFromEnv(), clock)
+	passwordResetUsecase := usecase.NewPasswordResetUsecase(
+		userRepository, passwordResetRepository, refreshRepository, authTransactionManager,
+		usecase.NewPasswordHasher(), usecase.NewPasswordResetMailerFromEnv(), clock, systemLogUsecase,
+	)
 	userController := controller.NewUserController(userUsecase, controller.WithPasswordResetUsecase(passwordResetUsecase))
 	questionRepository := repository.NewQuestionRepository(postgres)
 	questionAnswerRepository := repository.NewQuestionAnswerRepository(postgres)
@@ -156,9 +161,7 @@ func start(ctx context.Context) error {
 	feedbackUsecase := usecase.NewFeedbackUsecase(userRepository, feedbackRepository, authTransactionManager, clock, feedbackConfig)
 	feedbackController := controller.NewFeedbackController(feedbackUsecase)
 
-	adminRepository := repository.NewAdminRepository(postgres)
 	adminManagementUsecase := usecase.NewAdminManagementUsecase(adminRepository, clock)
-	systemLogUsecase := usecase.NewSystemLogUsecase(adminRepository)
 	logRetentionUsecase := usecase.NewLogRetentionUsecase(repository.NewLogRetentionRepository(postgres), usecase.LogRetentionConfig{SystemDays: envPositiveInt("SYSTEM_LOG_RETENTION_DAYS", 90), SensitiveDays: envPositiveInt("ERROR_SECURITY_LOG_RETENTION_DAYS", 180), AuditDays: envPositiveInt("AUDIT_LOG_RETENTION_DAYS", 365)})
 	go runLogRetention(ctx, logger, logRetentionUsecase)
 	artistAdminController := controller.NewArtistAdminController(adminManagementUsecase)

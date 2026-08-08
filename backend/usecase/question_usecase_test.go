@@ -115,6 +115,9 @@ func (questionUserRepositoryStub) IncrementTokenVersion(context.Context, reposit
 	return nil
 }
 
+func (questionUserRepositoryStub) UpdatePassword(context.Context, repository.ITransaction, uuid.UUID, string, time.Time) error {
+	return nil
+}
 func (s questionUserRepositoryStub) UpdateProfile(_ context.Context, _ uuid.UUID, _, _ string, _ time.Time) (*entity.User, error) {
 	if s.err != nil {
 		return nil, s.err

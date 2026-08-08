@@ -10,16 +10,9 @@ import (
 	"music-discovery/backend/entity"
 )
 
-type SpotifyCandidateSaveResult struct {
-	Created      int
-	AutoApproved int
-	Pending      int
-	Skipped      int
-}
-
 type ISpotifyCandidateRepository interface {
 	FindExistingSpotifyTrackIDs(context.Context, []string) (map[string]struct{}, error)
-	UpsertCandidates(context.Context, []entity.SpotifyCandidate) (SpotifyCandidateSaveResult, error)
+	UpsertCandidates(context.Context, []entity.SpotifyCandidate) (entity.SpotifyCandidateSaveResult, error)
 }
 
 // ICuratedCatalogRepository persists the trusted, Japan-oriented foundation catalog.
@@ -59,8 +52,8 @@ func (r *spotifyCandidateRepository) FindExistingSpotifyTrackIDs(ctx context.Con
 	return result, nil
 }
 
-func (r *spotifyCandidateRepository) UpsertCandidates(ctx context.Context, values []entity.SpotifyCandidate) (SpotifyCandidateSaveResult, error) {
-	result := SpotifyCandidateSaveResult{}
+func (r *spotifyCandidateRepository) UpsertCandidates(ctx context.Context, values []entity.SpotifyCandidate) (entity.SpotifyCandidateSaveResult, error) {
+	result := entity.SpotifyCandidateSaveResult{}
 	if len(values) == 0 {
 		return result, nil
 	}
@@ -86,7 +79,7 @@ func (r *spotifyCandidateRepository) UpsertCandidates(ctx context.Context, value
 		return nil
 	})
 	if err != nil {
-		return SpotifyCandidateSaveResult{}, err
+		return entity.SpotifyCandidateSaveResult{}, err
 	}
 	return result, nil
 }

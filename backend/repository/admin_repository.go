@@ -41,50 +41,6 @@ type PageQuery struct {
 	To              *time.Time
 }
 
-type ArtistListItem struct {
-	Artist entity.Artist
-	Tags   []entity.Tag
-}
-
-type TagSummary struct {
-	Tag             entity.Tag
-	ArtistCount     int64
-	SongCount       int64
-	UserWeightCount int64
-}
-
-type SongMetrics struct {
-	RecommendationCount int64
-	LikeCount           int64
-	MaybeCount          int64
-	SkipCount           int64
-}
-
-type UserMetrics struct {
-	ProfileStatus       string
-	RecommendationCount int64
-	FeedbackCount       int64
-	LastLoginAt         *time.Time
-}
-
-type ArtistDetail struct {
-	Artist    entity.Artist
-	Tags      []entity.Tag
-	SongCount int64
-}
-
-type SongTagDetail struct {
-	Tag    entity.Tag
-	Weight float64
-}
-
-type SongDetail struct {
-	Song    entity.Song
-	Artist  entity.Artist
-	Tags    []SongTagDetail
-	Metrics SongMetrics
-}
-
 type AuditContext struct {
 	ActorUserID uuid.UUID
 	Action      string
@@ -104,19 +60,19 @@ type AuditContext struct {
 }
 
 type IContentAdminRepository interface {
-	ListArtists(context.Context, PageQuery) ([]ArtistListItem, int64, error)
+	ListArtists(context.Context, PageQuery) ([]entity.ArtistListItem, int64, error)
 	FindArtist(context.Context, uuid.UUID) (*entity.Artist, error)
 	FindArtistBySpotifyID(context.Context, string) (*entity.Artist, error)
-	FindArtistDetail(context.Context, uuid.UUID) (*ArtistDetail, error)
+	FindArtistDetail(context.Context, uuid.UUID) (*entity.ArtistDetail, error)
 	SaveArtistWithTagsAndAudit(context.Context, *entity.Artist, []uuid.UUID, AuditContext) error
 	DeleteArtistWithAudit(context.Context, uuid.UUID, AuditContext) error
-	ListSongs(context.Context, PageQuery) ([]SongDetail, int64, error)
+	ListSongs(context.Context, PageQuery) ([]entity.SongDetail, int64, error)
 	FindSong(context.Context, uuid.UUID) (*entity.Song, error)
-	FindSongDetail(context.Context, uuid.UUID) (*SongDetail, error)
+	FindSongDetail(context.Context, uuid.UUID) (*entity.SongDetail, error)
 	SaveSongWithTagsAndAudit(context.Context, *entity.Song, []entity.SongTag, AuditContext) error
 	DeleteSongWithAudit(context.Context, uuid.UUID, AuditContext) error
-	ListTags(context.Context, PageQuery) ([]TagSummary, int64, error)
-	FindTag(context.Context, uuid.UUID) (*TagSummary, error)
+	ListTags(context.Context, PageQuery) ([]entity.TagSummary, int64, error)
+	FindTag(context.Context, uuid.UUID) (*entity.TagSummary, error)
 	ListTagOptions(context.Context) ([]entity.Tag, error)
 	SaveTagWithAudit(context.Context, *entity.Tag, AuditContext) error
 	DeleteTagWithAudit(context.Context, uuid.UUID, AuditContext) error
@@ -126,7 +82,7 @@ type IContentAdminRepository interface {
 type ISystemAdminRepository interface {
 	ListUsers(context.Context, PageQuery) ([]entity.User, int64, error)
 	FindUserUnscoped(context.Context, uuid.UUID) (*entity.User, error)
-	FindUserMetrics(context.Context, uuid.UUID) (*UserMetrics, error)
+	FindUserMetrics(context.Context, uuid.UUID) (*entity.UserMetrics, error)
 	SetUserStatusWithAudit(context.Context, uuid.UUID, uuid.UUID, entity.UserStatus, string, time.Time, AuditContext) error
 	ChangeUserRoleWithAudit(context.Context, uuid.UUID, entity.Role, time.Time, AuditContext) error
 	ListAuditLogs(context.Context, PageQuery) ([]entity.AuditLog, int64, error)

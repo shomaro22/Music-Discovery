@@ -14,7 +14,8 @@ import (
 
 type IPasswordResetRepository interface {
 	Create(ctx context.Context, token *entity.PasswordResetToken) error
-	ResetPassword(ctx context.Context, tokenHash, passwordHash string, now time.Time) error
+	FindByHashForUpdate(ctx context.Context, tx ITransaction, tokenHash string) (*entity.PasswordResetToken, error)
+	MarkUsed(ctx context.Context, tx ITransaction, tokenID uuid.UUID, now time.Time) error
 }
 
 type passwordResetRepository struct{ db *gorm.DB }
@@ -38,42 +39,35 @@ func (r *passwordResetRepository) Create(ctx context.Context, token *entity.Pass
 	})
 }
 
-func (r *passwordResetRepository) ResetPassword(ctx context.Context, tokenHash, passwordHash string, now time.Time) error {
-	if tokenHash == "" || passwordHash == "" {
+func (r *passwordResetRepository) FindByHashForUpdate(ctx context.Context, tx ITransaction, tokenHash string) (*entity.PasswordResetToken, error) {
+	db, ok := transactionDB(tx)
+	if !ok || tokenHash == "" {
+		return nil, entity.ErrInvalidInput
+	}
+	var token entity.PasswordResetToken
+	result := db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", tokenHash).First(&token)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, entity.ErrInvalidPasswordResetToken
+	}
+	if result.Error != nil {
+		return nil, entity.ErrInternal
+	}
+	return &token, nil
+}
+
+func (r *passwordResetRepository) MarkUsed(ctx context.Context, tx ITransaction, tokenID uuid.UUID, now time.Time) error {
+	db, ok := transactionDB(tx)
+	if !ok || tokenID == uuid.Nil {
 		return entity.ErrInvalidInput
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var token entity.PasswordResetToken
-		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", tokenHash).First(&token)
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return entity.ErrInvalidPasswordResetToken
-		}
-		if result.Error != nil {
-			return entity.ErrInternal
-		}
-		if token.UsedAt != nil || !now.Before(token.ExpiresAt) {
-			return entity.ErrInvalidPasswordResetToken
-		}
-
-		userResult := tx.Model(&entity.User{}).
-			Where("id = ? AND deleted_at IS NULL", token.UserID).
-			Updates(map[string]interface{}{"password_hash": passwordHash, "token_version": gorm.Expr("token_version + 1"), "updated_at": now})
-		if userResult.Error != nil {
-			return entity.ErrInternal
-		}
-		if userResult.RowsAffected != 1 {
-			return entity.ErrInvalidPasswordResetToken
-		}
-		if err := tx.Model(&entity.RefreshToken{}).
-			Where("user_id = ? AND revoked_at IS NULL", token.UserID).
-			Updates(map[string]interface{}{"revoked_at": now, "updated_at": now}).Error; err != nil {
-			return entity.ErrInternal
-		}
-		if err := tx.Model(&entity.PasswordResetToken{}).
-			Where("id = ? AND used_at IS NULL", token.ID).
-			Update("used_at", now).Error; err != nil {
-			return entity.ErrInternal
-		}
-		return nil
-	})
+	result := db.WithContext(ctx).Model(&entity.PasswordResetToken{}).
+		Where("id = ? AND used_at IS NULL", tokenID).
+		Updates(map[string]interface{}{"used_at": now})
+	if result.Error != nil {
+		return entity.ErrInternal
+	}
+	if result.RowsAffected != 1 {
+		return entity.ErrInvalidPasswordResetToken
+	}
+	return nil
 }

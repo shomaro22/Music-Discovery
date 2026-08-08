@@ -68,13 +68,9 @@ func NewRouter(
 	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, requireJSON)
 	publicAuth.POST("/login", userController.Login, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
 	publicAuth.POST("/refresh", userController.Refresh, echoMiddleware.BodyLimit(refreshBodyLimit), rateLimit.Refresh, csrf)
-	if passwordResetController, ok := userController.(interface {
-		RequestPasswordReset(echo.Context) error
-		ConfirmPasswordReset(echo.Context) error
-	}); ok {
-		publicAuth.POST("/password-reset/request", passwordResetController.RequestPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
-		publicAuth.POST("/password-reset/confirm", passwordResetController.ConfirmPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
-	}
+	publicAuth.POST("/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf)
+	publicAuth.POST("/password-reset/request", userController.RequestPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
+	publicAuth.POST("/password-reset/confirm", userController.ConfirmPasswordReset, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
 
 	authenticated := e.Group("/api", authMiddleware.Authenticate)
 	authenticated.GET("/users/me", userController.CurrentUser, allAuthenticated.Authorize)
@@ -90,9 +86,8 @@ func NewRouter(
 	authenticated.GET("/daily-discoveries/:recommendationId", dailyDiscoveryController.GetByID, userOnly.Authorize)
 	authenticated.GET("/recommendation-history", recommendationHistoryController.List, userOnly.Authorize)
 	authenticated.GET("/recommendation-history/:recommendationId", recommendationHistoryController.GetByID, userOnly.Authorize)
-	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), rateLimit.Feedback, requireJSON, userOnly.Authorize)
-	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, userOnly.Authorize)
-	authenticated.POST("/auth/logout", userController.Logout, echoMiddleware.BodyLimit(refreshBodyLimit), csrf, allAuthenticated.Authorize)
+	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), rateLimit.Feedback, requireJSON, allAuthenticated.Authorize)
+	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, allAuthenticated.Authorize)
 	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
 
 	content := e.Group("/api/admin", authMiddleware.Authenticate, contentAdminOnly.Authorize)
