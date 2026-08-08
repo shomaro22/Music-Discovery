@@ -1,0 +1,96 @@
+name: E2E Test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      E2E_BASE_URL: http://localhost:5173
+      E2E_API_URL: http://localhost:8080
+      E2E_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+      E2E_CONTENT_ADMIN_EMAIL: content-admin@example.com
+      E2E_CONTENT_ADMIN_PASSWORD: Password123!
+      E2E_SYSTEM_ADMIN_EMAIL: system-admin@example.com
+      E2E_SYSTEM_ADMIN_PASSWORD: Password123!
+      E2E_USER_EMAIL: user@example.com
+      E2E_USER_PASSWORD: Password123!
+      E2E_DAILY_USER_EMAIL: daily@example.com
+      E2E_DAILY_USER_PASSWORD: Password123!
+      E2E_DAILY_PHASE: day1
+      E2E_DAILY_EXPECT_DATE: "2026-08-08"
+      E2E_JWT_SECRET: test-jwt-secret-at-least-32-characters-long
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Start CI stack
+        run: docker compose -f docker-compose.ci.yml up -d --build
+
+      - name: Wait for backend health
+        run: |
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:8080/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.ci.yml logs api
+          exit 1
+
+      - name: Wait for frontend
+        run: |
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:5173/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.ci.yml logs frontend
+          exit 1
+
+      - name: Run Playwright E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Run k6 smoke test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: tests/k6/smoke.js
+        env:
+          BASE_URL: http://localhost:8080
+
+      - name: Save service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.ci.yml logs --no-color > e2e-services.log
+
+      - name: Upload Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+            e2e-services.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop CI stack
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v
