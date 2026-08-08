@@ -37,8 +37,8 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
-      <circle cx="12" cy="12" r="2.5" />
+      <path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }

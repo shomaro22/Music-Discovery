@@ -42,8 +42,8 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
-      <circle cx="12" cy="12" r="2.5" />
+      <path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -167,14 +167,22 @@ export function SignupPage() {
   return (
     <main className="auth-page signup-auth-page">
       <header className="auth-header">
-        <Link className="auth-brand" to="/">Music Discovery</Link>
+        <Link className="auth-brand" to="/">
+          Music Discovery
+        </Link>
       </header>
 
       <div className="auth-layout signup-auth-layout">
         <section className="auth-copy" aria-label="Music Discoveryの紹介">
           <p className="auth-kicker">Music Discovery</p>
-          <h1>Start Your<br />Discovery.</h1>
-          <p className="auth-copy-lead">あなたの次の一曲を、ここから見つけよう。</p>
+          <h1>
+            Start Your
+            <br />
+            Discovery.
+          </h1>
+          <p className="auth-copy-lead">
+            あなたの次の一曲を、ここから見つけよう。
+          </p>
           <p className="auth-copy-description">
             アカウントを作成して、あなたの好みに合わせた音楽との出会いを始めましょう。
           </p>
@@ -186,54 +194,151 @@ export function SignupPage() {
             <p>あなたに合う音楽を見つける準備を始めましょう。</p>
           </div>
 
-          {apiError && <p className="api-alert" role="alert">{apiError}</p>}
+          {apiError && (
+            <p className="api-alert" role="alert">
+              {apiError}
+            </p>
+          )}
 
-          <form className="auth-form signup-auth-form" noValidate onSubmit={handleSubmit}>
+          <form
+            className="auth-form signup-auth-form"
+            noValidate
+            onSubmit={handleSubmit}
+          >
             <div className="field">
               <label htmlFor={nameId}>名前</label>
-              <input id={nameId} value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="山田 太郎" aria-invalid={Boolean(fieldErrors.name)} aria-describedby={nameErrorId} disabled={isSubmitting} />
-              {fieldErrors.name && <p className="field-error" id={nameErrorId}>{fieldErrors.name}</p>}
+              <input
+                id={nameId}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+                placeholder="山田 太郎"
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={nameErrorId}
+                disabled={isSubmitting}
+              />
+              {fieldErrors.name && (
+                <p className="field-error" id={nameErrorId}>
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             <div className="field">
               <label htmlFor={emailId}>メールアドレス</label>
-              <input id={emailId} type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" aria-invalid={Boolean(fieldErrors.email)} aria-describedby={emailErrorId} disabled={isSubmitting} />
-              {fieldErrors.email && <p className="field-error" id={emailErrorId}>{fieldErrors.email}</p>}
+              <input
+                id={emailId}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                placeholder="you@example.com"
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={emailErrorId}
+                disabled={isSubmitting}
+              />
+              {fieldErrors.email && (
+                <p className="field-error" id={emailErrorId}>
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             <div className="field">
               <label htmlFor={passwordId}>パスワード</label>
               <div className="password-field">
-                <input id={passwordId} type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" placeholder="8文字以上で入力" aria-invalid={Boolean(fieldErrors.password)} aria-describedby={passwordDescription} disabled={isSubmitting} />
-                <button type="button" className="password-toggle" aria-label={showPassword ? "パスワードを非表示にする" : "パスワードを表示する"} onClick={() => setShowPassword((current) => !current)} disabled={isSubmitting}>
+                <input
+                  id={passwordId}
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="8文字以上で入力"
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={passwordDescription}
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={
+                    showPassword
+                      ? "パスワードを非表示にする"
+                      : "パスワードを表示する"
+                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                  disabled={isSubmitting}
+                >
                   <EyeIcon hidden={showPassword} />
                 </button>
               </div>
-              <p className="field-hint" id={passwordHintId}>8文字以上で入力してください。</p>
-              {fieldErrors.password && <p className="field-error" id={passwordErrorId}>{fieldErrors.password}</p>}
+              <p className="field-hint" id={passwordHintId}>
+                8文字以上で入力してください。
+              </p>
+              {fieldErrors.password && (
+                <p className="field-error" id={passwordErrorId}>
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
 
             <div className="field">
               <label htmlFor={passwordConfirmationId}>パスワード確認</label>
               <div className="password-field">
-                <input id={passwordConfirmationId} type={showPasswordConfirmation ? "text" : "password"} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} autoComplete="new-password" placeholder="パスワードを再入力" aria-invalid={Boolean(fieldErrors.passwordConfirmation)} aria-describedby={confirmationErrorId} disabled={isSubmitting} />
-                <button type="button" className="password-toggle" aria-label={showPasswordConfirmation ? "パスワード確認を非表示にする" : "パスワード確認を表示する"} onClick={() => setShowPasswordConfirmation((current) => !current)} disabled={isSubmitting}>
+                <input
+                  id={passwordConfirmationId}
+                  type={showPasswordConfirmation ? "text" : "password"}
+                  value={passwordConfirmation}
+                  onChange={(event) =>
+                    setPasswordConfirmation(event.target.value)
+                  }
+                  autoComplete="new-password"
+                  placeholder="パスワードを再入力"
+                  aria-invalid={Boolean(fieldErrors.passwordConfirmation)}
+                  aria-describedby={confirmationErrorId}
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={
+                    showPasswordConfirmation
+                      ? "パスワード確認を非表示にする"
+                      : "パスワード確認を表示する"
+                  }
+                  onClick={() =>
+                    setShowPasswordConfirmation((current) => !current)
+                  }
+                  disabled={isSubmitting}
+                >
                   <EyeIcon hidden={showPasswordConfirmation} />
                 </button>
               </div>
-              {fieldErrors.passwordConfirmation && <p className="field-error" id={confirmationErrorId}>{fieldErrors.passwordConfirmation}</p>}
+              {fieldErrors.passwordConfirmation && (
+                <p className="field-error" id={confirmationErrorId}>
+                  {fieldErrors.passwordConfirmation}
+                </p>
+              )}
             </div>
 
             <p className="signup-terms">
-              アカウントを作成することで、<a href="/terms">利用規約</a>と<a href="/privacy">プライバシーポリシー</a>に同意したものとみなされます。
+              アカウントを作成することで、<a href="/terms">利用規約</a>と
+              <a href="/privacy">プライバシーポリシー</a>
+              に同意したものとみなされます。
             </p>
 
-            <button className="primary-button" type="submit" disabled={isSubmitting}>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? "登録中..." : "アカウントを作成"}
             </button>
           </form>
 
-          <p className="auth-switch">すでにアカウントをお持ちですか？ <Link to="/login">ログイン</Link></p>
+          <p className="auth-switch">
+            すでにアカウントをお持ちですか？ <Link to="/login">ログイン</Link>
+          </p>
         </section>
       </div>
     </main>
