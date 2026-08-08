@@ -129,7 +129,7 @@ func assertAPIError(
 		t.Fatalf("status=%d want=%d body=%s", rec.Code, wantStatus, rec.Body.String())
 	}
 
-	var apiErr entity.APIErrorResponse
+	var apiErr apiErrorResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -143,7 +143,7 @@ func assertAPIError(
 
 	decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
 	decoder.DisallowUnknownFields()
-	var exactResponse entity.APIErrorResponse
+	var exactResponse apiErrorResponse
 	if err := decoder.Decode(&exactResponse); err != nil {
 		t.Fatalf("unexpected response field: %v body=%s", err, rec.Body.String())
 	}

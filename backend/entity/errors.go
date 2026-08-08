@@ -36,13 +36,6 @@ var (
 	ErrProfileCreateFailed      = errors.New("profile create failed")
 )
 
-type APIErrorResponse struct {
-	Status    int    `json:"status"`
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	RequestID string `json:"request_id"`
-}
-
 var (
 	ErrQuestionAnswerRequired                        = errors.New("question answer required")
 	ErrUserProfileRequired                           = errors.New("user profile required")

@@ -47,12 +47,12 @@ func (c *roleAdminController) ChangeRole(ctx echo.Context) error {
 	if err := ctx.Bind(&request); err != nil {
 		return adminResponseError(ctx, entity.ErrInvalidInput)
 	}
-	value, err := c.usecase.ChangeRole(ctx.Request().Context(), actorID, id, usecase.RoleChangeInput{
+	_, err = c.usecase.ChangeRole(ctx.Request().Context(), actorID, id, usecase.RoleChangeInput{
 		Role:   request.Role,
 		Reason: request.Reason,
 	}, adminAuditInput(ctx))
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.NoContent(http.StatusNoContent)
 }

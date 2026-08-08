@@ -10,7 +10,7 @@ import (
 	"music-discovery/backend/entity"
 )
 
-func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]ArtistListItem, int64, error) {
+func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]entity.ArtistListItem, int64, error) {
 	db := addKeyword(r.db.WithContext(ctx).Model(&entity.Artist{}), q.Keyword, "artists.name", "artists.spotify_artist_id")
 	if q.TagID != nil {
 		db = db.Joins("JOIN artist_tags ON artist_tags.artist_id = artists.id").Where("artist_tags.tag_id = ?", *q.TagID)
@@ -28,7 +28,7 @@ func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]Artis
 	if err := listDB.Order(safeOrder(q.Sort, q.Order, map[string]string{"name": "artists.name", "popularity": "artists.popularity", "created_at": "artists.created_at", "updated_at": "artists.updated_at"}, "artists.updated_at")).Offset(offset(q)).Limit(q.Limit).Find(&artists).Error; err != nil {
 		return nil, 0, repoError(err)
 	}
-	items := make([]ArtistListItem, 0, len(artists))
+	items := make([]entity.ArtistListItem, 0, len(artists))
 	if len(artists) == 0 {
 		return items, total, nil
 	}
@@ -48,7 +48,7 @@ func (r *adminRepository) ListArtists(ctx context.Context, q PageQuery) ([]Artis
 		tagsByArtist[row.ArtistID] = append(tagsByArtist[row.ArtistID], row.Tag)
 	}
 	for _, artist := range artists {
-		items = append(items, ArtistListItem{Artist: artist, Tags: tagsByArtist[artist.ID]})
+		items = append(items, entity.ArtistListItem{Artist: artist, Tags: tagsByArtist[artist.ID]})
 	}
 	return items, total, nil
 }
@@ -66,7 +66,7 @@ func (r *adminRepository) FindArtistBySpotifyID(ctx context.Context, spotifyArti
 	}
 	return &value, nil
 }
-func (r *adminRepository) FindArtistDetail(ctx context.Context, id uuid.UUID) (*ArtistDetail, error) {
+func (r *adminRepository) FindArtistDetail(ctx context.Context, id uuid.UUID) (*entity.ArtistDetail, error) {
 	artist, err := r.FindArtist(ctx, id)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (r *adminRepository) FindArtistDetail(ctx context.Context, id uuid.UUID) (*
 	if err = r.db.WithContext(ctx).Model(&entity.Song{}).Where("artist_id = ?", id).Count(&count).Error; err != nil {
 		return nil, repoError(err)
 	}
-	return &ArtistDetail{Artist: *artist, Tags: tags, SongCount: count}, nil
+	return &entity.ArtistDetail{Artist: *artist, Tags: tags, SongCount: count}, nil
 }
 
 func replaceArtistTags(tx *gorm.DB, artistID uuid.UUID, tagIDs []uuid.UUID, now time.Time) error {

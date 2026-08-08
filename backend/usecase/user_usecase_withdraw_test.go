@@ -255,6 +255,9 @@ func TestWithdrawMapsTransactionFailuresToInternalError(t *testing.T) {
 	}
 }
 
+func (s *withdrawUserRepositoryStub) UpdatePassword(context.Context, repository.ITransaction, uuid.UUID, string, time.Time) error {
+	return nil
+}
 func (s *withdrawUserRepositoryStub) UpdateProfile(_ context.Context, _ uuid.UUID, _, _ string, _ time.Time) (*entity.User, error) {
 	return s.user, nil
 }

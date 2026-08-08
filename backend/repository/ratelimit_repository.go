@@ -4,20 +4,15 @@ import (
 	"context"
 	"errors"
 	"math"
+	"music-discovery/backend/entity"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-type RateLimitResult struct {
-	Allowed    bool
-	Remaining  float64
-	RetryAfter time.Duration
-}
-
 type IRateLimitRepository interface {
-	Allow(ctx context.Context, key string, rate float64, capacity, cost int, now time.Time) (RateLimitResult, error)
+	Allow(ctx context.Context, key string, rate float64, capacity, cost int, now time.Time) (entity.RateLimitResult, error)
 }
 
 type rateLimitRepository struct{ client *redis.Client }
@@ -48,9 +43,9 @@ redis.call('HSET', KEYS[1], 'tokens', tokens, 'updated_at', now)
 redis.call('EXPIRE', KEYS[1], ttl)
 return {tostring(allowed), tostring(tokens), tostring(retry)}`)
 
-func (r *rateLimitRepository) Allow(ctx context.Context, key string, rate float64, capacity, cost int, now time.Time) (RateLimitResult, error) {
+func (r *rateLimitRepository) Allow(ctx context.Context, key string, rate float64, capacity, cost int, now time.Time) (entity.RateLimitResult, error) {
 	if r.client == nil || key == "" || rate <= 0 || capacity <= 0 || cost <= 0 {
-		return RateLimitResult{}, errors.New("invalid rate limit repository input")
+		return entity.RateLimitResult{}, errors.New("invalid rate limit repository input")
 	}
 	ttlSeconds := int(math.Ceil(float64(capacity) / rate))
 	if ttlSeconds < 1 {
@@ -67,26 +62,26 @@ func (r *rateLimitRepository) Allow(ctx context.Context, key string, rate float6
 		ttlSeconds,
 	).StringSlice()
 	if err != nil {
-		return RateLimitResult{}, err
+		return entity.RateLimitResult{}, err
 	}
 	if len(result) != 3 {
-		return RateLimitResult{}, errors.New("invalid rate limit script result")
+		return entity.RateLimitResult{}, errors.New("invalid rate limit script result")
 	}
 	allowedValue, err := strconv.ParseInt(result[0], 10, 64)
 	if err != nil {
-		return RateLimitResult{}, errors.New("invalid rate limit allowed result")
+		return entity.RateLimitResult{}, errors.New("invalid rate limit allowed result")
 	}
 	remaining, err := strconv.ParseFloat(result[1], 64)
 	if err != nil {
-		return RateLimitResult{}, errors.New("invalid rate limit remaining result")
+		return entity.RateLimitResult{}, errors.New("invalid rate limit remaining result")
 	}
 	retry, err := strconv.ParseInt(result[2], 10, 64)
 	if err != nil {
-		return RateLimitResult{}, errors.New("invalid rate limit retry result")
+		return entity.RateLimitResult{}, errors.New("invalid rate limit retry result")
 	}
 	allowed := allowedValue == 1
 	if !allowed && retry < 1 {
 		retry = 1
 	}
-	return RateLimitResult{Allowed: allowed, Remaining: remaining, RetryAfter: time.Duration(retry) * time.Second}, nil
+	return entity.RateLimitResult{Allowed: allowed, Remaining: remaining, RetryAfter: time.Duration(retry) * time.Second}, nil
 }

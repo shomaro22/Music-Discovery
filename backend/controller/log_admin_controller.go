@@ -32,7 +32,7 @@ func (c *logAdminController) ListAuditLogs(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toAuditLogListAdminResponse))
 }
 
 func (c *logAdminController) GetAuditLog(ctx echo.Context) error {
@@ -56,7 +56,7 @@ func (c *logAdminController) ListSystemLogs(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toSystemLogListAdminResponse))
 }
 
 func (c *logAdminController) GetSystemLog(ctx echo.Context) error {

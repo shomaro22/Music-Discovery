@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"music-discovery/backend/entity"
-
 	"github.com/labstack/echo/v4"
 )
 
@@ -49,7 +47,7 @@ func TestCSRFMiddlewareRejectsMissingOrMismatch(t *testing.T) {
 			if rec.Code != http.StatusForbidden || called {
 				t.Fatalf("status=%d called=%v", rec.Code, called)
 			}
-			var apiErr entity.APIErrorResponse
+			var apiErr apiErrorResponse
 			if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
 				t.Fatal(err)
 			}

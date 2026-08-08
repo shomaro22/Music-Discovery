@@ -12,17 +12,9 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type FeedbackTarget struct {
-	Detail         entity.RecommendationDetail
-	Recommendation entity.Recommendation
-	Song           entity.Song
-	Artist         entity.Artist
-	Tags           []entity.Tag
-}
-
 type IFeedbackRepository interface {
-	FindTarget(ctx context.Context, recommendationDetailID uuid.UUID) (*FeedbackTarget, error)
-	FindTargetForUpdate(ctx context.Context, tx ITransaction, recommendationDetailID uuid.UUID) (*FeedbackTarget, error)
+	FindTarget(ctx context.Context, recommendationDetailID uuid.UUID) (*entity.FeedbackTarget, error)
+	FindTargetForUpdate(ctx context.Context, tx ITransaction, recommendationDetailID uuid.UUID) (*entity.FeedbackTarget, error)
 	FindLearningProfileForUpdate(ctx context.Context, tx ITransaction, userID uuid.UUID) (*entity.UserProfile, error)
 	FindByDetailID(ctx context.Context, tx ITransaction, recommendationDetailID uuid.UUID) (*entity.Feedback, error)
 	Create(ctx context.Context, tx ITransaction, feedback *entity.Feedback) error
@@ -35,11 +27,11 @@ type feedbackRepository struct{ db *gorm.DB }
 
 func NewFeedbackRepository(db *gorm.DB) IFeedbackRepository { return &feedbackRepository{db: db} }
 
-func (r *feedbackRepository) FindTarget(ctx context.Context, detailID uuid.UUID) (*FeedbackTarget, error) {
+func (r *feedbackRepository) FindTarget(ctx context.Context, detailID uuid.UUID) (*entity.FeedbackTarget, error) {
 	return r.findTarget(r.db.WithContext(ctx), detailID, false)
 }
 
-func (r *feedbackRepository) FindTargetForUpdate(ctx context.Context, tx ITransaction, detailID uuid.UUID) (*FeedbackTarget, error) {
+func (r *feedbackRepository) FindTargetForUpdate(ctx context.Context, tx ITransaction, detailID uuid.UUID) (*entity.FeedbackTarget, error) {
 	db, err := txDB(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -47,7 +39,7 @@ func (r *feedbackRepository) FindTargetForUpdate(ctx context.Context, tx ITransa
 	return r.findTarget(db, detailID, true)
 }
 
-func (r *feedbackRepository) findTarget(db *gorm.DB, detailID uuid.UUID, lock bool) (*FeedbackTarget, error) {
+func (r *feedbackRepository) findTarget(db *gorm.DB, detailID uuid.UUID, lock bool) (*entity.FeedbackTarget, error) {
 	var detail entity.RecommendationDetail
 	query := db.Preload("Song.Artist")
 	if lock {
@@ -81,7 +73,7 @@ func (r *feedbackRepository) findTarget(db *gorm.DB, detailID uuid.UUID, lock bo
 	`, detail.SongID, detail.Song.ArtistID).Scan(&tags).Error; err != nil {
 		return nil, entity.ErrInternal
 	}
-	return &FeedbackTarget{Detail: detail, Recommendation: recommendation, Song: detail.Song, Artist: detail.Song.Artist, Tags: tags}, nil
+	return &entity.FeedbackTarget{Detail: detail, Recommendation: recommendation, Song: detail.Song, Artist: detail.Song.Artist, Tags: tags}, nil
 }
 
 func (r *feedbackRepository) FindLearningProfileForUpdate(ctx context.Context, tx ITransaction, userID uuid.UUID) (*entity.UserProfile, error) {

@@ -15,8 +15,11 @@ import (
 )
 
 type passwordResetUserRepositoryStub struct {
-	user *entity.User
-	err  error
+	user              *entity.User
+	err               error
+	updatedUserID     uuid.UUID
+	updatedPassword   string
+	incrementedUserID uuid.UUID
 }
 
 func (s *passwordResetUserRepositoryStub) FindByID(context.Context, uuid.UUID) (*entity.User, error) {
@@ -37,30 +40,72 @@ func (s *passwordResetUserRepositoryStub) Create(context.Context, *entity.User) 
 func (s *passwordResetUserRepositoryStub) SoftDelete(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
 	return entity.ErrInternal
 }
-func (s *passwordResetUserRepositoryStub) IncrementTokenVersion(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
-	return entity.ErrInternal
+func (s *passwordResetUserRepositoryStub) IncrementTokenVersion(_ context.Context, _ repository.ITransaction, userID uuid.UUID, _ time.Time) error {
+	s.incrementedUserID = userID
+	return nil
+}
+func (s *passwordResetUserRepositoryStub) UpdatePassword(_ context.Context, _ repository.ITransaction, userID uuid.UUID, passwordHash string, _ time.Time) error {
+	s.updatedUserID = userID
+	s.updatedPassword = passwordHash
+	return nil
 }
 func (s *passwordResetUserRepositoryStub) UpdateProfile(context.Context, uuid.UUID, string, string, time.Time) (*entity.User, error) {
 	return nil, entity.ErrInternal
 }
 
 type passwordResetRepositoryStub struct {
-	created      *entity.PasswordResetToken
-	resetHash    string
-	passwordHash string
-	resetAt      time.Time
-	resetErr     error
+	created  *entity.PasswordResetToken
+	found    *entity.PasswordResetToken
+	findHash string
+	markUsed uuid.UUID
+	resetErr error
 }
 
 func (s *passwordResetRepositoryStub) Create(_ context.Context, token *entity.PasswordResetToken) error {
 	s.created = token
 	return nil
 }
-func (s *passwordResetRepositoryStub) ResetPassword(_ context.Context, tokenHash, passwordHash string, now time.Time) error {
-	s.resetHash = tokenHash
-	s.passwordHash = passwordHash
-	s.resetAt = now
-	return s.resetErr
+func (s *passwordResetRepositoryStub) FindByHashForUpdate(_ context.Context, _ repository.ITransaction, tokenHash string) (*entity.PasswordResetToken, error) {
+	s.findHash = tokenHash
+	if s.resetErr != nil {
+		return nil, s.resetErr
+	}
+	if s.found == nil {
+		return nil, entity.ErrInvalidPasswordResetToken
+	}
+	return s.found, nil
+}
+func (s *passwordResetRepositoryStub) MarkUsed(_ context.Context, _ repository.ITransaction, tokenID uuid.UUID, _ time.Time) error {
+	s.markUsed = tokenID
+	return nil
+}
+
+type passwordResetRefreshRepositoryStub struct{ revokedUserID uuid.UUID }
+
+func (s *passwordResetRefreshRepositoryStub) Create(context.Context, *entity.RefreshToken) error {
+	return nil
+}
+func (s *passwordResetRefreshRepositoryStub) FindByTokenHash(context.Context, string) (*entity.RefreshToken, error) {
+	return nil, entity.ErrInvalidRefreshToken
+}
+func (s *passwordResetRefreshRepositoryStub) Rotate(context.Context, uuid.UUID, *entity.RefreshToken, time.Time) error {
+	return nil
+}
+func (s *passwordResetRefreshRepositoryStub) RevokeFamily(context.Context, uuid.UUID, time.Time) error {
+	return nil
+}
+func (s *passwordResetRefreshRepositoryStub) RevokeAllByUserID(_ context.Context, _ repository.ITransaction, userID uuid.UUID, _ time.Time) error {
+	s.revokedUserID = userID
+	return nil
+}
+
+type passwordResetTransactionStub struct{ err error }
+
+func (s passwordResetTransactionStub) WithinTransaction(_ context.Context, fn func(repository.ITransaction) error) error {
+	if s.err != nil {
+		return s.err
+	}
+	return fn(nil)
 }
 
 type passwordResetHasherStub struct{ hashed string }
@@ -68,14 +113,25 @@ type passwordResetHasherStub struct{ hashed string }
 func (s passwordResetHasherStub) Hash(string) (string, error) { return s.hashed, nil }
 
 type passwordResetMailerStub struct {
-	email string
-	token string
+	email, token string
+	err          error
 }
 
 func (s *passwordResetMailerStub) SendPasswordReset(_ context.Context, email, token string) error {
-	s.email = email
-	s.token = token
+	s.email, s.token = email, token
+	return s.err
+}
+
+type passwordResetSystemLogStub struct{ log *entity.SystemLog }
+
+func (s *passwordResetSystemLogStub) CreateSystemLog(_ context.Context, value *entity.SystemLog) error {
+	s.log = value
 	return nil
+}
+
+func newPasswordResetUC(users repository.IUserRepository, tokens repository.IPasswordResetRepository, mailer IPasswordResetMailer, clock IClock, logs IPasswordResetSystemLogWriter) (IPasswordResetUsecase, *passwordResetRefreshRepositoryStub) {
+	refresh := &passwordResetRefreshRepositoryStub{}
+	return NewPasswordResetUsecase(users, tokens, refresh, passwordResetTransactionStub{}, passwordResetHasherStub{hashed: "new-password-hash"}, mailer, clock, logs), refresh
 }
 
 func TestPasswordResetRequestCreatesExpiringTokenAndSendsMail(t *testing.T) {
@@ -84,7 +140,7 @@ func TestPasswordResetRequestCreatesExpiringTokenAndSendsMail(t *testing.T) {
 	users := &passwordResetUserRepositoryStub{user: user}
 	tokens := &passwordResetRepositoryStub{}
 	mailer := &passwordResetMailerStub{}
-	uc := NewPasswordResetUsecase(users, tokens, passwordResetHasherStub{hashed: "hash"}, mailer, NewFixedClock(now))
+	uc, _ := newPasswordResetUC(users, tokens, mailer, NewFixedClock(now), nil)
 
 	result, err := uc.Request(context.Background(), " USER@EXAMPLE.COM ")
 	if err != nil {
@@ -107,8 +163,7 @@ func TestPasswordResetRequestCreatesExpiringTokenAndSendsMail(t *testing.T) {
 func TestPasswordResetRequestDoesNotRevealUnknownEmail(t *testing.T) {
 	tokens := &passwordResetRepositoryStub{}
 	mailer := &passwordResetMailerStub{}
-	uc := NewPasswordResetUsecase(&passwordResetUserRepositoryStub{}, tokens, passwordResetHasherStub{hashed: "hash"}, mailer, NewFixedClock(time.Now()))
-
+	uc, _ := newPasswordResetUC(&passwordResetUserRepositoryStub{}, tokens, mailer, NewFixedClock(time.Now()), nil)
 	result, err := uc.Request(context.Background(), "missing@example.com")
 	if err != nil {
 		t.Fatalf("Request() error = %v", err)
@@ -121,25 +176,54 @@ func TestPasswordResetRequestDoesNotRevealUnknownEmail(t *testing.T) {
 	}
 }
 
-func TestPasswordResetConfirmHashesTokenAndUpdatesPassword(t *testing.T) {
+func TestPasswordResetRequestLogsMailFailureButKeepsGenericSuccess(t *testing.T) {
+	now := time.Date(2026, 8, 8, 0, 0, 0, 0, time.UTC)
+	user := &entity.User{ID: uuid.New(), Email: "user@example.com", Status: entity.UserStatusActive}
+	logs := &passwordResetSystemLogStub{}
+	uc, _ := newPasswordResetUC(&passwordResetUserRepositoryStub{user: user}, &passwordResetRepositoryStub{}, &passwordResetMailerStub{err: errors.New("smtp down")}, NewFixedClock(now), logs)
+	result, err := uc.Request(context.Background(), user.Email)
+	if err != nil {
+		t.Fatalf("Request() error = %v", err)
+	}
+	if result == nil || result.Token == "" {
+		t.Fatal("token should still be created")
+	}
+	if logs.log == nil || logs.log.Event != "password_reset_mail_failed" || logs.log.UserID == nil || *logs.log.UserID != user.ID {
+		t.Fatalf("system log = %#v", logs.log)
+	}
+}
+
+func TestPasswordResetConfirmOwnsTransactionalFlow(t *testing.T) {
 	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
-	tokens := &passwordResetRepositoryStub{}
-	uc := NewPasswordResetUsecase(&passwordResetUserRepositoryStub{}, tokens, passwordResetHasherStub{hashed: "new-password-hash"}, nil, NewFixedClock(now))
+	userID := uuid.New()
+	resetID := uuid.New()
+	tokens := &passwordResetRepositoryStub{found: &entity.PasswordResetToken{ID: resetID, UserID: userID}}
+	users := &passwordResetUserRepositoryStub{}
+	uc, refresh := newPasswordResetUC(users, tokens, nil, NewFixedClock(now), nil)
 
 	if err := uc.Confirm(context.Background(), "plain-token", "new-password"); err != nil {
 		t.Fatalf("Confirm() error = %v", err)
 	}
 	sum := sha256.Sum256([]byte("plain-token"))
-	if tokens.resetHash != hex.EncodeToString(sum[:]) {
-		t.Fatalf("token hash = %q", tokens.resetHash)
+	if tokens.findHash != hex.EncodeToString(sum[:]) {
+		t.Fatalf("token hash = %q", tokens.findHash)
 	}
-	if tokens.passwordHash != "new-password-hash" || !tokens.resetAt.Equal(now) {
-		t.Fatalf("passwordHash=%q resetAt=%v", tokens.passwordHash, tokens.resetAt)
+	if users.updatedUserID != userID || users.updatedPassword != "new-password-hash" {
+		t.Fatalf("password update user=%v hash=%q", users.updatedUserID, users.updatedPassword)
+	}
+	if users.incrementedUserID != userID {
+		t.Fatalf("token version user=%v", users.incrementedUserID)
+	}
+	if refresh.revokedUserID != userID {
+		t.Fatalf("refresh revoke user=%v", refresh.revokedUserID)
+	}
+	if tokens.markUsed != resetID {
+		t.Fatalf("marked token=%v", tokens.markUsed)
 	}
 }
 
 func TestPasswordResetConfirmRejectsInvalidPasswordAndToken(t *testing.T) {
-	uc := NewPasswordResetUsecase(&passwordResetUserRepositoryStub{}, &passwordResetRepositoryStub{}, passwordResetHasherStub{hashed: "hash"}, nil, NewFixedClock(time.Now()))
+	uc, _ := newPasswordResetUC(&passwordResetUserRepositoryStub{}, &passwordResetRepositoryStub{}, nil, NewFixedClock(time.Now()), nil)
 	if err := uc.Confirm(context.Background(), "", "new-password"); !errors.Is(err, entity.ErrInvalidPasswordResetToken) {
 		t.Fatalf("empty token error = %v", err)
 	}
@@ -150,5 +234,8 @@ func TestPasswordResetConfirmRejectsInvalidPasswordAndToken(t *testing.T) {
 
 var _ repository.IUserRepository = (*passwordResetUserRepositoryStub)(nil)
 var _ repository.IPasswordResetRepository = (*passwordResetRepositoryStub)(nil)
+var _ repository.IRefreshTokenRepository = (*passwordResetRefreshRepositoryStub)(nil)
+var _ repository.ITransactionManager = passwordResetTransactionStub{}
 var _ IPasswordHasher = passwordResetHasherStub{}
 var _ IPasswordResetMailer = (*passwordResetMailerStub)(nil)
+var _ IPasswordResetSystemLogWriter = (*passwordResetSystemLogStub)(nil)

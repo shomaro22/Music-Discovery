@@ -9,7 +9,7 @@ export const options = {
 };
 
 export default function () {
-  const response = http.get(`${BASE_URL}/api/health`);
+  const response = http.get(`${BASE_URL}/health`);
   check(response, {
     "health returns success": (r) => r.status >= 200 && r.status < 300,
   });

@@ -23,6 +23,9 @@ func NewPasswordResetMailerFromEnv() IPasswordResetMailer {
 
 func (m *smtpPasswordResetMailer) SendPasswordReset(ctx context.Context, email, token string) error {
 	if m.host == "" || m.from == "" || m.frontendBaseURL == "" {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			return fmt.Errorf("password reset SMTP configuration is incomplete")
+		}
 		return nil
 	}
 	select {
