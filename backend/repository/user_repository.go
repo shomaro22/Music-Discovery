@@ -18,6 +18,7 @@ type IUserRepository interface {
 	Create(ctx context.Context, user *entity.User) (*entity.User, error)
 	SoftDelete(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
 	IncrementTokenVersion(ctx context.Context, tx ITransaction, userID uuid.UUID, now time.Time) error
+	UpdatePassword(ctx context.Context, tx ITransaction, userID uuid.UUID, passwordHash string, now time.Time) error
 	UpdateProfile(ctx context.Context, userID uuid.UUID, name, email string, now time.Time) (*entity.User, error)
 }
 
@@ -115,6 +116,24 @@ func (r *userRepository) IncrementTokenVersion(ctx context.Context, tx ITransact
 	}
 	return nil
 }
+
+func (r *userRepository) UpdatePassword(ctx context.Context, tx ITransaction, userID uuid.UUID, passwordHash string, now time.Time) error {
+	db, ok := transactionDB(tx)
+	if !ok || userID == uuid.Nil || passwordHash == "" {
+		return entity.ErrInvalidInput
+	}
+	result := db.WithContext(ctx).Model(&entity.User{}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(map[string]interface{}{"password_hash": passwordHash, "updated_at": now})
+	if result.Error != nil {
+		return entity.ErrInternal
+	}
+	if result.RowsAffected != 1 {
+		return entity.ErrUserNotFound
+	}
+	return nil
+}
+
 func assertUserForCreate(user *entity.User) error {
 	// 形式、必須項目、およびビジネスロジックに関するバリデーションは、ValidatorやUsecaseの責務です。
 	if user == nil {

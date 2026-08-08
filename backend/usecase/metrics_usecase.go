@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"runtime"
+	runtimeMetrics "runtime/metrics"
 	"sort"
 	"sync"
 	"time"
@@ -33,10 +34,11 @@ type MetricsSnapshot struct {
 }
 
 type RuntimeMetrics struct {
-	Goroutines     int    `json:"goroutines"`
-	HeapAllocBytes uint64 `json:"heap_alloc_bytes"`
-	HeapInuseBytes uint64 `json:"heap_inuse_bytes"`
-	SystemBytes    uint64 `json:"system_bytes"`
+	Goroutines            int     `json:"goroutines"`
+	HeapAllocBytes        uint64  `json:"heap_alloc_bytes"`
+	HeapInuseBytes        uint64  `json:"heap_inuse_bytes"`
+	SystemBytes           uint64  `json:"system_bytes"`
+	CPUUtilizationPercent float64 `json:"cpu_utilization_percent"`
 }
 type DatabaseMetrics struct {
 	OpenConnections  int   `json:"open_connections"`
@@ -219,7 +221,43 @@ func (u *metricsUsecase) Monitoring(ctx context.Context) MonitoringMetrics {
 	if provider != nil {
 		db = provider()
 	}
-	return MonitoringMetrics{Application: u.Snapshot(ctx), Runtime: RuntimeMetrics{runtime.NumGoroutine(), mem.HeapAlloc, mem.HeapInuse, mem.Sys}, Database: db, Version: u.version, GeneratedAt: time.Now().UTC()}
+	return MonitoringMetrics{
+		Application: u.Snapshot(ctx),
+		Runtime: RuntimeMetrics{
+			Goroutines:            runtime.NumGoroutine(),
+			HeapAllocBytes:        mem.HeapAlloc,
+			HeapInuseBytes:        mem.HeapInuse,
+			SystemBytes:           mem.Sys,
+			CPUUtilizationPercent: runtimeCPUUtilizationPercent(),
+		},
+		Database:    db,
+		Version:     u.version,
+		GeneratedAt: time.Now().UTC(),
+	}
+}
+
+func runtimeCPUUtilizationPercent() float64 {
+	samples := []runtimeMetrics.Sample{
+		{Name: "/cpu/classes/total:cpu-seconds"},
+		{Name: "/cpu/classes/idle:cpu-seconds"},
+	}
+	runtimeMetrics.Read(samples)
+	if samples[0].Value.Kind() != runtimeMetrics.KindFloat64 || samples[1].Value.Kind() != runtimeMetrics.KindFloat64 {
+		return 0
+	}
+	total := samples[0].Value.Float64()
+	idle := samples[1].Value.Float64()
+	if total <= 0 {
+		return 0
+	}
+	value := (total - idle) / total * 100
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
 }
 func percentile(values []float64, ratio float64) float64 {
 	if len(values) == 0 {

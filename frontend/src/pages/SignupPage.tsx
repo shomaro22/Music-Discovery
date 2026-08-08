@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { PasswordToggleIcon } from "../components/common/PasswordToggleIcon";
 
 import { ApiRequestError } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
@@ -166,15 +167,8 @@ export function SignupPage() {
 
   return (
     <main className="auth-page signup-auth-page">
-      <header className="auth-header">
-        <Link className="auth-brand" to="/">
-          Music Discovery
-        </Link>
-      </header>
-
       <div className="auth-layout signup-auth-layout">
-        <section className="auth-copy" aria-label="Music Discoveryの紹介">
-          <p className="auth-kicker">Music Discovery</p>
+        <section className="auth-copy" aria-label="サービスの紹介">
           <h1>
             Start Your
             <br />
@@ -269,7 +263,7 @@ export function SignupPage() {
                   onClick={() => setShowPassword((current) => !current)}
                   disabled={isSubmitting}
                 >
-                  <EyeIcon hidden={showPassword} />
+                  <PasswordToggleIcon hidden={showPassword} />
                 </button>
               </div>
               <p className="field-hint" id={passwordHintId}>
@@ -311,7 +305,7 @@ export function SignupPage() {
                   }
                   disabled={isSubmitting}
                 >
-                  <EyeIcon hidden={showPasswordConfirmation} />
+                  <PasswordToggleIcon hidden={showPasswordConfirmation} />
                 </button>
               </div>
               {fieldErrors.passwordConfirmation && (
@@ -320,12 +314,6 @@ export function SignupPage() {
                 </p>
               )}
             </div>
-
-            <p className="signup-terms">
-              アカウントを作成することで、<a href="/terms">利用規約</a>と
-              <a href="/privacy">プライバシーポリシー</a>
-              に同意したものとみなされます。
-            </p>
 
             <button
               className="primary-button"

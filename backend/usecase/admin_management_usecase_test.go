@@ -20,13 +20,16 @@ type adminRepoStub struct {
 	lastQuery    repository.PageQuery
 }
 
-func (*adminRepoStub) ListArtists(context.Context, repository.PageQuery) ([]repository.ArtistListItem, int64, error) {
+func (*adminRepoStub) ListArtists(context.Context, repository.PageQuery) ([]entity.ArtistListItem, int64, error) {
 	return nil, 0, nil
 }
 func (*adminRepoStub) FindArtist(context.Context, uuid.UUID) (*entity.Artist, error) {
 	return nil, entity.ErrNotFound
 }
-func (*adminRepoStub) FindArtistDetail(context.Context, uuid.UUID) (*repository.ArtistDetail, error) {
+func (*adminRepoStub) FindArtistBySpotifyID(context.Context, string) (*entity.Artist, error) {
+	return nil, entity.ErrNotFound
+}
+func (*adminRepoStub) FindArtistDetail(context.Context, uuid.UUID) (*entity.ArtistDetail, error) {
 	return nil, entity.ErrNotFound
 }
 func (*adminRepoStub) SaveArtistWithTagsAndAudit(context.Context, *entity.Artist, []uuid.UUID, repository.AuditContext) error {
@@ -35,13 +38,13 @@ func (*adminRepoStub) SaveArtistWithTagsAndAudit(context.Context, *entity.Artist
 func (*adminRepoStub) DeleteArtistWithAudit(context.Context, uuid.UUID, repository.AuditContext) error {
 	return nil
 }
-func (*adminRepoStub) ListSongs(context.Context, repository.PageQuery) ([]repository.SongDetail, int64, error) {
+func (*adminRepoStub) ListSongs(context.Context, repository.PageQuery) ([]entity.SongDetail, int64, error) {
 	return nil, 0, nil
 }
 func (*adminRepoStub) FindSong(context.Context, uuid.UUID) (*entity.Song, error) {
 	return nil, entity.ErrNotFound
 }
-func (*adminRepoStub) FindSongDetail(context.Context, uuid.UUID) (*repository.SongDetail, error) {
+func (*adminRepoStub) FindSongDetail(context.Context, uuid.UUID) (*entity.SongDetail, error) {
 	return nil, entity.ErrNotFound
 }
 func (*adminRepoStub) SaveSongWithTagsAndAudit(context.Context, *entity.Song, []entity.SongTag, repository.AuditContext) error {
@@ -50,10 +53,10 @@ func (*adminRepoStub) SaveSongWithTagsAndAudit(context.Context, *entity.Song, []
 func (*adminRepoStub) DeleteSongWithAudit(context.Context, uuid.UUID, repository.AuditContext) error {
 	return nil
 }
-func (*adminRepoStub) ListTags(context.Context, repository.PageQuery) ([]repository.TagSummary, int64, error) {
+func (*adminRepoStub) ListTags(context.Context, repository.PageQuery) ([]entity.TagSummary, int64, error) {
 	return nil, 0, nil
 }
-func (*adminRepoStub) FindTag(context.Context, uuid.UUID) (*repository.TagSummary, error) {
+func (*adminRepoStub) FindTag(context.Context, uuid.UUID) (*entity.TagSummary, error) {
 	return nil, entity.ErrNotFound
 }
 func (*adminRepoStub) ListTagOptions(context.Context) ([]entity.Tag, error) {
@@ -70,8 +73,8 @@ func (s *adminRepoStub) ListUsers(_ context.Context, q repository.PageQuery) ([]
 	s.lastQuery = q
 	return nil, 0, nil
 }
-func (*adminRepoStub) FindUserMetrics(context.Context, uuid.UUID) (*repository.UserMetrics, error) {
-	return &repository.UserMetrics{}, nil
+func (*adminRepoStub) FindUserMetrics(context.Context, uuid.UUID) (*entity.UserMetrics, error) {
+	return &entity.UserMetrics{}, nil
 }
 func (s *adminRepoStub) FindUserUnscoped(context.Context, uuid.UUID) (*entity.User, error) {
 	if s.user == nil {
@@ -94,6 +97,9 @@ func (s *adminRepoStub) ListAuditLogs(_ context.Context, q repository.PageQuery)
 }
 func (*adminRepoStub) FindAuditLog(context.Context, uuid.UUID) (*entity.AuditLog, error) {
 	return nil, entity.ErrNotFound
+}
+func (*adminRepoStub) ResolveAuditTarget(context.Context, string, string) (string, string) {
+	return "", ""
 }
 func (s *adminRepoStub) ListSystemLogs(_ context.Context, q repository.PageQuery) ([]entity.SystemLog, int64, error) {
 	s.lastQuery = q

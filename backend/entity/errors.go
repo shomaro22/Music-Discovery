@@ -19,6 +19,7 @@ var (
 	ErrForbidden                = errors.New("forbidden")
 	ErrNotFound                 = errors.New("not found")
 	ErrConflict                 = errors.New("conflict")
+	ErrArtistAlreadyExists      = errors.New("artist already exists")
 	ErrAlreadyActive            = errors.New("user already active")
 	ErrAlreadySuspended         = errors.New("user already suspended")
 	ErrLastSystemAdmin          = errors.New("last active system admin")
@@ -34,13 +35,6 @@ var (
 	ErrAnswerSaveFailed         = errors.New("answer save failed")
 	ErrProfileCreateFailed      = errors.New("profile create failed")
 )
-
-type APIErrorResponse struct {
-	Status    int    `json:"status"`
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	RequestID string `json:"request_id"`
-}
 
 var (
 	ErrQuestionAnswerRequired                        = errors.New("question answer required")
@@ -93,3 +87,5 @@ var (
 	ErrRecommendationHistoryNotFound     = errors.New("recommendation history not found")
 	ErrRecommendationHistoryFetchFailed  = errors.New("recommendation history fetch failed")
 )
+
+var ErrInvalidPasswordResetToken = errors.New("invalid password reset token")

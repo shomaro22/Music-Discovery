@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { PasswordToggleIcon } from "../components/common/PasswordToggleIcon";
 import { ApiRequestError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import type { LoginInput } from "../types/user";
@@ -52,7 +53,6 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [apiError, setApiError] = useState<string | null>(null);
-  const [requestId, setRequestId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const locationState = location.state as {
     signedUp?: boolean;
@@ -96,7 +96,6 @@ export function LoginPage() {
     if (isSubmitting) return;
     setFieldErrors({});
     setApiError(null);
-    setRequestId("");
     const errors = validate();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -116,7 +115,6 @@ export function LoginPage() {
       setPassword("");
       if (error instanceof ApiRequestError) {
         setApiError(error.response.message);
-        setRequestId(error.response.request_id);
       } else
         setApiError("通信に失敗しました。時間を置いて再度お試しください。");
     } finally {
@@ -126,14 +124,8 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <header className="auth-header">
-        <Link className="auth-brand" to="/">
-          Music Discovery
-        </Link>
-      </header>
       <div className="auth-layout">
         <section className="auth-copy">
-          <p className="auth-kicker">Music Discovery</p>
           <h1>Welcome Back.</h1>
           <p className="auth-copy-lead">あなたの次の一曲を、また見つけよう。</p>
           <p className="auth-copy-description">
@@ -167,7 +159,6 @@ export function LoginPage() {
           {apiError && (
             <div className="api-alert" role="alert">
               {apiError}
-              {requestId && <small>Request ID: {requestId}</small>}
             </div>
           )}
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -217,7 +208,7 @@ export function LoginPage() {
                       : "パスワードを表示する"
                   }
                 >
-                  <EyeIcon hidden={showPassword} />
+                  <PasswordToggleIcon hidden={showPassword} />
                 </button>
               </div>
               {fieldErrors.password && (
@@ -229,6 +220,9 @@ export function LoginPage() {
                   {fieldErrors.password}
                 </p>
               )}
+            </div>
+            <div className="auth-help-row">
+              <Link to="/forgot-password">パスワードをお忘れですか？</Link>
             </div>
             <button
               className="primary-button"

@@ -40,6 +40,7 @@ func runSchemaMigrations(db *gorm.DB) error {
 	steps := []migrationStep{
 		{name: "users", run: CreateUsers},
 		{name: "refresh tokens", run: CreateRefreshTokens},
+		{name: "password reset tokens", run: CreatePasswordResetTokens},
 		{name: "admin tables", run: CreateAdminTables},
 		{name: "question tables", run: CreateQuestionTables},
 		{name: "recommendation tables", run: CreateRecommendationTables},

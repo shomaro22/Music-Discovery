@@ -49,6 +49,13 @@ func (u *adminManagementUsecase) SaveArtist(ctx context.Context, actor uuid.UUID
 	if e := u.repo.ValidateTagIDs(ctx, ids); e != nil {
 		return nil, e
 	}
+	if in.ID == uuid.Nil {
+		if existing, e := u.repo.FindArtistBySpotifyID(ctx, strings.TrimSpace(in.SpotifyArtistID)); e == nil && existing != nil {
+			return nil, entity.ErrArtistAlreadyExists
+		} else if e != nil && e != entity.ErrNotFound {
+			return nil, e
+		}
+	}
 	value := entity.Artist{ID: in.ID, SpotifyArtistID: strings.TrimSpace(in.SpotifyArtistID), Name: strings.TrimSpace(in.Name), ImageURL: strings.TrimSpace(in.ImageURL), SpotifyURL: strings.TrimSpace(in.SpotifyURL), Popularity: in.Popularity}
 	action := "artist_created"
 	var before interface{}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"music-discovery/backend/entity"
-	"music-discovery/backend/repository"
 )
 
 func (u *adminManagementUsecase) ListSongs(ctx context.Context, in PageInput) (PageResult[SongResponse], error) {
@@ -96,7 +95,7 @@ func (u *adminManagementUsecase) DeleteSong(ctx context.Context, actor, id uuid.
 	return u.repo.DeleteSongWithAudit(ctx, id, u.audit(actor, "song_deleted", "song", "", "Songを論理削除しました", meta))
 }
 
-func songResponse(detail repository.SongDetail) SongResponse {
+func songResponse(detail entity.SongDetail) SongResponse {
 	tags := make([]SongTagResponse, 0, len(detail.Tags))
 	for _, tag := range detail.Tags {
 		tags = append(tags, SongTagResponse{Tag: tag.Tag, Weight: tag.Weight})

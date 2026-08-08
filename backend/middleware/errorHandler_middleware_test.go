@@ -29,7 +29,7 @@ func TestHTTPErrorHandlerCommonFormat(t *testing.T) {
 		c := e.NewContext(req, rec)
 		c.Response().Header().Set(echo.HeaderXRequestID, "req-1")
 		NewHTTPErrorHandler(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))(echo.NewHTTPError(tt.status), c)
-		var got entity.APIErrorResponse
+		var got apiErrorResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 			t.Fatal(err)
 		}
@@ -38,7 +38,7 @@ func TestHTTPErrorHandlerCommonFormat(t *testing.T) {
 		}
 		decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
 		decoder.DisallowUnknownFields()
-		var exactResponse entity.APIErrorResponse
+		var exactResponse apiErrorResponse
 		if err := decoder.Decode(&exactResponse); err != nil {
 			t.Fatalf("unexpected response field: %v body=%s", err, rec.Body.String())
 		}
@@ -55,7 +55,7 @@ func TestHTTPErrorHandlerDoesNotExposeInternalError(t *testing.T) {
 	if bytes.Contains(rec.Body.Bytes(), []byte("secret")) {
 		t.Fatalf("secret leaked: %s", rec.Body.String())
 	}
-	var got entity.APIErrorResponse
+	var got apiErrorResponse
 	_ = json.Unmarshal(rec.Body.Bytes(), &got)
 	if got.Code != "INTERNAL_ERROR" || rec.Code != 500 {
 		t.Fatalf("got=%#v status=%d", got, rec.Code)
@@ -76,7 +76,7 @@ func TestHTTPErrorHandlerReturnsUserSuspendedCode(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status=%d", rec.Code)
 	}
-	var body entity.APIErrorResponse
+	var body apiErrorResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}

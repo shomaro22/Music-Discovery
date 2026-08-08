@@ -68,6 +68,13 @@ type RefreshResponse struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
+type apiErrorResponse struct {
+	Status    int    `json:"status"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+}
+
 type IUserController interface {
 	SignUp(c echo.Context) error
 	Login(c echo.Context) error
@@ -76,11 +83,89 @@ type IUserController interface {
 	CurrentUser(c echo.Context) error
 	UpdateProfile(c echo.Context) error
 	Withdraw(c echo.Context) error
+	RequestPasswordReset(c echo.Context) error
+	ConfirmPasswordReset(c echo.Context) error
 }
-type userController struct{ userUsecase usecase.IUserUsecase }
+type userController struct {
+	userUsecase          usecase.IUserUsecase
+	passwordResetUsecase usecase.IPasswordResetUsecase
+}
 
-func NewUserController(userUsecase usecase.IUserUsecase) IUserController {
-	return &userController{userUsecase: userUsecase}
+type UserControllerOption func(*userController)
+
+func WithPasswordResetUsecase(passwordResetUsecase usecase.IPasswordResetUsecase) UserControllerOption {
+	return func(controller *userController) { controller.passwordResetUsecase = passwordResetUsecase }
+}
+
+func NewUserController(userUsecase usecase.IUserUsecase, options ...UserControllerOption) IUserController {
+	controller := &userController{userUsecase: userUsecase}
+	for _, option := range options {
+		option(controller)
+	}
+	return controller
+}
+
+type PasswordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type PasswordResetConfirmRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+type PasswordResetRequestResponse struct {
+	Message    string `json:"message"`
+	ResetToken string `json:"reset_token,omitempty"`
+}
+
+type PasswordResetConfirmResponse struct {
+	Message string `json:"message"`
+}
+
+func (c *userController) RequestPasswordReset(ctx echo.Context) error {
+	if c.passwordResetUsecase == nil {
+		return writeAPIError(ctx, http.StatusNotImplemented, "PASSWORD_RESET_UNAVAILABLE", "パスワード再設定を利用できません")
+	}
+	var request PasswordResetRequest
+	if err := ctx.Bind(&request); err != nil {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+	}
+	result, err := c.passwordResetUsecase.Request(ctx.Request().Context(), request.Email)
+	if err != nil {
+		if errors.Is(err, entity.ErrInvalidInput) {
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "有効なメールアドレスを入力してください")
+		}
+		return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "パスワード再設定を受け付けられませんでした")
+	}
+	response := PasswordResetRequestResponse{Message: "登録済みのメールアドレスの場合、パスワード再設定の案内を送信しました。"}
+	if !strings.EqualFold(os.Getenv("APP_ENV"), "production") && result != nil {
+		response.ResetToken = result.Token
+	}
+	return ctx.JSON(http.StatusAccepted, response)
+}
+
+func (c *userController) ConfirmPasswordReset(ctx echo.Context) error {
+	if c.passwordResetUsecase == nil {
+		return writeAPIError(ctx, http.StatusNotImplemented, "PASSWORD_RESET_UNAVAILABLE", "パスワード再設定を利用できません")
+	}
+	var request PasswordResetConfirmRequest
+	if err := ctx.Bind(&request); err != nil {
+		return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "入力内容を確認してください")
+	}
+	err := c.passwordResetUsecase.Confirm(ctx.Request().Context(), request.Token, request.NewPassword)
+	if err != nil {
+		switch {
+		case errors.Is(err, entity.ErrInvalidPasswordResetToken):
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_PASSWORD_RESET_TOKEN", "再設定リンクが無効か、有効期限が切れています")
+		case errors.Is(err, entity.ErrInvalidInput):
+			return writeAPIError(ctx, http.StatusBadRequest, "INVALID_INPUT", "パスワードは8文字以上72バイト以内で入力してください")
+		default:
+			return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "パスワードを再設定できませんでした")
+		}
+	}
+	clearAuthCookies(ctx)
+	return ctx.JSON(http.StatusOK, PasswordResetConfirmResponse{Message: "パスワードを変更しました。新しいパスワードでログインしてください。"})
 }
 
 func (c *userController) SignUp(ctx echo.Context) error {
@@ -259,7 +344,7 @@ func writeAPIError(ctx echo.Context, status int, code, message string) error {
 			ctx.Set(middleware.SystemLogExternalServiceKey, "spotify")
 		}
 	}
-	return ctx.JSON(status, entity.APIErrorResponse{
+	return ctx.JSON(status, apiErrorResponse{
 		Status:    status,
 		Code:      code,
 		Message:   message,

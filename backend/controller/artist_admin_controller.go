@@ -53,7 +53,10 @@ func (c *artistAdminController) ListArtists(ctx echo.Context) error {
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.ListArtists(ctx.Request().Context(), input)
-	return adminJSON(ctx, http.StatusOK, value, err)
+	if err != nil {
+		return adminResponseError(ctx, err)
+	}
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toArtistListAdminResponse))
 }
 
 func (c *artistAdminController) GetArtist(ctx echo.Context) error {
@@ -62,7 +65,10 @@ func (c *artistAdminController) GetArtist(ctx echo.Context) error {
 		return adminResponseError(ctx, entity.ErrInvalidInput)
 	}
 	value, err := c.usecase.GetArtist(ctx.Request().Context(), id)
-	return adminJSON(ctx, http.StatusOK, value, err)
+	if err != nil {
+		return adminResponseError(ctx, err)
+	}
+	return ctx.JSON(http.StatusOK, toArtistAdminResponse(*value))
 }
 
 func (c *artistAdminController) CreateArtist(ctx echo.Context) error {
@@ -87,7 +93,10 @@ func (c *artistAdminController) saveArtist(ctx echo.Context, id uuid.UUID, statu
 		return adminResponseError(ctx, err)
 	}
 	value, err := c.usecase.SaveArtist(ctx.Request().Context(), actorID, request.toInput(id), adminAuditInput(ctx))
-	return adminJSON(ctx, status, value, err)
+	if err != nil {
+		return adminResponseError(ctx, err)
+	}
+	return ctx.JSON(status, toArtistAdminResponse(*value))
 }
 
 func (c *artistAdminController) DeleteArtist(ctx echo.Context) error {

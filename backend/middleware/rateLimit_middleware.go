@@ -1,9 +1,6 @@
 package middleware
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -57,25 +54,11 @@ func (m *rateLimitMiddleware) Feedback(next echo.HandlerFunc) echo.HandlerFunc {
 
 func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		email := ""
-		if (scope == "login" || scope == "signup") && c.Request().Body != nil {
-			body, err := io.ReadAll(c.Request().Body)
-			if err != nil {
-				return echo.NewHTTPError(http.StatusServiceUnavailable, "Rate Limit service is unavailable").SetInternal(err)
-			}
-			c.Request().Body = io.NopCloser(bytes.NewReader(body))
-			var input struct {
-				Email string `json:"email"`
-			}
-			if err := json.Unmarshal(body, &input); err == nil {
-				email = input.Email
-			}
-		}
 		userID := ""
 		if value, ok := c.Get(AuthUserIDKey).(uuid.UUID); ok {
 			userID = value.String()
 		}
-		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), Email: email, UserID: userID})
+		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), UserID: userID})
 		if err != nil {
 			return echo.NewHTTPError(http.StatusServiceUnavailable, "Rate Limit service is unavailable").SetInternal(err)
 		}

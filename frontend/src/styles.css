@@ -819,6 +819,12 @@ a {
 .profile-save-button { width: 100%; margin-top: 4px; }
 .form-success { margin: 0; color: #86efac; }
 
+.profile-password-reset { margin-top: 26px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.12); display: grid; gap: 16px; }
+.profile-password-reset h2 { margin: 0 0 6px; font-size: 1rem; color: #f4f4f5; }
+.profile-password-reset p { margin: 0; color: #a1a1aa; font-size: .88rem; line-height: 1.65; }
+.profile-password-reset-button { min-height: 46px; width: 100%; border: 1px solid rgba(167,139,250,.48); border-radius: 10px; background: rgba(167,139,250,.12); color: #ede9fe; font-weight: 800; cursor: pointer; }
+.profile-password-reset-button:hover { border-color: #a78bfa; background: rgba(167,139,250,.2); }
+
 
 /* Top and signup layout correction */
 .top-dashboard-page {
@@ -1424,3 +1430,392 @@ a {
     width: 100%;
   }
 }
+
+/* 2026-08 UI consistency pass */
+.auth-page:not(.signup-auth-page) .auth-layout,
+.signup-auth-page .auth-layout {
+  min-height: 100vh;
+}
+.auth-help-row { margin-top: -6px; text-align: right; }
+.auth-help-row a { color: #4f46e5; font-size: .86rem; font-weight: 700; text-underline-offset: 3px; }
+.single-auth-layout { display: grid; grid-template-columns: minmax(0, 480px); justify-content: center; align-items: center; gap: 0; }
+.password-reset-card { width: min(480px, 100%); }
+.development-reset-link { margin-top: 18px; padding: 14px; border: 1px dashed #a78bfa; border-radius: 10px; background: rgba(167,139,250,.08); }
+.development-reset-link p { margin: 0 0 8px; color: #6b7280; font-size: .85rem; }
+.development-reset-link a { font-weight: 800; color: #6d28d9; }
+
+/* Recommendation cards use equal-height content so controls line up across all three cards. */
+.recommendation-list { align-items: stretch; }
+.recommendation-card { display: flex; flex-direction: column; height: 100%; }
+.recommendation-card > img,
+.recommendation-card > .recommendation-artwork-placeholder { flex: 0 0 auto; }
+.recommendation-card-body { display: flex; flex: 1; flex-direction: column; }
+.recommendation-reason { min-height: 5.25em; margin-bottom: 0; color: #d4d5dd; line-height: 1.75; }
+.spotify-button { margin-top: auto; }
+.feedback-actions { min-height: 116px; }
+.feedback-button { min-height: 64px; }
+.recommendation-history-link,
+.history-secondary-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(167,139,250,.45);
+  border-radius: 999px;
+  background: rgba(167,139,250,.1);
+  color: #ddd6fe;
+  font-weight: 800;
+  text-decoration: none;
+}
+.recommendation-history-link { margin-top: 14px; }
+.history-secondary-link { margin-bottom: 22px; }
+.recommendation-history-link:hover,
+.history-secondary-link:hover { border-color: #a78bfa; background: rgba(167,139,250,.18); }
+
+/* History navigation and heading are aligned with the rest of the application. */
+.history-header { display: block; }
+.history-header h1 { font-size: clamp(2rem, 4.2vw, 3.65rem); }
+.history-header .recommendation-home-button { margin-left: 0; }
+
+/* Recommendation-history filters stay on one visual row on desktop. */
+.history-filter {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: nowrap;
+}
+.history-source-filter {
+  flex: 0 0 170px;
+  align-self: auto;
+  justify-content: initial;
+}
+.history-source-filter select { width: 100%; }
+.history-filter-actions {
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 46px;
+}
+
+/* Date fields use the same custom combo box for year, month and day. */
+.date-dropdown {
+  position: relative;
+  flex: 1 1 330px;
+  min-width: 300px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.date-dropdown legend {
+  margin: 0 0 8px;
+  padding: 0;
+  color: #d9dbe2;
+  font-size: .85rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.date-dropdown-fields {
+  display: grid;
+  grid-template-columns: minmax(112px, 1.35fr) minmax(78px, .8fr) minmax(78px, .8fr);
+  gap: 8px;
+}
+.date-part-field {
+  position: relative;
+  min-width: 0;
+}
+.date-part-label {
+  display: block;
+  margin-bottom: 5px;
+  color: #9ca0ad;
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.date-part-control {
+  position: relative;
+}
+.date-part-control input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 38px 0 12px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  background: #0b0d12;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.date-part-control input::placeholder { color: #666b78; }
+.date-part-control input:focus {
+  border-color: #a78bfa;
+  outline: 3px solid rgba(167,139,250,.18);
+}
+.date-part-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 32px;
+  min-height: 32px !important;
+  padding: 0 !important;
+  transform: translateY(-50%);
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #c8cad2 !important;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.date-part-toggle:hover,
+.date-part-toggle:focus-visible {
+  background: rgba(255,255,255,.08) !important;
+  outline: none;
+}
+.date-part-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  background: #11141b;
+  box-shadow: 0 16px 38px rgba(0,0,0,.48);
+}
+.date-part-options button {
+  display: block;
+  width: 100%;
+  min-height: 34px !important;
+  padding: 5px 9px !important;
+  border: 0 !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  color: #f4f4f5 !important;
+  font-size: .82rem;
+  font-weight: 700;
+  text-align: left;
+}
+.date-part-options button:hover,
+.date-part-options button:focus-visible,
+.date-part-options button.is-selected {
+  background: rgba(167,139,250,.18) !important;
+  outline: none;
+}
+
+/* Withdraw now uses the same dark surface as the other signed-in pages. */
+.withdraw-page {
+  background: radial-gradient(circle at 15% 10%, #1f2340 0, #09090b 42%, #050507 100%);
+  color: #f4f4f5;
+}
+.withdraw-card,
+.confirm-dialog {
+  border: 1px solid rgba(255,255,255,.13);
+  background: rgba(24,24,27,.96);
+  color: #f4f4f5;
+  box-shadow: 0 28px 80px rgba(0,0,0,.38);
+}
+.withdraw-kicker { color: #a1a1aa; }
+.withdraw-card h1,
+.confirm-dialog h2,
+.withdraw-form label { color: #f4f4f5; }
+.withdraw-warning { border-left-color: #ef4444; background: rgba(127,29,29,.22); color: #fecaca; }
+.withdraw-form input { border-color: #3f3f46; background: #0f1016; color: #f4f4f5; }
+.withdraw-form input:focus { border-color: #818cf8; outline: 3px solid rgba(129,140,248,.18); }
+.withdraw-form .password-toggle { color: #a1a1aa; }
+.withdraw-form .password-toggle:hover:not(:disabled) { background: rgba(255,255,255,.08); color: #fff; }
+.secondary-button { border-color: #52525b; background: #18181b; color: #f4f4f5; }
+.confirm-dialog p { color: #d4d4d8; }
+
+@media (prefers-color-scheme: dark) {
+  .auth-help-row a { color: #c4b5fd; }
+  .development-reset-link p { color: #a3a3a3; }
+  .development-reset-link a { color: #ddd6fe; }
+}
+
+@media (max-width: 1180px) {
+  .history-filter { flex-wrap: wrap; }
+  .history-source-filter { flex: 1 1 180px; }
+  .date-dropdown { flex: 1 1 330px; }
+  .history-filter-actions { flex: 1 0 100%; }
+}
+
+@media (max-width: 640px) {
+  .recommendation-reason { min-height: 0; }
+  .feedback-actions { min-height: 0; }
+  .history-filter { display: grid; grid-template-columns: 1fr; }
+  .history-source-filter,
+  .date-dropdown,
+  .history-filter-actions { width: 100%; min-width: 0; }
+  .date-dropdown-fields { grid-template-columns: 1.25fr .8fr .8fr; }
+  .history-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
+
+/* Public password-reset pages can explicitly clear an existing session before returning to login. */
+.auth-switch-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.auth-switch-button:hover:not(:disabled) { opacity: .8; }
+.auth-switch-button:disabled { cursor: wait; opacity: .65; }
+
+/* Admin form controls: keep native checkbox sizing from being stretched by the
+   generic input rule and make the control visible on light/dark surfaces. */
+.admin-checkbox-row {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 9px !important;
+  min-height: 36px;
+  cursor: pointer;
+}
+.admin-checkbox,
+.admin-content input.admin-checkbox,
+.admin-filter-card input.admin-checkbox {
+  appearance: none;
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  margin: 0;
+  padding: 0 !important;
+  border: 2px solid #64748b !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  display: grid;
+  place-content: center;
+}
+.admin-checkbox::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  border-radius: 2px;
+  background: #4f46e5;
+  transition: transform 100ms ease-in-out;
+}
+.admin-checkbox:checked { border-color: #4f46e5 !important; }
+.admin-checkbox:checked::before { transform: scale(1); }
+.admin-checkbox:focus-visible { outline: 3px solid rgba(79,70,229,.2); outline-offset: 2px; }
+.admin-filter-checkbox { padding: 0 4px 3px; color: #334155 !important; white-space: nowrap; }
+
+.admin-reason-field { display: grid; gap: 7px; }
+.admin-reason-field > span { color: #172033; font-size: .9rem; font-weight: 800; }
+.admin-reason-field > small { color: #64748b; font-size: .78rem; font-weight: 500; line-height: 1.55; }
+.admin-reason-field textarea {
+  width: 100%;
+  min-height: 130px;
+  resize: vertical;
+  border: 1px solid #94a3b8 !important;
+  background: #fff !important;
+  color: #0f172a !important;
+  line-height: 1.6;
+}
+.admin-reason-field textarea::placeholder { color: #94a3b8; }
+
+.admin-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.admin-confirm-dialog { width: min(520px,100%); }
+.admin-confirm-dialog > p { color: #475569; line-height: 1.7; }
+.admin-danger-button { border-color: #dc2626 !important; background: #dc2626 !important; color: #fff !important; }
+.admin-danger-button:hover:not(:disabled) { border-color: #b91c1c !important; background: #b91c1c !important; color: #fff !important; }
+
+.admin-explainer {
+  max-width: 1440px;
+  margin: 0 auto 18px;
+  padding: 15px 18px;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #334155;
+}
+.admin-explainer strong { color: #312e81; }
+.admin-explainer p { margin: 5px 0 0; font-size: .84rem; line-height: 1.65; }
+
+/* DateDropdownInput is dark on recommendation-history.  In Admin filters it
+   gets the same light surface as the rest of the management controls. */
+.admin-filter-card .date-dropdown { flex: 1 1 320px; min-width: 300px; }
+.admin-filter-card .date-dropdown legend { color: #475569; font-size: .76rem; }
+.admin-filter-card .date-part-label { color: #64748b; }
+.admin-filter-card .date-part-control input {
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #172033;
+}
+.admin-filter-card .date-part-control input::placeholder { color: #94a3b8; }
+.admin-filter-card .date-part-control input:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+.admin-filter-card .date-part-toggle { color: #64748b !important; }
+.admin-filter-card .date-part-toggle:hover,
+.admin-filter-card .date-part-toggle:focus-visible { background: #eef2ff !important; }
+.admin-filter-card .date-part-options { border-color: #cbd5e1; background: #fff; box-shadow: 0 16px 36px rgba(15,23,42,.16); }
+.admin-filter-card .date-part-options button { color: #172033 !important; }
+.admin-filter-card .date-part-options button:hover,
+.admin-filter-card .date-part-options button:focus-visible,
+.admin-filter-card .date-part-options button.is-selected { background: #eef2ff !important; color: #3730a3 !important; }
+
+.monitoring-dashboard { max-width: 1440px; margin: 0 auto; color: #334155; }
+.monitoring-dashboard .admin-page-heading { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+.monitoring-dashboard .admin-page-heading h2 { margin: 4px 0 6px; color: #172033; }
+.monitoring-dashboard .admin-page-heading p:last-child { margin: 0; color: #64748b; line-height: 1.6; }
+.monitoring-dashboard .admin-summary-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 26px; }
+.monitoring-dashboard .admin-summary-grid article { min-height: 150px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.05); }
+.monitoring-dashboard .admin-summary-grid span { display: block; color: #64748b; font-size: .8rem; font-weight: 800; }
+.monitoring-dashboard .admin-summary-grid strong { display: block; margin: 8px 0; color: #172033; font-size: 1.65rem; }
+.monitoring-dashboard .admin-summary-grid small { color: #64748b; line-height: 1.5; }
+.monitoring-section { margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 16px; background: #fff; }
+.monitoring-section h3 { margin: 0 0 4px; color: #172033; }
+.monitoring-section > div > p { margin: 0 0 16px; color: #64748b; font-size: .84rem; line-height: 1.6; }
+.monitoring-table { width: 100%; border-collapse: collapse; }
+.monitoring-table th,.monitoring-table td { padding: 11px 12px; border-top: 1px solid #edf2f7; text-align: left; vertical-align: top; }
+.monitoring-table th { color: #475569; font-size: .8rem; }
+.monitoring-table td { color: #334155; }
+.monitoring-meta { margin-top: 16px; color: #64748b; font-size: .78rem; }
+
+@media (max-width: 900px) {
+  .monitoring-dashboard .admin-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-filter-card .date-dropdown { flex-basis: 100%; }
+}
+@media (max-width: 560px) {
+  .monitoring-dashboard .admin-summary-grid { grid-template-columns: 1fr; }
+  .monitoring-dashboard .admin-page-heading { display: block; }
+  .monitoring-dashboard .admin-page-heading > button { margin-top: 14px; }
+  .admin-filter-card .date-dropdown { min-width: 0; width: 100%; }
+}
+
+/* System admin role controls and audit target identity */
+.admin-role-select {
+  min-width: 154px;
+  min-height: 36px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: #172033 !important;
+  font-weight: 700;
+}
+.admin-role-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: .76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.admin-role-content_admin { border-color: #c7d2fe; background: #eef2ff; color: #3730a3; }
+.admin-role-system_admin { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.admin-target-cell { display: grid; gap: 2px; min-width: 220px; }
+.admin-target-cell strong { color: #172033; font-size: .84rem; }
+.admin-target-cell span { color: #475569; font-size: .78rem; }
+.admin-target-cell small { color: #94a3b8; font-size: .68rem; overflow-wrap: anywhere; }
+.admin-action-cell { display: grid; gap: 2px; }
+.admin-action-cell strong { color: #172033; font-size: .84rem; }
+.admin-action-cell small { color: #94a3b8; font-size: .68rem; }

@@ -10,6 +10,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type apiErrorResponse struct {
+	Status    int    `json:"status"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+}
+
 func NewHTTPErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
 		if c.Response().Committed {
@@ -73,7 +80,7 @@ func NewHTTPErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 			)
 		}
 
-		if writeErr := c.JSON(status, entity.APIErrorResponse{
+		if writeErr := c.JSON(status, apiErrorResponse{
 			Status: status, Code: code, Message: message, RequestID: requestID,
 		}); writeErr != nil {
 			logger.Error("failed to write error response", "error", writeErr, "request_id", requestID)

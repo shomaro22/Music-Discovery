@@ -62,9 +62,12 @@ func (h *bcryptPasswordHasher) Hash(password string) (string, error) {
 
 type IClock interface{ Now() time.Time }
 type systemClock struct{}
+type fixedClock struct{ now time.Time }
 
-func NewClock() IClock                { return &systemClock{} }
-func (c *systemClock) Now() time.Time { return time.Now().UTC() }
+func NewClock() IClock                   { return &systemClock{} }
+func NewFixedClock(now time.Time) IClock { return &fixedClock{now: now.UTC()} }
+func (c *systemClock) Now() time.Time    { return time.Now().UTC() }
+func (c *fixedClock) Now() time.Time     { return c.now }
 
 type IUserUsecase interface {
 	SignUp(ctx context.Context, input SignUpInput) (*SignUpResult, error)

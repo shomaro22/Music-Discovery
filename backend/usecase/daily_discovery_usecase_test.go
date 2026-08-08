@@ -32,6 +32,9 @@ func (*dailyUserRepositoryStub) SoftDelete(context.Context, repository.ITransact
 func (*dailyUserRepositoryStub) IncrementTokenVersion(context.Context, repository.ITransaction, uuid.UUID, time.Time) error {
 	return nil
 }
+func (s *dailyUserRepositoryStub) UpdatePassword(context.Context, repository.ITransaction, uuid.UUID, string, time.Time) error {
+	return nil
+}
 func (*dailyUserRepositoryStub) UpdateProfile(context.Context, uuid.UUID, string, string, time.Time) (*entity.User, error) {
 	return nil, entity.ErrInternal
 }
@@ -127,7 +130,7 @@ type dailyRecommendationRepositoryStub struct {
 	artistCountsErr error
 	songCounts      map[uuid.UUID]int64
 	songCountsErr   error
-	recency         repository.RecommendationRecencyCounts
+	recency         entity.RecommendationRecencyCounts
 	recencyErr      error
 	createErr       error
 	created         *entity.Recommendation
@@ -184,7 +187,7 @@ func (*dailyRecommendationRepositoryStub) FindSongWeights(context.Context, uuid.
 func (*dailyRecommendationRepositoryStub) FindRecommendedGenres(context.Context, uuid.UUID) ([]string, error) {
 	return nil, nil
 }
-func (s *dailyRecommendationRepositoryStub) FindRecentDisplayCounts(context.Context, uuid.UUID, time.Time) (repository.RecommendationRecencyCounts, error) {
+func (s *dailyRecommendationRepositoryStub) FindRecentDisplayCounts(context.Context, uuid.UUID, time.Time) (entity.RecommendationRecencyCounts, error) {
 	return s.recency, s.recencyErr
 }
 
@@ -391,7 +394,7 @@ func TestDailyDiscoveryGetTodayCreatesThreeSongs(t *testing.T) {
 		},
 		artistCounts: map[uuid.UUID]int64{},
 		songCounts:   map[uuid.UUID]int64{},
-		recency: repository.RecommendationRecencyCounts{
+		recency: entity.RecommendationRecencyCounts{
 			ArtistCounts: map[uuid.UUID]int64{},
 			GenreCounts:  map[string]int64{},
 		},
@@ -483,7 +486,7 @@ func TestDailyDiscoveryGetTodayReturnsSavedValueAfterConflict(t *testing.T) {
 		},
 		artistCounts: map[uuid.UUID]int64{},
 		songCounts:   map[uuid.UUID]int64{},
-		recency: repository.RecommendationRecencyCounts{
+		recency: entity.RecommendationRecencyCounts{
 			ArtistCounts: map[uuid.UUID]int64{},
 			GenreCounts:  map[string]int64{},
 		},
@@ -534,7 +537,7 @@ func TestDailyDiscoveryGetTodayReturnsConflictWhenSavedValueCannotBeRecovered(t 
 		},
 		artistCounts: map[uuid.UUID]int64{},
 		songCounts:   map[uuid.UUID]int64{},
-		recency: repository.RecommendationRecencyCounts{
+		recency: entity.RecommendationRecencyCounts{
 			ArtistCounts: map[uuid.UUID]int64{},
 			GenreCounts:  map[string]int64{},
 		},
@@ -580,7 +583,7 @@ func TestDailyDiscoveryGetTodayMapsPostSaveFetchFailure(t *testing.T) {
 		},
 		artistCounts: map[uuid.UUID]int64{},
 		songCounts:   map[uuid.UUID]int64{},
-		recency: repository.RecommendationRecencyCounts{
+		recency: entity.RecommendationRecencyCounts{
 			ArtistCounts: map[uuid.UUID]int64{},
 			GenreCounts:  map[string]int64{},
 		},

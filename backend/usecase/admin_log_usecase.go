@@ -18,7 +18,8 @@ func (u *adminManagementUsecase) ListAuditLogs(ctx context.Context, in PageInput
 	}
 	values := make([]AuditLogListResponse, 0, len(items))
 	for _, item := range items {
-		values = append(values, AuditLogListResponse{ID: item.ID, ActorUserID: item.ActorUserID, ActorRole: item.ActorRole, ActorName: item.ActorName, ActorEmail: item.ActorEmail, RequestID: item.RequestID, Action: item.Action, TargetType: item.TargetType, TargetID: item.TargetID, Summary: item.Summary, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
+		targetName, targetDetail := u.repo.ResolveAuditTarget(ctx, item.TargetType, item.TargetID)
+		values = append(values, AuditLogListResponse{ID: item.ID, ActorUserID: item.ActorUserID, ActorRole: item.ActorRole, ActorName: item.ActorName, ActorEmail: item.ActorEmail, RequestID: item.RequestID, Action: item.Action, TargetType: item.TargetType, TargetID: item.TargetID, TargetName: targetName, TargetDetail: targetDetail, Summary: item.Summary, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
 	}
 	return page(values, total, in)
 }
@@ -39,7 +40,11 @@ func (u *adminManagementUsecase) ListSystemLogs(ctx context.Context, in PageInpu
 	}
 	values := make([]SystemLogListResponse, 0, len(items))
 	for _, item := range items {
-		values = append(values, SystemLogListResponse{ID: item.ID, Environment: item.Environment, Service: item.Service, Version: item.Version, Level: item.Level, Category: item.Category, Event: item.Event, ErrorCode: item.ErrorCode, Message: item.Message, RequestID: item.RequestID, UserID: item.UserID, Method: item.Method, Path: item.Path, StatusCode: item.StatusCode, ExternalService: item.ExternalService, DurationMs: item.DurationMs, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
+		userName, userEmail := "", ""
+		if item.UserID != nil {
+			userName, userEmail = u.repo.ResolveAuditTarget(ctx, "user", item.UserID.String())
+		}
+		values = append(values, SystemLogListResponse{ID: item.ID, Environment: item.Environment, Service: item.Service, Version: item.Version, Level: item.Level, Category: item.Category, Event: item.Event, ErrorCode: item.ErrorCode, Message: item.Message, RequestID: item.RequestID, UserID: item.UserID, UserName: userName, UserEmail: userEmail, Method: item.Method, Path: item.Path, StatusCode: item.StatusCode, ExternalService: item.ExternalService, DurationMs: item.DurationMs, IPAddress: item.IPAddress, UserAgent: item.UserAgent, CreatedAt: item.CreatedAt})
 	}
 	return page(values, total, in)
 }

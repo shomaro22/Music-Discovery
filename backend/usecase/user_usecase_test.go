@@ -115,6 +115,9 @@ func newUsecaseForTest(repo *fakeUserRepository, hasher *fakeHasher) IUserUsecas
 	return NewUserUsecase(repo, validator.NewUserValidator(), &fakeRefreshRepository{}, &fakeAuthTransactionManager{repo: repo}, hasher, &fakeTokenService{}, &fakeClock{now: time.Date(2026, 7, 18, 0, 0, 0, 0, time.UTC)})
 }
 
+func (f *fakeUserRepository) UpdatePassword(context.Context, repository.ITransaction, uuid.UUID, string, time.Time) error {
+	return nil
+}
 func (f *fakeUserRepository) UpdateProfile(_ context.Context, _ uuid.UUID, name, email string, now time.Time) (*entity.User, error) {
 	if f.findErr != nil {
 		return nil, f.findErr

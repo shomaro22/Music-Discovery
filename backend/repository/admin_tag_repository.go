@@ -9,7 +9,7 @@ import (
 	"music-discovery/backend/entity"
 )
 
-func (r *adminRepository) ListTags(ctx context.Context, q PageQuery) ([]TagSummary, int64, error) {
+func (r *adminRepository) ListTags(ctx context.Context, q PageQuery) ([]entity.TagSummary, int64, error) {
 	db := addKeyword(r.db.WithContext(ctx).Model(&entity.Tag{}), q.Keyword, "name", "slug", "category")
 	if q.TagCategory != "" {
 		db = db.Where("category = ?", q.TagCategory)
@@ -22,7 +22,7 @@ func (r *adminRepository) ListTags(ctx context.Context, q PageQuery) ([]TagSumma
 	if err := db.Order(safeOrder(q.Sort, q.Order, map[string]string{"name": "name", "category": "category", "created_at": "created_at", "updated_at": "updated_at"}, "updated_at")).Offset(offset(q)).Limit(q.Limit).Find(&tags).Error; err != nil {
 		return nil, 0, repoError(err)
 	}
-	items := make([]TagSummary, 0, len(tags))
+	items := make([]entity.TagSummary, 0, len(tags))
 	for _, tag := range tags {
 		value, err := r.tagSummary(ctx, tag)
 		if err != nil {
@@ -33,7 +33,7 @@ func (r *adminRepository) ListTags(ctx context.Context, q PageQuery) ([]TagSumma
 	return items, total, nil
 }
 
-func (r *adminRepository) FindTag(ctx context.Context, id uuid.UUID) (*TagSummary, error) {
+func (r *adminRepository) FindTag(ctx context.Context, id uuid.UUID) (*entity.TagSummary, error) {
 	var tag entity.Tag
 	if err := r.db.WithContext(ctx).First(&tag, "id = ?", id).Error; err != nil {
 		return nil, repoError(err)
@@ -41,8 +41,8 @@ func (r *adminRepository) FindTag(ctx context.Context, id uuid.UUID) (*TagSummar
 	return r.tagSummary(ctx, tag)
 }
 
-func (r *adminRepository) tagSummary(ctx context.Context, tag entity.Tag) (*TagSummary, error) {
-	value := &TagSummary{Tag: tag}
+func (r *adminRepository) tagSummary(ctx context.Context, tag entity.Tag) (*entity.TagSummary, error) {
+	value := &entity.TagSummary{Tag: tag}
 	if err := r.db.WithContext(ctx).Model(&entity.ArtistTag{}).Where("tag_id = ?", tag.ID).Count(&value.ArtistCount).Error; err != nil {
 		return nil, repoError(err)
 	}

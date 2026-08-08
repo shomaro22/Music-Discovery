@@ -36,7 +36,7 @@ func (c *userAdminController) ListUsers(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toUserAdminResponse))
 }
 
 func (c *userAdminController) GetUser(ctx echo.Context) error {
@@ -48,7 +48,7 @@ func (c *userAdminController) GetUser(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, toUserDetailAdminResponse(*value))
 }
 
 func (c *userAdminController) SetUserStatus(ctx echo.Context) error {

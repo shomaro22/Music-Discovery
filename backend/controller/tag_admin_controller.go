@@ -42,7 +42,7 @@ func (c *tagAdminController) ListTags(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toTagAdminResponse))
 }
 
 func (c *tagAdminController) ListTagOptions(ctx echo.Context) error {
@@ -50,7 +50,11 @@ func (c *tagAdminController) ListTagOptions(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	items := make([]tagOptionAdminResponse, 0, len(value))
+	for _, item := range value {
+		items = append(items, toTagOptionAdminResponse(item))
+	}
+	return ctx.JSON(http.StatusOK, items)
 }
 
 func (c *tagAdminController) GetTag(ctx echo.Context) error {
@@ -62,7 +66,7 @@ func (c *tagAdminController) GetTag(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, toTagAdminResponse(*value))
 }
 
 func (c *tagAdminController) CreateTag(ctx echo.Context) error {

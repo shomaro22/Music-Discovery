@@ -30,6 +30,12 @@ func (s *routerUserControllerStub) UpdateProfile(c echo.Context) error {
 	return s.hit("update_profile", c)
 }
 func (s *routerUserControllerStub) Withdraw(c echo.Context) error { return s.hit("withdraw", c) }
+func (s *routerUserControllerStub) RequestPasswordReset(c echo.Context) error {
+	return s.hit("password_reset_request", c)
+}
+func (s *routerUserControllerStub) ConfirmPasswordReset(c echo.Context) error {
+	return s.hit("password_reset_confirm", c)
+}
 
 type routerQuestionControllerStub struct{}
 
@@ -192,7 +198,7 @@ func performRoleRequest(e *echo.Echo, method, path string, role entity.Role) *ht
 	if role != "" {
 		req.Header.Set("X-Test-Role", string(role))
 	}
-	if method == http.MethodPatch || method == http.MethodPost {
+	if method == http.MethodPatch || method == http.MethodPost || method == http.MethodPut {
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	}
 	rec := httptest.NewRecorder()
@@ -205,6 +211,30 @@ func TestRouterPublicRoutesDoNotUseAuthMiddleware(t *testing.T) {
 	rec := performRoleRequest(e, http.MethodPost, "/api/auth/signup", "")
 	if rec.Code != http.StatusNoContent || users.calls["signup"] != 1 || auth.calls != 0 {
 		t.Fatalf("status=%d signup=%d auth=%d", rec.Code, users.calls["signup"], auth.calls)
+	}
+}
+
+func TestRouterLogoutDoesNotRequireAccessToken(t *testing.T) {
+	e, users, _, auth := newRoleTestRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "test-token"})
+	req.Header.Set("X-CSRF-Token", "test-token")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent || users.calls["logout"] != 1 || auth.calls != 0 {
+		t.Fatalf("status=%d logout=%d auth=%d", rec.Code, users.calls["logout"], auth.calls)
+	}
+}
+
+func TestRouterFeedbackAllowsAllAuthenticatedRoles(t *testing.T) {
+	for _, role := range []entity.Role{entity.RoleUser, entity.RoleContentAdmin, entity.RoleSystemAdmin} {
+		t.Run(string(role), func(t *testing.T) {
+			e, _, _, _ := newRoleTestRouter()
+			rec := performRoleRequest(e, http.MethodGet, "/api/recommendation-details/"+uuid.NewString()+"/feedback", role)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("role=%s status=%d", role, rec.Code)
+			}
+		})
 	}
 }
 

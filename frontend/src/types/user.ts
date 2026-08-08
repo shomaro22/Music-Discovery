@@ -15,3 +15,8 @@ export interface WithdrawInput { current_password: string; }
 export interface WithdrawResponse { message: string; }
 
 export interface UpdateProfileInput { name: string; email: string; }
+
+export interface PasswordResetRequestInput { email: string; }
+export interface PasswordResetRequestResponse { message: string; reset_token?: string; }
+export interface PasswordResetConfirmInput { token: string; new_password: string; }
+export interface PasswordResetConfirmResponse { message: string; }

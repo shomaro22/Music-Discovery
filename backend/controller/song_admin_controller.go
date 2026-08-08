@@ -90,7 +90,7 @@ func (c *songAdminController) ListSongs(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, mapAdminPage(value, toSongAdminResponse))
 }
 
 func (c *songAdminController) GetSong(ctx echo.Context) error {
@@ -102,7 +102,7 @@ func (c *songAdminController) GetSong(ctx echo.Context) error {
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(http.StatusOK, value)
+	return ctx.JSON(http.StatusOK, toSongAdminResponse(*value))
 }
 
 func (c *songAdminController) CreateSong(ctx echo.Context) error {
@@ -134,7 +134,7 @@ func (c *songAdminController) saveSong(ctx echo.Context, id uuid.UUID, status in
 	if err != nil {
 		return adminResponseError(ctx, err)
 	}
-	return ctx.JSON(status, value)
+	return ctx.JSON(status, toSongAdminResponse(*value))
 }
 
 func (c *songAdminController) DeleteSong(ctx echo.Context) error {

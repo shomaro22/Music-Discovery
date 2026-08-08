@@ -9,7 +9,7 @@ import (
 	"music-discovery/backend/repository"
 )
 
-type RateLimitInput struct{ Scope, IP, Email, UserID string }
+type RateLimitInput struct{ Scope, IP, UserID string }
 
 type RateLimitDecision struct {
 	Allowed    bool
@@ -23,12 +23,20 @@ type IRateLimitUsecase interface {
 }
 
 type rateLimitUsecase struct {
-	repository repository.IRateLimitRepository
-	clock      IClock
+	repository         repository.IRateLimitRepository
+	clock              IClock
+	capacityMultiplier int
 }
 
 func NewRateLimitUsecase(repo repository.IRateLimitRepository, clock IClock) IRateLimitUsecase {
-	return &rateLimitUsecase{repository: repo, clock: clock}
+	return NewRateLimitUsecaseWithCapacityMultiplier(repo, clock, 1)
+}
+
+func NewRateLimitUsecaseWithCapacityMultiplier(repo repository.IRateLimitRepository, clock IClock, capacityMultiplier int) IRateLimitUsecase {
+	if capacityMultiplier < 1 {
+		capacityMultiplier = 1
+	}
+	return &rateLimitUsecase{repository: repo, clock: clock, capacityMultiplier: capacityMultiplier}
 }
 
 func (u *rateLimitUsecase) Allow(ctx context.Context, input RateLimitInput) (RateLimitDecision, error) {
@@ -38,7 +46,7 @@ func (u *rateLimitUsecase) Allow(ctx context.Context, input RateLimitInput) (Rat
 	}
 	var last RateLimitDecision
 	for _, policy := range policies {
-		result, allowErr := u.repository.Allow(ctx, policy.key, policy.rate, policy.capacity, 1, u.clock.Now())
+		result, allowErr := u.repository.Allow(ctx, policy.key, policy.rate*float64(u.capacityMultiplier), policy.capacity*u.capacityMultiplier, 1, u.clock.Now())
 		if allowErr != nil {
 			return RateLimitDecision{}, allowErr
 		}
@@ -59,21 +67,12 @@ type rateLimitPolicy struct {
 
 func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 	ip := strings.TrimSpace(input.IP)
-	email := strings.ToLower(strings.TrimSpace(input.Email))
 	userID := strings.TrimSpace(input.UserID)
 	switch input.Scope {
 	case "signup":
-		policies := []rateLimitPolicy{{name: "signup_ip", key: fmt.Sprintf("rate_limit:signup:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}
-		if email != "" {
-			policies = append(policies, rateLimitPolicy{name: "signup_email", key: fmt.Sprintf("rate_limit:signup:email:%s", email), capacity: 10, rate: 10.0 / 60.0})
-		}
-		return policies, nil
+		return []rateLimitPolicy{{name: "signup_ip", key: fmt.Sprintf("rate_limit:signup:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}, nil
 	case "login":
-		policies := []rateLimitPolicy{{name: "login_ip", key: fmt.Sprintf("rate_limit:login:ip:%s", ip), capacity: 20, rate: 20.0 / 60.0}}
-		if email != "" {
-			policies = append(policies, rateLimitPolicy{name: "login_email", key: fmt.Sprintf("rate_limit:login:email:%s", email), capacity: 20, rate: 20.0 / 60.0})
-		}
-		return policies, nil
+		return []rateLimitPolicy{{name: "login_ip", key: fmt.Sprintf("rate_limit:login:ip:%s", ip), capacity: 20, rate: 20.0 / 60.0}}, nil
 	case "refresh":
 		return []rateLimitPolicy{{name: "refresh_ip", key: fmt.Sprintf("rate_limit:refresh:ip:%s", ip), capacity: 30, rate: 30.0 / 300.0}}, nil
 	case "withdraw":

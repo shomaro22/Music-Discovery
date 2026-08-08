@@ -129,7 +129,7 @@ func assertAPIError(
 		t.Fatalf("status=%d want=%d body=%s", rec.Code, wantStatus, rec.Body.String())
 	}
 
-	var apiErr entity.APIErrorResponse
+	var apiErr apiErrorResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -143,7 +143,7 @@ func assertAPIError(
 
 	decoder := json.NewDecoder(bytes.NewReader(rec.Body.Bytes()))
 	decoder.DisallowUnknownFields()
-	var exactResponse entity.APIErrorResponse
+	var exactResponse apiErrorResponse
 	if err := decoder.Decode(&exactResponse); err != nil {
 		t.Fatalf("unexpected response field: %v body=%s", err, rec.Body.String())
 	}
@@ -580,5 +580,38 @@ func TestWithdrawControllerMapsErrorsWithoutClearingCookies(t *testing.T) {
 				t.Fatal("cookies must not be cleared on failure")
 			}
 		})
+	}
+}
+
+func TestSignupControllerProductionCookiesAreSecureAndStrict(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("COOKIE_SAME_SITE", "strict")
+	user := &entity.User{
+		ID:     uuid.New(),
+		Name:   "Cookie User",
+		Email:  "cookie@example.com",
+		Role:   entity.UserRoleUser,
+		Status: entity.UserStatusActive,
+	}
+	rec := runSignupRequest(t, `{"name":"Cookie User","email":"cookie@example.com","password":"Password123!"}`, &fakeUserUsecase{user: user})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookies=%d want=2", len(cookies))
+	}
+	for _, cookie := range cookies {
+		if !cookie.Secure {
+			t.Fatalf("cookie %s must be Secure in production", cookie.Name)
+		}
+		if cookie.SameSite != http.SameSiteStrictMode {
+			t.Fatalf("cookie %s SameSite=%v want Strict", cookie.Name, cookie.SameSite)
+		}
+	}
+	for _, cookie := range cookies {
+		if cookie.Name == "refresh_token" && !cookie.HttpOnly {
+			t.Fatal("refresh_token must be HttpOnly")
+		}
 	}
 }
