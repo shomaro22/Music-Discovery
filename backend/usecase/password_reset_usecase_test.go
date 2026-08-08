@@ -197,7 +197,7 @@ func TestPasswordResetConfirmOwnsTransactionalFlow(t *testing.T) {
 	now := time.Date(2026, 8, 8, 1, 0, 0, 0, time.UTC)
 	userID := uuid.New()
 	resetID := uuid.New()
-	tokens := &passwordResetRepositoryStub{found: &entity.PasswordResetToken{ID: resetID, UserID: userID}}
+	tokens := &passwordResetRepositoryStub{found: &entity.PasswordResetToken{ID: resetID, UserID: userID, ExpiresAt: now.Add(passwordResetTTL)}}
 	users := &passwordResetUserRepositoryStub{}
 	uc, refresh := newPasswordResetUC(users, tokens, nil, NewFixedClock(now), nil)
 
