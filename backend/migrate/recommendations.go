@@ -1,0 +1,223 @@
+package migrate
+
+import (
+	"fmt"
+
+	"music-discovery/backend/entity"
+
+	"gorm.io/gorm"
+)
+
+func CreateRecommendationTables(db *gorm.DB) error {
+	// AutoMigrateより先にrecommendation_typeへ変更し、新旧両方の列が作られるのを防ぐ。
+	if err := renameLegacyRecommendationTypeColumn(db); err != nil {
+		return err
+	}
+
+	// A previous AutoMigrate may already have added the new columns as nullable
+	// before failing while applying NOT NULL. Backfill legacy rows first so the
+	// next AutoMigrate can safely tighten the constraints.
+	if err := backfillRecommendationAlgorithmColumns(db); err != nil {
+		return err
+	}
+
+	if err := db.AutoMigrate(
+		&entity.Recommendation{},
+		&entity.RecommendationDetail{},
+	); err != nil {
+		return fmt.Errorf("migrate recommendation tables: %w", err)
+	}
+
+	if err := createRecommendationUserForeignKey(db); err != nil {
+		return err
+	}
+
+	if err := db.Exec(`
+		DROP INDEX IF EXISTS uq_recommendation_position
+	`).Error; err != nil {
+		return fmt.Errorf(
+			"drop legacy recommendation position index: %w",
+			err,
+		)
+	}
+
+	statements := []string{
+		`
+			CREATE UNIQUE INDEX IF NOT EXISTS uq_recommendation_type
+			ON recommendation_details (
+				recommendation_id,
+				recommendation_type
+			)
+		`,
+		`
+			CREATE UNIQUE INDEX IF NOT EXISTS uq_recommendation_position
+			ON recommendation_details (
+				recommendation_id,
+				position
+			)
+		`,
+		`
+			CREATE UNIQUE INDEX IF NOT EXISTS uq_recommendation_song
+			ON recommendation_details (
+				recommendation_id,
+				song_id
+			)
+		`,
+	}
+
+	for _, statement := range statements {
+		if err := db.Exec(statement).Error; err != nil {
+			return fmt.Errorf(
+				"create recommendation unique index: %w",
+				err,
+			)
+		}
+	}
+
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_discovery_day ON recommendations (user_id, source, target_date) WHERE target_date IS NOT NULL`).Error; err != nil {
+		return fmt.Errorf("create daily discovery unique index: %w", err)
+	}
+
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_recommendations_user_recommended_at ON recommendations (user_id, recommended_at DESC)`).Error; err != nil {
+		return fmt.Errorf("create recommendation history index: %w", err)
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_recommendations_user_source_recommended_at ON recommendations (user_id, source, recommended_at DESC)`).Error; err != nil {
+		return fmt.Errorf("create recommendation source history index: %w", err)
+	}
+
+	return nil
+}
+
+func renameLegacyRecommendationTypeColumn(db *gorm.DB) error {
+	const statement = `
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'type'
+			)
+			AND NOT EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'recommendation_type'
+			) THEN
+				ALTER TABLE recommendation_details
+				RENAME COLUMN type TO recommendation_type;
+			END IF;
+		END
+		$$;
+	`
+
+	if err := db.Exec(statement).Error; err != nil {
+		return fmt.Errorf(
+			"rename legacy recommendation type column: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+func backfillRecommendationAlgorithmColumns(db *gorm.DB) error {
+	const statement = `
+		DO $$
+		BEGIN
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'score_breakdown'
+			) THEN
+				UPDATE recommendation_details
+				SET score_breakdown = '{}'::jsonb
+				WHERE score_breakdown IS NULL;
+
+				ALTER TABLE recommendation_details
+				ALTER COLUMN score_breakdown SET DEFAULT '{}'::jsonb;
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendation_details'
+				  AND column_name = 'fallback_used'
+			) THEN
+				UPDATE recommendation_details
+				SET fallback_used = FALSE
+				WHERE fallback_used IS NULL;
+
+				ALTER TABLE recommendation_details
+				ALTER COLUMN fallback_used SET DEFAULT FALSE;
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+				  AND table_name = 'recommendations'
+				  AND column_name = 'weight_config_version'
+			) THEN
+				UPDATE recommendations
+				SET weight_config_version = 'weights-v1'
+				WHERE weight_config_version IS NULL
+				   OR BTRIM(weight_config_version) = '';
+
+				ALTER TABLE recommendations
+				ALTER COLUMN weight_config_version SET DEFAULT 'weights-v1';
+			END IF;
+		END
+		$$;
+	`
+
+	if err := db.Exec(statement).Error; err != nil {
+		return fmt.Errorf(
+			"backfill recommendation algorithm columns: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+func createRecommendationUserForeignKey(db *gorm.DB) error {
+	// RecommendationではUser情報を関連取得しない。
+	// User関連フィールドをEntityへ追加すると、将来のPreloadによって
+	// EmailやPasswordHashなど、推薦処理に不要な認証情報まで読み込む
+	// 可能性がある。そのためEntityにはUserIDのみを保持し、
+	// DBの参照整合性に必要な外部キーはMigrationで明示的に作成する。
+	const statement = `
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1
+				FROM pg_constraint
+				WHERE conname = 'fk_recommendations_user'
+				  AND conrelid = 'recommendations'::regclass
+			) THEN
+				ALTER TABLE recommendations
+				ADD CONSTRAINT fk_recommendations_user
+				FOREIGN KEY (user_id)
+				REFERENCES users(id)
+				ON UPDATE CASCADE
+				ON DELETE RESTRICT;
+			END IF;
+		END
+		$$;
+	`
+
+	if err := db.Exec(statement).Error; err != nil {
+		return fmt.Errorf(
+			"create recommendation user foreign key: %w",
+			err,
+		)
+	}
+
+	return nil
+}

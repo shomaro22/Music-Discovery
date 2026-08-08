@@ -1,0 +1,33 @@
+# Environment
+backend/.env
+frontend/.env
+.env
+.env.example
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Backup
+*.bkp
+
+# IDE
+.vscode/
+.idea/
+
+# Go
+*.test
+coverage.out
+
+# Frontend
+frontend/.vite

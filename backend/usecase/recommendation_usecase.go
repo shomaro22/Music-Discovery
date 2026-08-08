@@ -1,0 +1,460 @@
+package usecase
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"music-discovery/backend/entity"
+	"music-discovery/backend/repository"
+)
+
+type IRecommendationUsecase interface {
+	Generate(context.Context, uuid.UUID) (*entity.Recommendation, error)
+	GetLatest(context.Context, uuid.UUID) (*entity.Recommendation, error)
+	GetByID(context.Context, uuid.UUID, uuid.UUID) (*entity.Recommendation, error)
+}
+type recommendationUsecase struct {
+	users            repository.IUserRepository
+	recommendations  repository.IRecommendationRepository
+	conditionBuilder IRecommendationConditionBuilder
+	locks            repository.IRecommendationLockRepository
+	tx               repository.ITransactionManager
+	calculator       IRecommendationCalculator
+	candidateImport  ISpotifyCandidateImportUsecase
+	clock            IClock
+	config           RecommendationConfig
+}
+
+func NewRecommendationUsecase(
+	users repository.IUserRepository,
+	recommendations repository.IRecommendationRepository,
+	locks repository.IRecommendationLockRepository,
+	tx repository.ITransactionManager,
+	calculator IRecommendationCalculator,
+	conditionBuilder IRecommendationConditionBuilder,
+	candidateImport ISpotifyCandidateImportUsecase,
+	clock IClock,
+	config RecommendationConfig,
+) IRecommendationUsecase {
+	return &recommendationUsecase{
+		users: users, recommendations: recommendations, conditionBuilder: conditionBuilder,
+		locks: locks, tx: tx, calculator: calculator, candidateImport: candidateImport,
+		clock: clock, config: config,
+	}
+}
+
+func (u *recommendationUsecase) Generate(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
+	lockTTLSeconds := u.config.LockTTLSeconds
+	if lockTTLSeconds <= 0 {
+		lockTTLSeconds = 120
+	}
+	token, acquired, err := u.locks.Acquire(ctx, userID, time.Duration(lockTTLSeconds)*time.Second)
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	if !acquired {
+		return nil, entity.ErrRecommendationAlreadyGenerated
+	}
+	defer func() { _ = u.locks.Release(context.Background(), userID, token) }()
+
+	user, err := u.users.FindByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.Status == entity.UserStatusSuspended {
+		return nil, entity.ErrUserSuspended
+	}
+	now := u.clock.Now()
+	recent, err := u.recommendations.HasRecentNormal(ctx, userID, now.Add(-time.Duration(u.config.GenerationWindow)*time.Second))
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	if recent {
+		return nil, entity.ErrRecommendationAlreadyGenerated
+	}
+
+	condition, err := u.conditionBuilder.Build(ctx, userID, RecommendationConditionPeriod{
+		DuplicateFrom: now.AddDate(0, 0, -u.config.DuplicateDays),
+		RecencyFrom:   now.AddDate(0, 0, -u.config.RecencyDays),
+		To:            now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	excluded := recommendationConditionSongIDs(condition.ExcludedSongIDs)
+	candidates, err := u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	artistCounts, err := u.recommendations.CountByArtist(ctx, userID)
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	songCounts, err := u.recommendations.CountBySong(ctx, userID)
+	if err != nil {
+		return nil, entity.ErrRecommendationGenerateFailed
+	}
+	firstRecommendation := len(artistCounts) == 0 && len(songCounts) == 0
+
+	var details []entity.RecommendationDetail
+	selectionErr := entity.ErrRecommendationCandidatesNotFound
+	if len(candidates) >= 3 {
+		details, selectionErr = u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
+	}
+
+	// Repository上の候補数が3件以上でも、推薦枠ごとの条件によって
+	// Your Match / New Favorite / Try Something Newを埋められない場合がある。
+	// 実際の選出失敗を契機にSpotify候補を取り込み、候補を再取得して再選出する。
+	if errors.Is(selectionErr, entity.ErrRecommendationCandidatesNotFound) && u.candidateImport != nil {
+		importResult, importErr := u.candidateImport.Import(ctx, condition.Genres)
+		if importErr != nil {
+			return nil, importErr
+		}
+		if importResult.AutoApproved > 0 {
+			// 必須情報とGenre Tagを持つ高信頼候補はAUTO_APPROVEDとして
+			// 即時推薦対象になる。情報不足の候補はPENDINGのまま除外する。
+			candidates, err = u.recommendations.FindCandidates(ctx, repository.RecommendationCandidateCondition{ExcludedSongIDs: excluded, Limit: u.config.CandidateLimit})
+			if err != nil {
+				return nil, entity.ErrRecommendationGenerateFailed
+			}
+			if len(candidates) >= 3 {
+				details, selectionErr = u.selectDetails(condition, candidates, artistCounts, songCounts, firstRecommendation)
+			}
+		}
+	}
+	if selectionErr != nil {
+		return nil, selectionErr
+	}
+	recommendation := &entity.Recommendation{UserID: userID, Source: entity.RecommendationSourceNormal, RecommendedAt: now, AlgorithmVersion: u.config.AlgorithmVersion, WeightConfigVersion: u.config.WeightConfigVersion, Details: details}
+	if err := u.tx.WithinTransaction(ctx, func(tx repository.ITransaction) error {
+		recentSongIDs, findErr := u.recommendations.FindRecommendedSongIDsWithTransaction(
+			ctx,
+			tx,
+			userID,
+			now.AddDate(0, 0, -u.config.DuplicateDays),
+			now,
+		)
+		if findErr != nil {
+			return findErr
+		}
+		if containsRecommendationSong(recommendation.Details, recentSongIDs) {
+			return entity.ErrDuplicateRecommendationSong
+		}
+		return u.recommendations.Create(ctx, tx, recommendation)
+	}); err != nil {
+		if errors.Is(err, entity.ErrDuplicateRecommendationSong) {
+			return nil, err
+		}
+		return nil, entity.ErrRecommendationSaveFailed
+	}
+	return u.recommendations.FindByID(ctx, recommendation.ID)
+}
+
+func containsRecommendationSong(details []entity.RecommendationDetail, recentSongIDs []uuid.UUID) bool {
+	recent := make(map[uuid.UUID]struct{}, len(recentSongIDs))
+	for _, songID := range recentSongIDs {
+		recent[songID] = struct{}{}
+	}
+	for _, detail := range details {
+		if _, exists := recent[detail.SongID]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *recommendationUsecase) selectDetails(condition RecommendationCondition, candidates []entity.RecommendationSongCandidate, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, first bool) ([]entity.RecommendationDetail, error) {
+	selectedSongs := map[uuid.UUID]bool{}
+	selectedArtists := map[uuid.UUID]bool{}
+	result := make([]entity.RecommendationDetail, 0, 3)
+	kinds := []entity.RecommendationType{entity.RecommendationTypeYourMatch, entity.RecommendationTypeNewFavorite, entity.RecommendationTypeTrySomethingNew}
+	for position, kind := range kinds {
+		ranked, calcErr := u.calculator.Calculate(condition, candidates, kind, artistCounts, songCounts)
+		if calcErr != nil {
+			return nil, calcErr
+		}
+		candidate, stage, ok := u.pickCandidate(ranked, kind, condition, artistCounts, songCounts, selectedSongs, selectedArtists, first)
+		if !ok {
+			return nil, entity.ErrRecommendationSelectionFailed
+		}
+		selectedSongs[candidate.Data.Song.ID] = true
+		selectedArtists[candidate.Data.Artist.ID] = true
+		breakdown, marshalErr := json.Marshal(candidate.Score)
+		if marshalErr != nil {
+			return nil, entity.ErrScoreCalculationFailed
+		}
+		result = append(result, entity.RecommendationDetail{SongID: candidate.Data.Song.ID, Type: kind, Score: candidate.Score.Total, ScoreBreakdown: breakdown, Position: position + 1, Reason: recommendationReason(kind, candidate), FallbackUsed: stage > 0})
+	}
+	if len(result) != 3 {
+		return nil, entity.ErrRecommendationSelectionFailed
+	}
+	seen := map[uuid.UUID]struct{}{}
+	for _, detail := range result {
+		if detail.Reason == "" {
+			return nil, entity.ErrRecommendationReasonGenerateFailed
+		}
+		if _, exists := seen[detail.SongID]; exists {
+			return nil, entity.ErrDuplicateRecommendationSong
+		}
+		seen[detail.SongID] = struct{}{}
+	}
+	return result, nil
+}
+
+func (u *recommendationUsecase) pickCandidate(ranked []SongCandidate, kind entity.RecommendationType, condition RecommendationCondition, artistCounts map[uuid.UUID]int64, songCounts map[uuid.UUID]int64, selectedSongs map[uuid.UUID]bool, selectedArtists map[uuid.UUID]bool, first bool) (SongCandidate, int, bool) {
+	// Strict -> relaxed -> fallback. Song duplication and the Try Something New
+	// mood/element/atmosphere bridge are never relaxed.
+	for stage := 0; stage < 3; stage++ {
+		for _, candidate := range ranked {
+			if selectedSongs[candidate.Data.Song.ID] {
+				continue
+			}
+			if !candidateAllowedForRecommendationType(candidate, kind, stage) {
+				continue
+			}
+			contact := hasMinimumContact(candidate, condition, u.config.MinimumContactScore)
+			genreMatch := candidateMatchesGenres(candidate.Data, condition.Genres)
+			likedArtist := condition.ArtistWeights[candidate.Data.Artist.ID] > 0
+			seenArtist := artistCounts[candidate.Data.Artist.ID] > 0
+			if kind == entity.RecommendationTypeTrySomethingNew {
+				if selectedArtists[candidate.Data.Artist.ID] {
+					continue
+				}
+				if !contact || !matchesDiscoveryStage(candidate.Data, condition, seenArtist, stage) {
+					continue
+				}
+			}
+			if first {
+				if stage == 0 && selectedArtists[candidate.Data.Artist.ID] {
+					continue
+				}
+				if kind != entity.RecommendationTypeTrySomethingNew && stage == 0 && candidate.Score.Mood+candidate.Score.Element+candidate.Score.Atmosphere+candidate.Score.Genre < u.config.MinimumMatchScore {
+					continue
+				}
+				return candidate, stage, true
+			}
+			seenSong := songCounts[candidate.Data.Song.ID] > 0
+			switch kind {
+			case entity.RecommendationTypeYourMatch:
+				// 2回目以降は、回答Genreに一致し、履歴上未推薦のArtistを優先する。
+				if stage == 0 && (!genreMatch || seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+				if stage == 1 && (!genreMatch || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+			case entity.RecommendationTypeNewFavorite:
+				// 高評価Artistのうち、過去に推薦していない別Songを最優先する。
+				if stage == 0 && (!likedArtist || seenSong || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+				if stage == 1 && (!likedArtist || seenSong) {
+					continue
+				}
+			case entity.RecommendationTypeTrySomethingNew:
+				// 履歴上も今回の3枠内でも、Genre・Artistが異なる候補を優先する。
+				seenGenre := candidateHasRecommendedGenre(candidate.Data, condition.RecommendedGenres)
+				if stage == 0 && (seenGenre || seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+				if stage == 1 && (seenArtist || selectedArtists[candidate.Data.Artist.ID]) {
+					continue
+				}
+			}
+			return candidate, stage, true
+		}
+	}
+	return SongCandidate{}, 0, false
+}
+
+// candidateAllowedForRecommendationType keeps automatically imported
+// Spotify candidates away from the high-confidence slot.
+//
+// APPROVED songs are available to every slot.
+// AUTO_APPROVED songs are:
+//   - excluded from YOUR_MATCH,
+//   - used by NEW_FAVORITE only at the final fallback stage,
+//   - available to TRY_SOMETHING_NEW, whose purpose is exploration.
+//
+// This prevents a newly imported, unfamiliar artist from becoming the user's
+// primary match merely because its inferred tags and novelty score are high.
+func candidateAllowedForRecommendationType(
+	candidate SongCandidate,
+	kind entity.RecommendationType,
+	stage int,
+) bool {
+	status := candidate.Data.Song.ReviewStatus
+
+	// Older test fixtures and legacy in-memory candidates may not set the
+	// status. The entity's historical default is APPROVED, so preserve that
+	// behavior outside persisted repository results.
+	if status == "" || status == entity.ContentReviewStatusApproved {
+		return true
+	}
+	if status != entity.ContentReviewStatusAutoApproved {
+		return false
+	}
+
+	switch kind {
+	case entity.RecommendationTypeYourMatch:
+		return false
+	case entity.RecommendationTypeNewFavorite:
+		return stage >= 2
+	case entity.RecommendationTypeTrySomethingNew:
+		return true
+	default:
+		return false
+	}
+}
+
+func minimumContactScore(candidate SongCandidate, condition RecommendationCondition) float64 {
+	score := 0.0
+	if candidate.Score.Mood > 0 {
+		score++
+	}
+	if candidate.Score.Element > 0 {
+		score++
+	}
+	if candidate.Score.Atmosphere > 0 {
+		score++
+	}
+	if candidateIsNearbyGenre(candidate.Data, condition.Genres) {
+		score++
+	}
+	return score
+}
+
+func hasMinimumContact(candidate SongCandidate, condition RecommendationCondition, minimum float64) bool {
+	if minimum <= 0 {
+		minimum = 1
+	}
+	return minimumContactScore(candidate, condition) >= minimum
+}
+
+func recommendationConditionSongIDs(values map[uuid.UUID]bool) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(values))
+	for id, excluded := range values {
+		if excluded {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func candidateGenreKeys(value entity.RecommendationSongCandidate) []string {
+	return songGenreKeys(value)
+}
+
+func candidateMatchesGenres(value entity.RecommendationSongCandidate, genres []string) bool {
+	wanted := make(map[string]bool, len(genres))
+	for _, genre := range genres {
+		wanted[normalized(genre)] = true
+	}
+	for _, genre := range candidateGenreKeys(value) {
+		if wanted[genre] {
+			return true
+		}
+	}
+	return false
+}
+
+func candidateHasRecommendedGenre(value entity.RecommendationSongCandidate, recommended map[string]bool) bool {
+	for _, genre := range candidateGenreKeys(value) {
+		if recommended[genre] {
+			return true
+		}
+	}
+	return false
+}
+
+var nearbyGenres = map[string]map[string]bool{
+	// Chapter 10 genre-distance table. Every selectable genre is represented,
+	// and all relationships are intentionally symmetric.
+	"pop":         {"electronic": true, "k-pop": true, "anime": true, "hip-hop": true},
+	"rock":        {"alternative": true, "metal": true},
+	"alternative": {"rock": true, "metal": true},
+	"metal":       {"rock": true, "alternative": true},
+	"hip-hop":     {"pop": true, "k-pop": true, "electronic": true},
+	"jazz":        {"classical": true},
+	"electronic":  {"pop": true, "k-pop": true, "anime": true, "hip-hop": true},
+	"classical":   {"jazz": true, "anime": true},
+	"anime":       {"pop": true, "electronic": true, "k-pop": true, "classical": true},
+	"k-pop":       {"pop": true, "electronic": true, "hip-hop": true, "anime": true},
+}
+
+func candidateIsNearbyGenre(value entity.RecommendationSongCandidate, genres []string) bool {
+	for _, current := range genres {
+		current = normalized(current)
+		for _, candidate := range candidateGenreKeys(value) {
+			if nearbyGenres[current][candidate] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func ValidateGenreRelations() error {
+	for source, related := range nearbyGenres {
+		if source == "" {
+			return entity.ErrInvalidGenreRelation
+		}
+		for target := range related {
+			if target == "" || target == source || !nearbyGenres[target][source] {
+				return entity.ErrInvalidGenreRelation
+			}
+		}
+	}
+	return nil
+}
+
+func matchesDiscoveryStage(value entity.RecommendationSongCandidate, condition RecommendationCondition, seenArtist bool, stage int) bool {
+	sameGenre := candidateMatchesGenres(value, condition.Genres)
+	nearGenre := candidateIsNearbyGenre(value, condition.Genres)
+	seenGenre := candidateHasRecommendedGenre(value, condition.RecommendedGenres)
+	unknownArtist := !seenArtist
+
+	switch effectiveDiscoveryLevel(condition.DiscoveryLevel, condition.DiscoveryAdjustment) {
+	case "low":
+		if stage == 0 {
+			return sameGenre && unknownArtist
+		}
+		if stage == 1 {
+			return (sameGenre || nearGenre) && unknownArtist
+		}
+		return sameGenre || nearGenre || unknownArtist
+	case "high":
+		if stage == 0 {
+			return !seenGenre && !sameGenre && unknownArtist
+		}
+		if stage == 1 {
+			return !sameGenre && unknownArtist
+		}
+		return !sameGenre || unknownArtist
+	default: // medium
+		if stage == 0 {
+			return nearGenre && unknownArtist
+		}
+		if stage == 1 {
+			return nearGenre || (!seenGenre && unknownArtist)
+		}
+		return !sameGenre || unknownArtist
+	}
+}
+
+func (u *recommendationUsecase) GetLatest(ctx context.Context, userID uuid.UUID) (*entity.Recommendation, error) {
+	return u.recommendations.FindLatest(ctx, userID, entity.RecommendationSourceNormal)
+}
+func (u *recommendationUsecase) GetByID(ctx context.Context, userID, id uuid.UUID) (*entity.Recommendation, error) {
+	value, err := u.recommendations.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if value.UserID != userID {
+		return nil, entity.ErrRecommendationAccessDenied
+	}
+	return value, nil
+}

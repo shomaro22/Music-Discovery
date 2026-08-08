@@ -1,0 +1,48 @@
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AuthProvider } from "../auth/AuthContext";
+import { ROLE } from "../constants/role";
+import { ROUTES } from "../constants/routes";
+import { ContentAdminPage } from "../pages/admin/ContentAdminPage";
+import { SystemAdminPage } from "../pages/admin/SystemAdminPage";
+import { ForbiddenPage } from "../pages/ForbiddenPage";
+import { LoginPage } from "../pages/LoginPage";
+import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "../pages/ResetPasswordPage";
+import { SignupPage } from "../pages/SignupPage";
+import { TopPage } from "../pages/TopPage";
+import { WithdrawPage } from "../pages/WithdrawPage";
+import { ProfilePage } from "../pages/ProfilePage";
+import { QuestionPage } from "../pages/QuestionPage";
+import { AnswerConfirmPage } from "../pages/AnswerConfirmPage";
+import { DailyDiscoveryPage } from "../pages/DailyDiscoveryPage";
+import { DailyDiscoveryHistoryPage } from "../pages/DailyDiscoveryHistoryPage";
+import { DailyDiscoveryDetailPage } from "../pages/DailyDiscoveryDetailPage";
+import { RecommendationPage } from "../pages/RecommendationPage";
+import { RecommendationHistoryPage } from "../pages/RecommendationHistoryPage";
+import { RecommendationHistoryDetailPage } from "../pages/RecommendationHistoryDetailPage";
+import { AdminRoute } from "./AdminRoute";
+import { ProtectedRoute } from "./ProtectedRoute";
+
+export function AppRouter() {
+  return <BrowserRouter><AuthProvider><Routes>
+    <Route path={ROUTES.signup} element={<SignupPage />} />
+    <Route path={ROUTES.login} element={<LoginPage />} />
+    <Route path={ROUTES.forgotPassword} element={<ForgotPasswordPage />} />
+    <Route path={ROUTES.resetPassword} element={<ResetPasswordPage />} />
+    <Route path={ROUTES.forbidden} element={<ProtectedRoute><ForbiddenPage /></ProtectedRoute>} />
+    <Route path={ROUTES.profile} element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+    <Route path={ROUTES.withdraw} element={<AdminRoute allowedRoles={[ROLE.USER]}><WithdrawPage /></AdminRoute>} />
+    <Route path={ROUTES.questions} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><QuestionPage /></AdminRoute>} />
+    <Route path={ROUTES.questionConfirm} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><AnswerConfirmPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscovery} element={<AdminRoute allowedRoles={[ROLE.USER]}><DailyDiscoveryPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscoveryHistory} element={<AdminRoute allowedRoles={[ROLE.USER]}><DailyDiscoveryHistoryPage /></AdminRoute>} />
+    <Route path={ROUTES.dailyDiscoveryDetail} element={<AdminRoute allowedRoles={[ROLE.USER]}><DailyDiscoveryDetailPage /></AdminRoute>} />
+    <Route path={ROUTES.recommendationHistory} element={<AdminRoute allowedRoles={[ROLE.USER]}><RecommendationHistoryPage /></AdminRoute>} />
+    <Route path={ROUTES.recommendationHistoryDetail} element={<AdminRoute allowedRoles={[ROLE.USER]}><RecommendationHistoryDetailPage /></AdminRoute>} />
+    <Route path={ROUTES.recommendations} element={<AdminRoute allowedRoles={[ROLE.USER, ROLE.CONTENT_ADMIN, ROLE.SYSTEM_ADMIN]}><RecommendationPage /></AdminRoute>} />
+    <Route path={ROUTES.contentAdmin} element={<AdminRoute allowedRoles={[ROLE.CONTENT_ADMIN]}><ContentAdminPage /></AdminRoute>} />
+    <Route path={ROUTES.systemUsers} element={<AdminRoute allowedRoles={[ROLE.SYSTEM_ADMIN]}><SystemAdminPage /></AdminRoute>} />
+    <Route path={ROUTES.top} element={<ProtectedRoute><TopPage /></ProtectedRoute>} />
+    <Route path="*" element={<Navigate to={ROUTES.login} replace />} />
+  </Routes></AuthProvider></BrowserRouter>;
+}
