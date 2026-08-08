@@ -47,7 +47,7 @@ jobs:
         run: psql -h localhost -U postgres -d music_discovery_test -c 'SELECT current_database();'
       - name: Upload integration coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-integration-coverage
           path: backend/integration-coverage.out
