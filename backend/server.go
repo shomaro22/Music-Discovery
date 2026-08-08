@@ -220,12 +220,15 @@ func start(ctx context.Context) error {
 		authMiddleware,
 	)
 	e.Pre(appMiddleware.NewSystemLogMiddleware(systemLogUsecase, appMiddleware.SystemLogConfig{Environment: appEnvironment, Service: serviceName, Version: appVersion, Logger: logger, Metrics: metricsUsecase, SaveTimeout: 2 * time.Second, SlowThreshold: time.Duration(envPositiveInt("SLOW_REQUEST_THRESHOLD_MS", 1000)) * time.Millisecond}))
-	port := os.Getenv("APP_PORT")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = os.Getenv("APP_PORT")
+	}
 	if port == "" {
 		port = "8080"
 	}
 
-	return e.Start(":" + port)
+	return e.Start("0.0.0.0:" + port)
 }
 
 func runAlertEvaluation(ctx context.Context, logger *slog.Logger, monitor usecase.IAlertMonitor, interval time.Duration) {
