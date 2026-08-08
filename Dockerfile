@@ -5,15 +5,13 @@ RUN go mod download
 COPY backend/ .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api .
 
-
 FROM node:22-alpine AS frontend-development
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ .
 EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-
 
 FROM alpine:3.21 AS backend-runtime
 RUN apk add --no-cache ca-certificates
