@@ -1,0 +1,721 @@
+openapi: 3.1.0
+info:
+  title: Music Discovery API
+  version: "1.0.0"
+  description: |
+    Music-Discovery の Swagger / OpenAPI 用定義です。
+
+    現行 API の認証は `/api/auth/login` が発行する JWT Bearer Token を
+    `Authorization: Bearer <token>` で送信する方式です。
+
+    `oidc` Security Scheme は Swagger UI から OpenID Connect を利用するための
+    定義テンプレートです。実際に OIDC Authorize を動作させるには、
+    `openIdConnectUrl` を利用する IdP の Discovery URL に置き換え、API 側にも
+    OIDC Token の検証実装を追加してください。現行 API は OIDC Provider ではありません。
+servers:
+  - url: https://music-discovery-1s2i.onrender.com
+    description: Production (Render)
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Monitoring
+  - name: Authentication
+  - name: Users
+  - name: Questions
+  - name: Recommendations
+  - name: Daily Discovery
+  - name: Feedback
+  - name: Content Admin
+  - name: System Admin
+
+paths:
+  /health:
+    get:
+      tags: [Monitoring]
+      summary: Liveness health check
+      security: []
+      responses:
+        "200":
+          description: Application is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /ready:
+    get:
+      tags: [Monitoring]
+      summary: Readiness check for PostgreSQL and Redis
+      security: []
+      responses:
+        "200":
+          description: Dependencies are ready
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "503":
+          description: One or more dependencies are unavailable
+
+  /api/auth/signup:
+    post:
+      tags: [Authentication]
+      summary: Sign up
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/APIError" }
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in and obtain an access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Refresh Token Cookie と CSRF Token を使用します。
+      security:
+        - refreshCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: Access token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Refresh Token Cookie と CSRF Token を使用します。
+      security:
+        - refreshCookie: []
+          csrfHeader: []
+      responses:
+        "204": { description: Logged out }
+        "200": { description: Logged out }
+  /api/auth/password-reset/request:
+    post:
+      tags: [Authentication]
+      summary: Request password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202": { description: Request accepted }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/auth/password-reset/confirm:
+    post:
+      tags: [Authentication]
+      summary: Confirm password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token: { type: string }
+                new_password: { type: string, format: password, minLength: 8 }
+      responses:
+        "200": { description: Password changed }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Users]
+      summary: Update current user profile
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+      responses:
+        "200": { description: Updated }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Users]
+      summary: Withdraw account
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password]
+              properties:
+                current_password: { type: string, format: password }
+      responses:
+        "200": { description: Account withdrawn }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/questions:
+    get:
+      tags: [Questions]
+      summary: List questions
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Question list }
+  /api/user-answers/latest:
+    get:
+      tags: [Questions]
+      summary: Get latest question answers
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Latest answers }
+  /api/user-answers:
+    post:
+      tags: [Questions]
+      summary: Save question answers
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200": { description: Answers saved }
+        "201": { description: Answers saved }
+
+  /api/recommendations:
+    post:
+      tags: [Recommendations]
+      summary: Generate recommendations
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Recommendation generated }
+        "201": { description: Recommendation generated }
+        "422":
+          description: Recommendation candidates are unavailable or imported but not usable yet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/APIError" }
+  /api/recommendations/latest:
+    get:
+      tags: [Recommendations]
+      summary: Get latest recommendation
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Latest recommendation }
+  /api/recommendations/{recommendationId}:
+    get:
+      tags: [Recommendations]
+      summary: Get recommendation by ID
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RecommendationId"
+      responses:
+        "200": { description: Recommendation }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/daily-discovery:
+    get:
+      tags: [Daily Discovery]
+      summary: Get today's Daily Discovery
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Today's Daily Discovery }
+  /api/daily-discoveries:
+    get:
+      tags: [Daily Discovery]
+      summary: List Daily Discovery history
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Daily Discovery history }
+  /api/daily-discoveries/{recommendationId}:
+    get:
+      tags: [Daily Discovery]
+      summary: Get Daily Discovery by recommendation ID
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RecommendationId"
+      responses:
+        "200": { description: Daily Discovery detail }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/recommendation-history:
+    get:
+      tags: [Recommendations]
+      summary: List recommendation history
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Recommendation history }
+  /api/recommendation-history/{recommendationId}:
+    get:
+      tags: [Recommendations]
+      summary: Get recommendation history detail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RecommendationId"
+      responses:
+        "200": { description: Recommendation history detail }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/recommendation-details/{recommendationDetailId}/feedback:
+    get:
+      tags: [Feedback]
+      summary: Get feedback
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RecommendationDetailId"
+      responses:
+        "200": { description: Feedback }
+    put:
+      tags: [Feedback]
+      summary: Save feedback
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/RecommendationDetailId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200": { description: Feedback saved }
+
+  /api/admin/artists:
+    get:
+      tags: [Content Admin]
+      summary: List artists
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Artist page } }
+    post:
+      tags: [Content Admin]
+      summary: Create artist
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "201": { description: Artist created } }
+  /api/admin/artists/{artistId}:
+    get:
+      tags: [Content Admin]
+      summary: Get artist
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtistId" }]
+      responses: { "200": { description: Artist } }
+    patch:
+      tags: [Content Admin]
+      summary: Update artist
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtistId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Artist updated } }
+    delete:
+      tags: [Content Admin]
+      summary: Delete artist
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ArtistId" }]
+      responses: { "204": { description: Artist deleted } }
+
+  /api/admin/songs:
+    get:
+      tags: [Content Admin]
+      summary: List songs
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Song page } }
+    post:
+      tags: [Content Admin]
+      summary: Create song
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "201": { description: Song created } }
+  /api/admin/songs/{songId}:
+    get:
+      tags: [Content Admin]
+      summary: Get song
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/SongId" }]
+      responses: { "200": { description: Song } }
+    patch:
+      tags: [Content Admin]
+      summary: Update song
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/SongId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Song updated } }
+    delete:
+      tags: [Content Admin]
+      summary: Delete song
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/SongId" }]
+      responses: { "204": { description: Song deleted } }
+
+  /api/admin/tags:
+    get:
+      tags: [Content Admin]
+      summary: List tags
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Tag page } }
+    post:
+      tags: [Content Admin]
+      summary: Create tag
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "201": { description: Tag created } }
+  /api/admin/tags/options:
+    get:
+      tags: [Content Admin]
+      summary: List tag options
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Tag options } }
+  /api/admin/tags/{tagId}:
+    get:
+      tags: [Content Admin]
+      summary: Get tag
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/TagId" }]
+      responses: { "200": { description: Tag } }
+    patch:
+      tags: [Content Admin]
+      summary: Update tag
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/TagId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Tag updated } }
+    delete:
+      tags: [Content Admin]
+      summary: Delete tag
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/TagId" }]
+      responses: { "204": { description: Tag deleted } }
+  /api/admin/spotify/artists:
+    get:
+      tags: [Content Admin]
+      summary: Search Spotify artists
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+      responses: { "200": { description: Spotify artist results } }
+  /api/admin/spotify/tracks:
+    get:
+      tags: [Content Admin]
+      summary: Search Spotify tracks
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+      responses: { "200": { description: Spotify track results } }
+
+  /api/system/users:
+    get:
+      tags: [System Admin]
+      summary: List users
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: User page } }
+  /api/system/users/{userId}:
+    get:
+      tags: [System Admin]
+      summary: Get user
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      responses: { "200": { description: User detail } }
+  /api/system/users/{userId}/status:
+    patch:
+      tags: [System Admin]
+      summary: Change user status
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Status changed } }
+  /api/system/roles:
+    get:
+      tags: [System Admin]
+      summary: List roles
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Roles } }
+  /api/system/users/{userId}/role:
+    patch:
+      tags: [System Admin]
+      summary: Change user role
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/UserId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses: { "200": { description: Role changed } }
+  /api/system/audit-logs:
+    get:
+      tags: [System Admin]
+      summary: List audit logs
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Audit log page } }
+  /api/system/audit-logs/{auditLogId}:
+    get:
+      tags: [System Admin]
+      summary: Get audit log
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: auditLogId
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { "200": { description: Audit log } }
+  /api/system/logs:
+    get:
+      tags: [System Admin]
+      summary: List system logs
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: System log page } }
+  /api/system/logs/{logId}:
+    get:
+      tags: [System Admin]
+      summary: Get system log
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: logId
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { "200": { description: System log } }
+  /api/system/metrics:
+    get:
+      tags: [System Admin]
+      summary: Get monitoring metrics
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Metrics } }
+  /api/system/alerts:
+    get:
+      tags: [System Admin]
+      summary: List current alerts
+      security: [{ bearerAuth: [] }]
+      responses: { "200": { description: Alerts } }
+  /api/system/alerts/test:
+    post:
+      tags: [System Admin]
+      summary: Send test alert
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { description: Test alert sent }
+        "503": { description: Alert notifier is not configured }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Current Music-Discovery access token authentication.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: HttpOnly refresh token cookie set by login/sign-up.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+    oidc:
+      type: openIdConnect
+      openIdConnectUrl: https://YOUR_OIDC_ISSUER/.well-known/openid-configuration
+      description: |
+        Swagger UI 用 OIDC 定義テンプレート。
+        IdP の Discovery URL に置換し、API側へ OIDC Token 検証を実装してから使用してください。
+
+  parameters:
+    RecommendationId:
+      in: path
+      name: recommendationId
+      required: true
+      schema: { type: string, format: uuid }
+    RecommendationDetailId:
+      in: path
+      name: recommendationDetailId
+      required: true
+      schema: { type: string, format: uuid }
+    ArtistId:
+      in: path
+      name: artistId
+      required: true
+      schema: { type: string, format: uuid }
+    SongId:
+      in: path
+      name: songId
+      required: true
+      schema: { type: string, format: uuid }
+    TagId:
+      in: path
+      name: tagId
+      required: true
+      schema: { type: string, format: uuid }
+    UserId:
+      in: path
+      name: userId
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/APIError" }
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/APIError" }
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/APIError" }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/APIError" }
+
+  schemas:
+    APIError:
+      type: object
+      required: [status, code, message]
+      properties:
+        status: { type: integer }
+        code: { type: string }
+        message: { type: string }
+        request_id: { type: string }
+    HealthResponse:
+      type: object
+      required: [status, version, uptime_seconds]
+      properties:
+        status: { type: string, examples: [ok] }
+        version: { type: string, examples: [production] }
+        uptime_seconds: { type: integer, format: int64 }
+    SignUpRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role:
+          type: string
+          enum: [user, content_admin, system_admin]
+        status:
+          type: string
+          examples: [active]
+        created_at: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, examples: [Bearer] }
+        expires_in: { type: integer, format: int64 }
+        user: { $ref: "#/components/schemas/User" }
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, examples: [Bearer] }
+        expires_in: { type: integer, format: int64 }

@@ -10,8 +10,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "npm run lint && npm run test:coverage && npm run build",
-    "lint": "tsc -b --pretty false"
+    "test:ci": "npm run lint && npm run lint:any && npm run test:coverage && npm run build",
+    "lint": "npm run typecheck",
+    "typecheck": "tsc -b --pretty false",
+    "lint:any": "node ./scripts/check-no-explicit-any.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
