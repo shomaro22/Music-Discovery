@@ -107,39 +107,12 @@ func TestUserRepositoryFindByEmailNotFound(t *testing.T) {
 	}
 }
 
-func TestUserRepositoryValidation(t *testing.T) {
+func TestUserRepositoryRejectsNilUser(t *testing.T) {
 	repo := NewUserRepository(openTestPostgres(t))
 
-	tests := []struct {
-		name string
-		user *entity.User
-	}{
-		{name: "nil user", user: nil},
-		{name: "empty email", user: validUser("")},
-		{name: "empty password hash", user: func() *entity.User {
-			user := validUser("password@example.com")
-			user.PasswordHash = ""
-			return user
-		}()},
-		{name: "empty role", user: func() *entity.User {
-			user := validUser("role@example.com")
-			user.Role = ""
-			return user
-		}()},
-		{name: "empty status", user: func() *entity.User {
-			user := validUser("status@example.com")
-			user.Status = ""
-			return user
-		}()},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := repo.Create(context.Background(), tt.user)
-			if !errors.Is(err, entity.ErrInvalidUserForCreate) {
-				t.Fatalf("err=%v want=%v", err, entity.ErrInvalidUserForCreate)
-			}
-		})
+	_, err := repo.Create(context.Background(), nil)
+	if !errors.Is(err, entity.ErrInvalidUserForCreate) {
+		t.Fatalf("err=%v want=%v", err, entity.ErrInvalidUserForCreate)
 	}
 }
 

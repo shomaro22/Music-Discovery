@@ -2,7 +2,20 @@ name: E2E Test
 
 on:
   pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/src/**"
+      - "frontend/e2e/**"
+      - "frontend/playwright.config.ts"
+      - "tests/k6/**"
+      - "docker-compose.ci.yml"
+      - "Dockerfile"
+      - ".github/workflows/e2e-test.yml"
   workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -23,13 +36,11 @@ jobs:
       E2E_USER_PASSWORD: Password123!
       E2E_DAILY_USER_EMAIL: daily@example.com
       E2E_DAILY_USER_PASSWORD: Password123!
-      E2E_DAILY_PHASE: day1
-      E2E_DAILY_EXPECT_DATE: "2026-08-08"
       E2E_JWT_SECRET: test-jwt-secret-at-least-32-characters-long
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -43,7 +54,17 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Start CI stack
+      - name: Set deterministic Daily Discovery dates
+        shell: bash
+        run: |
+          DAY1="$(TZ=Asia/Tokyo date +%F)"
+          DAY2="$(date -d "${DAY1} +1 day" +%F)"
+          echo "E2E_DAY1=${DAY1}" >> "$GITHUB_ENV"
+          echo "E2E_DAY2=${DAY2}" >> "$GITHUB_ENV"
+
+      - name: Start CI stack for day 1
+        env:
+          TEST_DAILY_DISCOVERY_NOW: ${{ env.E2E_DAY1 }}T12:00:00+09:00
         run: docker compose -f docker-compose.ci.yml up -d --build
 
       - name: Wait for backend health
@@ -64,16 +85,41 @@ jobs:
           docker compose -f docker-compose.ci.yml logs frontend
           exit 1
 
-      - name: Run Playwright E2E tests
+      - name: Run Playwright E2E tests - day 1
         working-directory: frontend
+        env:
+          E2E_DAILY_PHASE: day1
+          E2E_DAILY_EXPECT_DATE: ${{ env.E2E_DAY1 }}
         run: npm run test:e2e
 
-      - name: Run k6 smoke test
-        uses: grafana/k6-action@v0.3.1
-        with:
-          filename: tests/k6/smoke.js
+      - name: Recreate backend for day 2
         env:
-          BASE_URL: http://localhost:8080
+          TEST_DAILY_DISCOVERY_NOW: ${{ env.E2E_DAY2 }}T12:00:00+09:00
+        run: |
+          docker compose -f docker-compose.ci.yml up -d --no-deps --force-recreate api
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:8080/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.ci.yml logs api
+          exit 1
+
+      - name: Run Daily Discovery next-day E2E - day 2
+        working-directory: frontend
+        env:
+          E2E_DAILY_PHASE: day2
+          E2E_DAILY_EXPECT_DATE: ${{ env.E2E_DAY2 }}
+        run: npx playwright test e2e/chapter15-core.spec.ts --grep "Daily Discovery翌日更新で日付と3曲が変わる"
+
+      - name: Run k6 smoke test
+        run: |
+          docker run --rm \
+            --network host \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -w /work \
+            -e BASE_URL=http://127.0.0.1:8080 \
+            grafana/k6:0.56.0 \
+            run tests/k6/smoke.js
 
       - name: Save service logs on failure
         if: failure()
@@ -81,7 +127,7 @@ jobs:
 
       - name: Upload Playwright report and traces
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-results
           path: |

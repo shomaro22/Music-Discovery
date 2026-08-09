@@ -53,13 +53,17 @@ func (m *authTransactionManager) CreateUserAndRefreshToken(ctx context.Context, 
 
 func (m *authTransactionManager) RevokeFamilyAndIncrementTokenVersion(ctx context.Context, familyID, userID uuid.UUID, now time.Time) error {
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&entity.RefreshToken{}).
+		result := tx.Model(&entity.RefreshToken{}).
 			Where("family_id = ? AND revoked_at IS NULL", familyID).
-			Update("revoked_at", now).Error; err != nil {
+			Update("revoked_at", now)
+		if result.Error != nil {
 			return entity.ErrInternal
 		}
+		if result.RowsAffected == 0 {
+			return entity.ErrInvalidRefreshToken
+		}
 
-		result := tx.Exec(
+		result = tx.Exec(
 			"UPDATE users SET token_version = token_version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
 			now,
 			userID,

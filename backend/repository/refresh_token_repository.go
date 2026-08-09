@@ -100,7 +100,7 @@ func (r *refreshTokenRepository) RevokeAllByUserID(ctx context.Context, tx ITran
 	}
 	result := db.WithContext(ctx).Model(&entity.RefreshToken{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Updates(entity.RefreshToken{RevokedAt: &now, UpdatedAt: now})
+		UpdateColumns(map[string]interface{}{"revoked_at": now, "updated_at": now})
 	if result.Error != nil {
 		return entity.ErrInternal
 	}

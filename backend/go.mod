@@ -1,14 +1,14 @@
 module music-discovery/backend
 
-go 1.23.0
+go 1.26.5
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/redis/go-redis/v9 v9.7.3
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.54.0
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
 )
@@ -27,9 +27,9 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 )

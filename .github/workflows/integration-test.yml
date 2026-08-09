@@ -2,8 +2,20 @@ name: Integration Test
 
 on:
   pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/integration-test.yml"
+      - "docker-compose.ci.yml"
   push:
     branches: [develop, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/integration-test.yml"
+      - "docker-compose.ci.yml"
+
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -32,22 +44,22 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version-file: backend/go.mod
+          go-version: "1.26.5"
           cache-dependency-path: backend/go.sum
       - name: Download dependencies
         run: go mod download
       - name: Run PostgreSQL integration tests
-        run: go test -count=1 -coverprofile=integration-coverage.out ./...
+        run: go test -p 1 -parallel 1 -count=1 -coverprofile=integration-coverage.out ./...
       - name: Verify test database is reachable after tests
         env:
           PGPASSWORD: postgres
         run: psql -h localhost -U postgres -d music_discovery_test -c 'SELECT current_database();'
       - name: Upload integration coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backend-integration-coverage
           path: backend/integration-coverage.out

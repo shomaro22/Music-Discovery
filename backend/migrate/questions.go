@@ -38,6 +38,9 @@ func CreateQuestionTables(db *gorm.DB) error {
 	if err := db.AutoMigrate(&entity.Question{}, &entity.QuestionChoice{}, &entity.QuestionAnswerSession{}, &entity.UserAnswer{}, &entity.UserAnswerChoice{}, &entity.UserProfile{}, &entity.UserGenreWeight{}, &entity.UserElementWeight{}, &entity.UserAtmosphereWeight{}); err != nil {
 		return err
 	}
+	if err := createUserProfileUserForeignKey(db); err != nil {
+		return err
+	}
 	// This guarded backfill intentionally runs at startup because this project does not use
 	// versioned migration files. Its WHERE clause makes repeated execution idempotent.
 	if err := migrateExistingQuestionWeights(db); err != nil {
@@ -86,4 +89,30 @@ func seedQuestions(db *gorm.DB) error {
 		}
 		return nil
 	})
+}
+
+func createUserProfileUserForeignKey(db *gorm.DB) error {
+	const statement = `
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1
+				FROM pg_constraint
+				WHERE conname = 'fk_user_profiles_user'
+				  AND conrelid = 'user_profiles'::regclass
+			) THEN
+				ALTER TABLE user_profiles
+				ADD CONSTRAINT fk_user_profiles_user
+				FOREIGN KEY (user_id)
+				REFERENCES users(id)
+				ON UPDATE CASCADE
+				ON DELETE RESTRICT;
+			END IF;
+		END
+		$$;
+	`
+	if err := db.Exec(statement).Error; err != nil {
+		return fmt.Errorf("create user_profiles user foreign key: %w", err)
+	}
+	return nil
 }

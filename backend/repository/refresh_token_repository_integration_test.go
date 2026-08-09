@@ -18,7 +18,7 @@ func setupRefreshTokenRepositoryTest(t *testing.T) (*refreshTokenRepository, *en
 	if err := db.AutoMigrate(&entity.RefreshToken{}); err != nil {
 		t.Fatalf("migrate refresh_tokens: %v", err)
 	}
-	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users").Error; err != nil {
+	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE").Error; err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
 	user := validUser(uuid.NewString() + "@example.com")

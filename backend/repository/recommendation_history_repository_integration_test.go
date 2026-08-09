@@ -20,6 +20,13 @@ func TestRecommendationHistoryRepositoryFiltersOrdersAndLoadsFeedback(t *testing
 
 	userID := uuid.New()
 	otherID := uuid.New()
+	user := validUser("history-user@example.com")
+	user.ID = userID
+	otherUser := validUser("history-other@example.com")
+	otherUser.ID = otherID
+	if err := db.Create([]*entity.User{user, otherUser}).Error; err != nil {
+		t.Fatalf("create recommendation owners: %v", err)
+	}
 	artist := entity.Artist{ID: uuid.New(), SpotifyArtistID: uuid.NewString(), Name: "Artist"}
 	if err := db.Create(&artist).Error; err != nil {
 		t.Fatal(err)
