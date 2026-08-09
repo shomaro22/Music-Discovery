@@ -16,7 +16,7 @@ func TestWithdrawTransactionUsesOneTimestampAndDoesNotAffectOtherUser(t *testing
 	if err := migrate.CreateRefreshTokens(db); err != nil {
 		t.Fatalf("migrate refresh tokens: %v", err)
 	}
-	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users").Error; err != nil {
+	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,7 +85,7 @@ func TestWithdrawTransactionRollsBackWhenLaterStepFails(t *testing.T) {
 	if err := migrate.CreateRefreshTokens(db); err != nil {
 		t.Fatalf("migrate refresh tokens: %v", err)
 	}
-	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users").Error; err != nil {
+	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,7 +128,7 @@ func TestWithdrawTransactionRollsBackUserAndRefreshTokenUpdates(t *testing.T) {
 	if err := migrate.CreateRefreshTokens(db); err != nil {
 		t.Fatalf("migrate refresh tokens: %v", err)
 	}
-	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users").Error; err != nil {
+	if err := db.Exec("TRUNCATE TABLE refresh_tokens, users RESTART IDENTITY CASCADE").Error; err != nil {
 		t.Fatal(err)
 	}
 
