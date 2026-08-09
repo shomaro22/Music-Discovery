@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -9,7 +11,7 @@ import (
 	"music-discovery/backend/repository"
 )
 
-type RateLimitInput struct{ Scope, IP, UserID string }
+type RateLimitInput struct{ Scope, IP, UserID, Email string }
 
 type RateLimitDecision struct {
 	Allowed    bool
@@ -68,11 +70,20 @@ type rateLimitPolicy struct {
 func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 	ip := strings.TrimSpace(input.IP)
 	userID := strings.TrimSpace(input.UserID)
+	emailDigest := rateLimitEmailDigest(input.Email)
 	switch input.Scope {
 	case "signup":
-		return []rateLimitPolicy{{name: "signup_ip", key: fmt.Sprintf("rate_limit:signup:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}, nil
+		policies := []rateLimitPolicy{{name: "signup_ip", key: fmt.Sprintf("rate_limit:signup:ip:%s", ip), capacity: 10, rate: 10.0 / 60.0}}
+		if emailDigest != "" {
+			policies = append(policies, rateLimitPolicy{name: "signup_email", key: "rate_limit:signup:email:" + emailDigest, capacity: 5, rate: 5.0 / 60.0})
+		}
+		return policies, nil
 	case "login":
-		return []rateLimitPolicy{{name: "login_ip", key: fmt.Sprintf("rate_limit:login:ip:%s", ip), capacity: 20, rate: 20.0 / 60.0}}, nil
+		policies := []rateLimitPolicy{{name: "login_ip", key: fmt.Sprintf("rate_limit:login:ip:%s", ip), capacity: 20, rate: 20.0 / 60.0}}
+		if emailDigest != "" {
+			policies = append(policies, rateLimitPolicy{name: "login_email", key: "rate_limit:login:email:" + emailDigest, capacity: 10, rate: 10.0 / 300.0})
+		}
+		return policies, nil
 	case "refresh":
 		return []rateLimitPolicy{{name: "refresh_ip", key: fmt.Sprintf("rate_limit:refresh:ip:%s", ip), capacity: 30, rate: 30.0 / 300.0}}, nil
 	case "withdraw":
@@ -100,4 +111,13 @@ func policiesFor(input RateLimitInput) ([]rateLimitPolicy, error) {
 	default:
 		return nil, fmt.Errorf("unknown rate limit scope: %s", input.Scope)
 	}
+}
+
+func rateLimitEmailDigest(email string) string {
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	if normalized == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:])
 }

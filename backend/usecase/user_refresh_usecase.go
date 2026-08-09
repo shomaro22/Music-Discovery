@@ -24,6 +24,9 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 
 	if current.IsRevoked() || current.IsUsed() {
 		if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); err != nil {
+			if errors.Is(err, entity.ErrInvalidRefreshToken) {
+				return nil, entity.ErrInvalidRefreshToken
+			}
 			return nil, entity.ErrInternal
 		}
 		return nil, entity.ErrRefreshTokenReused
@@ -59,6 +62,9 @@ func (u *userUsecase) Refresh(ctx context.Context, plainToken string) (*RefreshR
 	if err := u.refreshTokenRepository.Rotate(ctx, current.ID, next, now); err != nil {
 		if errors.Is(err, entity.ErrRefreshTokenReused) {
 			if revokeErr := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, current.FamilyID, current.UserID, now); revokeErr != nil {
+				if errors.Is(revokeErr, entity.ErrInvalidRefreshToken) {
+					return nil, entity.ErrInvalidRefreshToken
+				}
 				return nil, entity.ErrInternal
 			}
 			return nil, entity.ErrRefreshTokenReused
@@ -93,7 +99,11 @@ func (u *userUsecase) Logout(ctx context.Context, plainToken string) error {
 	if token == nil || token.FamilyID == uuid.Nil {
 		return nil
 	}
-	if err := u.refreshTokenRepository.RevokeFamily(ctx, token.FamilyID, u.clock.Now()); err != nil {
+	if err := u.authTransactionManager.RevokeFamilyAndIncrementTokenVersion(ctx, token.FamilyID, token.UserID, u.clock.Now()); err != nil {
+		if errors.Is(err, entity.ErrInvalidRefreshToken) {
+			// Logout is idempotent: an already-revoked family is treated as success.
+			return nil
+		}
 		return entity.ErrInternal
 	}
 	return nil
