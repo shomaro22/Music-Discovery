@@ -44,7 +44,7 @@ func TestCatalogSeedsAreIdempotent(t *testing.T) {
 		t.Fatalf("rerun development catalog seed: %v", err)
 	}
 
-	assertCatalogCount(t, db, &entity.Tag{}, 26)
+	assertCatalogCount(t, db, &entity.Tag{}, int64(len(allTagSeeds())))
 	assertCatalogCount(t, db, &entity.Artist{}, int64(len(developmentCatalogSeeds)))
 	assertCatalogCount(t, db, &entity.Song{}, int64(len(developmentCatalogSeeds)))
 	assertCatalogCount(t, db, &entity.SongTag{}, int64(len(developmentCatalogSeeds)*10))

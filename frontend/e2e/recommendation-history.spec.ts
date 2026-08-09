@@ -1,15 +1,17 @@
 import { expect, request as playwrightRequest, type Page, test } from "@playwright/test";
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required for E2E tests`);
-  return value;
+const requiredEnvNames = ["E2E_RUN_ID", "E2E_USER_EMAIL", "E2E_USER_PASSWORD"] as const;
+const missingRequiredEnv = requiredEnvNames.filter((name) => !process.env[name]?.trim());
+test.skip(missingRequiredEnv.length > 0, `Recommendation history E2E requires: ${missingRequiredEnv.join(", ")}`);
+
+function envOr(name: string, fallback: string): string {
+  return process.env[name]?.trim() || fallback;
 }
 
-const apiURL = process.env.E2E_API_URL?.trim() || "http://localhost:8080";
-const runID = requiredEnv("E2E_RUN_ID").replace(/[^a-zA-Z0-9_-]/g, "-");
-const userPassword = requiredEnv("E2E_USER_PASSWORD");
-const userEmail = scopedEmail(requiredEnv("E2E_USER_EMAIL"), `history-${runID}`);
+const apiURL = envOr("E2E_API_URL", "http://localhost:8080");
+const runID = envOr("E2E_RUN_ID", "local").replace(/[^a-zA-Z0-9_-]/g, "-");
+const userPassword = envOr("E2E_USER_PASSWORD", "unused");
+const userEmail = scopedEmail(envOr("E2E_USER_EMAIL", "user@example.invalid"), `history-${runID}`);
 
 function scopedEmail(baseEmail: string, suffix: string): string {
   const at = baseEmail.lastIndexOf("@");
@@ -20,7 +22,7 @@ function scopedEmail(baseEmail: string, suffix: string): string {
 async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("メールアドレス").fill(email);
-  await page.getByLabel("パスワード").fill(password);
+  await page.getByLabel("パスワード", { exact: true }).fill(password);
   await page.getByRole("button", { name: "ログイン" }).click();
   await expect(page).toHaveURL(/\/$/);
 }

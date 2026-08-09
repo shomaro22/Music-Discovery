@@ -2,24 +2,36 @@ import { createHmac, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { expect, request as playwrightRequest, test, type APIRequestContext, type Page } from "@playwright/test";
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required for Chapter 15 E2E tests`);
-  return value;
+const requiredEnvNames = [
+  "E2E_RUN_ID",
+  "E2E_CONTENT_ADMIN_EMAIL",
+  "E2E_CONTENT_ADMIN_PASSWORD",
+  "E2E_SYSTEM_ADMIN_EMAIL",
+  "E2E_SYSTEM_ADMIN_PASSWORD",
+  "E2E_DAILY_PHASE",
+  "E2E_DAILY_EXPECT_DATE",
+  "E2E_DAILY_USER_EMAIL",
+  "E2E_DAILY_USER_PASSWORD",
+] as const;
+const missingRequiredEnv = requiredEnvNames.filter((name) => !process.env[name]?.trim());
+test.skip(missingRequiredEnv.length > 0, `Chapter 15 E2E requires: ${missingRequiredEnv.join(", ")}`);
+
+function envOr(name: string, fallback: string): string {
+  return process.env[name]?.trim() || fallback;
 }
 
-const apiURL = process.env.E2E_API_URL?.trim() || "http://localhost:8080";
-const runID = requiredEnv("E2E_RUN_ID").replace(/[^a-zA-Z0-9_-]/g, "-");
-const contentAdminEmail = requiredEnv("E2E_CONTENT_ADMIN_EMAIL");
-const contentAdminPassword = requiredEnv("E2E_CONTENT_ADMIN_PASSWORD");
-const systemAdminEmail = requiredEnv("E2E_SYSTEM_ADMIN_EMAIL");
-const systemAdminPassword = requiredEnv("E2E_SYSTEM_ADMIN_PASSWORD");
-const jwtSecret = process.env.E2E_JWT_SECRET?.trim() || "test-jwt-secret-at-least-32-characters-long";
-const dailyPhase = requiredEnv("E2E_DAILY_PHASE");
-const dailyExpectedDate = requiredEnv("E2E_DAILY_EXPECT_DATE");
-const dailyUserEmail = scopedEmail(requiredEnv("E2E_DAILY_USER_EMAIL"), `daily-${runID}`);
-const dailyUserPassword = requiredEnv("E2E_DAILY_USER_PASSWORD");
-const dailySnapshotPath = scopedSnapshotPath(process.env.E2E_DAILY_SNAPSHOT?.trim() || ".e2e-daily-day1.json", runID);
+const apiURL = envOr("E2E_API_URL", "http://localhost:8080");
+const runID = envOr("E2E_RUN_ID", "local").replace(/[^a-zA-Z0-9_-]/g, "-");
+const contentAdminEmail = envOr("E2E_CONTENT_ADMIN_EMAIL", "content-admin@example.invalid");
+const contentAdminPassword = envOr("E2E_CONTENT_ADMIN_PASSWORD", "unused");
+const systemAdminEmail = envOr("E2E_SYSTEM_ADMIN_EMAIL", "system-admin@example.invalid");
+const systemAdminPassword = envOr("E2E_SYSTEM_ADMIN_PASSWORD", "unused");
+const jwtSecret = envOr("E2E_JWT_SECRET", "test-jwt-secret-at-least-32-characters-long");
+const dailyPhase = envOr("E2E_DAILY_PHASE", "day1");
+const dailyExpectedDate = envOr("E2E_DAILY_EXPECT_DATE", "1970-01-01");
+const dailyUserEmail = scopedEmail(envOr("E2E_DAILY_USER_EMAIL", "daily@example.invalid"), `daily-${runID}`);
+const dailyUserPassword = envOr("E2E_DAILY_USER_PASSWORD", "unused");
+const dailySnapshotPath = scopedSnapshotPath(envOr("E2E_DAILY_SNAPSHOT", ".e2e-daily-day1.json"), runID);
 
 
 function scopedEmail(baseEmail: string, suffix: string): string {
@@ -83,7 +95,7 @@ function expiredAccessToken(): string {
 async function loginInBrowser(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel("メールアドレス").fill(email);
-  await page.getByLabel("パスワード").fill(password);
+  await page.getByLabel("パスワード", { exact: true }).fill(password);
   await page.getByRole("button", { name: "ログイン" }).click();
   await expect(page).toHaveURL(/\/$/);
 }
@@ -111,7 +123,7 @@ async function signUpInBrowser(page: Page, name: string, email: string, password
   await page.getByLabel("名前").fill(name);
   await page.getByLabel("メールアドレス").fill(email);
   await page.getByLabel("パスワード", { exact: true }).fill(password);
-  await page.getByLabel("パスワード確認").fill(password);
+  await page.getByLabel("パスワード確認", { exact: true }).fill(password);
   await page.getByRole("button", { name: "アカウントを作成" }).click();
   await expect(page).toHaveURL(/\/$/);
 }
