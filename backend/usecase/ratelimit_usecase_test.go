@@ -104,3 +104,40 @@ func TestRateLimitUsecaseCapacityMultiplierScalesPerformancePolicy(t *testing.T)
 		t.Fatalf("rate=%f want=%f", call.rate, (5.0/60.0)*1000)
 	}
 }
+
+func TestRateLimitUsecaseLoginUsesIPThenEmailDigest(t *testing.T) {
+	repo := &fakeRateLimitRepository{results: []entity.RateLimitResult{
+		{Allowed: true, Remaining: 19},
+		{Allowed: true, Remaining: 9},
+	}}
+	u := NewRateLimitUsecase(repo, fixedRateLimitClock{now: time.Unix(100, 0)})
+	decision, err := u.Allow(context.Background(), RateLimitInput{Scope: "login", IP: "192.0.2.10", Email: "  User@Example.COM "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.calls) != 2 {
+		t.Fatalf("calls=%d", len(repo.calls))
+	}
+	if repo.calls[0].key != "rate_limit:login:ip:192.0.2.10" {
+		t.Fatalf("ip key=%s", repo.calls[0].key)
+	}
+	wantDigest := rateLimitEmailDigest("user@example.com")
+	if repo.calls[1].key != "rate_limit:login:email:"+wantDigest {
+		t.Fatalf("email key=%s", repo.calls[1].key)
+	}
+	if decision.LimitName != "login_email" || !decision.Allowed {
+		t.Fatalf("decision=%+v", decision)
+	}
+}
+
+func TestRateLimitUsecaseSignupStopsBeforeEmailWhenIPDenied(t *testing.T) {
+	repo := &fakeRateLimitRepository{results: []entity.RateLimitResult{{Allowed: false, Remaining: 0, RetryAfter: time.Second}}}
+	u := NewRateLimitUsecase(repo, fixedRateLimitClock{})
+	decision, err := u.Allow(context.Background(), RateLimitInput{Scope: "signup", IP: "192.0.2.20", Email: "user@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.calls) != 1 || decision.LimitName != "signup_ip" {
+		t.Fatalf("calls=%d decision=%+v", len(repo.calls), decision)
+	}
+}

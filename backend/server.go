@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +33,15 @@ func start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("postgres: %w", err)
 	}
+	sqlDB, err := postgres.DB()
+	if err != nil {
+		return fmt.Errorf("postgres sql db: %w", err)
+	}
+	defer func() {
+		if closeErr := sqlDB.Close(); closeErr != nil {
+			logger.Error("postgres close failed", "error", closeErr)
+		}
+	}()
 
 	if err := migrate.Run(postgres, migrate.Config{
 		AppEnvironment:         os.Getenv("APP_ENV"),
@@ -45,7 +55,11 @@ func start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("redis: %w", err)
 	}
-	defer redisClient.Close()
+	defer func() {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			logger.Error("redis close failed", "error", closeErr)
+		}
+	}()
 
 	userRepository := repository.NewUserRepository(postgres)
 	refreshRepository := repository.NewRefreshTokenRepository(postgres)
@@ -232,7 +246,48 @@ func start(ctx context.Context) error {
 		port = "8080"
 	}
 
-	return e.Start("0.0.0.0:" + port)
+	return serveWithGracefulShutdown(ctx, e, "0.0.0.0:"+port, 10*time.Second)
+}
+
+func serveWithGracefulShutdown(ctx context.Context, e interface {
+	Start(address string) error
+	Shutdown(context.Context) error
+}, address string, shutdownTimeout time.Duration) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = 10 * time.Second
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- e.Start(address)
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := e.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("graceful shutdown: %w", err)
+		}
+
+		select {
+		case err := <-serverErr:
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		case <-shutdownCtx.Done():
+			return fmt.Errorf("graceful shutdown: %w", shutdownCtx.Err())
+		}
+	}
 }
 
 func runAlertEvaluation(ctx context.Context, logger *slog.Logger, monitor usecase.IAlertMonitor, interval time.Duration) {
@@ -240,7 +295,7 @@ func runAlertEvaluation(ctx context.Context, logger *slog.Logger, monitor usecas
 		interval = time.Minute
 	}
 	evaluate := func() {
-		evalCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		evalCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		if err := monitor.EvaluateAndPublish(evalCtx); err != nil {
 			logger.Error("alert evaluation or notification failed", "error", err)
@@ -264,7 +319,7 @@ func runAlertEvaluation(ctx context.Context, logger *slog.Logger, monitor usecas
 
 func runLogRetention(ctx context.Context, logger *slog.Logger, retention usecase.ILogRetentionUsecase) {
 	run := func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		result, err := retention.Cleanup(cleanupCtx)
 		if err != nil {

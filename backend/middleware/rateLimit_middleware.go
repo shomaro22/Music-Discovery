@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -58,7 +61,11 @@ func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.Ha
 		if value, ok := c.Get(AuthUserIDKey).(uuid.UUID); ok {
 			userID = value.String()
 		}
-		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), UserID: userID})
+		email := ""
+		if scope == "signup" || scope == "login" {
+			email = readRateLimitEmail(c.Request())
+		}
+		decision, err := m.usecase.Allow(c.Request().Context(), usecase.RateLimitInput{Scope: scope, IP: c.RealIP(), UserID: userID, Email: email})
 		if err != nil {
 			return echo.NewHTTPError(http.StatusServiceUnavailable, "Rate Limit service is unavailable").SetInternal(err)
 		}
@@ -70,4 +77,25 @@ func (m *rateLimitMiddleware) apply(scope string, next echo.HandlerFunc) echo.Ha
 		c.Response().Header().Set("Retry-After", strconv.Itoa(int(decision.RetryAfter.Seconds())))
 		return echo.NewHTTPError(http.StatusTooManyRequests)
 	}
+}
+
+const maxRateLimitAuthBodyBytes int64 = 16 * 1024
+
+func readRateLimitEmail(request *http.Request) string {
+	if request == nil || request.Body == nil {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(request.Body, maxRateLimitAuthBodyBytes+1))
+	request.Body.Close()
+	request.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil || int64(len(body)) > maxRateLimitAuthBodyBytes {
+		return ""
+	}
+	var payload struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+	return payload.Email
 }
