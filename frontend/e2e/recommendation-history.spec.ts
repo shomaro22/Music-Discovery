@@ -29,23 +29,33 @@ async function login(page: Page, email: string, password: string): Promise<void>
 
 async function answerAllQuestions(page: Page): Promise<void> {
   await page.getByRole("button", { name: "おすすめを探す" }).click();
+  const saveButton = page.getByRole("button", { name: "この回答で保存" });
 
-  while (await page.getByRole("button", { name: /次へ|回答を確認/ }).isVisible()) {
-    const selected = page.locator('[aria-checked="true"]');
-    if ((await selected.count()) === 0) {
-      const choice = page.locator('[role="radio"], [role="checkbox"]').first();
-      await choice.click();
+  for (let step = 0; step < 20; step += 1) {
+    if (await saveButton.isVisible()) break;
+
+    const choices = page.locator('[role="radio"], [role="checkbox"]');
+    await expect(choices.first()).toBeVisible();
+    if ((await page.locator('[aria-checked="true"]').count()) === 0) {
+      await choices.first().click();
     }
 
     const confirm = page.getByRole("button", { name: "回答を確認" });
     if (await confirm.isVisible()) {
+      await expect(confirm).toBeEnabled();
       await confirm.click();
+      await expect(saveButton).toBeVisible();
       break;
     }
-    await page.getByRole("button", { name: "次へ" }).click();
+
+    const next = page.getByRole("button", { name: "次へ" });
+    await expect(next).toBeVisible();
+    await expect(next).toBeEnabled();
+    await next.click();
   }
 
-  await page.getByRole("button", { name: "この回答で保存" }).click();
+  await expect(saveButton).toBeVisible();
+  await saveButton.click();
   await expect(page.getByRole("heading", { name: "今日のおすすめ" })).toBeVisible();
 }
 
@@ -96,7 +106,7 @@ test.describe.serial("推薦履歴", () => {
 
     await openHistory(page);
     const cards = page.locator(".history-card");
-    expect(await cards.count()).toBeGreaterThanOrEqual(2);
+    await expect(cards).toHaveCount(2);
     await expect(page.getByText("通常推薦").first()).toBeVisible();
     await expect(page.getByText("Daily Discovery").first()).toBeVisible();
 
@@ -123,8 +133,12 @@ test.describe.serial("推薦履歴", () => {
     await openHistory(page);
 
     await page.getByLabel("推薦区分").selectOption("DAILY_DISCOVERY");
-    await page.getByLabel("開始日").fill("2026-01-01");
-    await page.getByLabel("終了日").fill("2026-12-31");
+    await page.getByRole("combobox", { name: "開始日 年" }).fill("2026");
+    await page.getByRole("combobox", { name: "開始日 月" }).fill("01");
+    await page.getByRole("combobox", { name: "開始日 日" }).fill("01");
+    await page.getByRole("combobox", { name: "終了日 年" }).fill("2026");
+    await page.getByRole("combobox", { name: "終了日 月" }).fill("12");
+    await page.getByRole("combobox", { name: "終了日 日" }).fill("31");
     await page.getByRole("button", { name: "検索" }).click();
     await expect(page).toHaveURL(/source=DAILY_DISCOVERY/);
     await expect(page).toHaveURL(/startDate=2026-01-01/);

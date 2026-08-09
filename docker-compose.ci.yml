@@ -34,7 +34,10 @@ services:
       SEED_DEVELOPMENT_USERS: "true"
       SEED_DEVELOPMENT_CATALOG: "true"
       LOG_LEVEL: info
-      TEST_FIXED_NOW: "2026-08-08T12:00:00Z"
+      # E2Eの機能テスト同士が同一CI Redis上のRate Limit枠を奪い合わないよう、
+      # APP_ENV=test のときだけ容量を拡張する。本番ではserver.goが1以外を拒否する。
+      RATE_LIMIT_CAPACITY_MULTIPLIER: "1000"
+      TEST_DAILY_DISCOVERY_NOW: ${TEST_DAILY_DISCOVERY_NOW:-}
     ports:
       - "8080:8080"
     depends_on:
