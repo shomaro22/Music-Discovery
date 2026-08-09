@@ -63,6 +63,10 @@ func start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	dailyDiscoveryClock, err := loadDailyDiscoveryClock(appEnvironment, clock)
+	if err != nil {
+		return err
+	}
 	userUsecase := usecase.NewUserUsecase(
 		userRepository,
 		userValidator,
@@ -153,7 +157,7 @@ func start(ctx context.Context) error {
 	)
 	recommendationController := controller.NewRecommendationController(recommendationUsecase)
 	dailyDiscoveryConfig := usecase.DailyDiscoveryV1Config(recommendationConfig)
-	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, recommendationLockRepository, authTransactionManager, recommendationCalculator, clock, recommendationConditionBuilder, dailyDiscoveryConfig)
+	dailyDiscoveryUsecase := usecase.NewDailyDiscoveryUsecase(userRepository, userProfileRepository, recommendationRepository, recommendationLockRepository, authTransactionManager, recommendationCalculator, dailyDiscoveryClock, recommendationConditionBuilder, dailyDiscoveryConfig)
 	dailyDiscoveryController := controller.NewDailyDiscoveryController(dailyDiscoveryUsecase)
 	recommendationHistoryUsecase := usecase.NewRecommendationHistoryUsecase(userRepository, userProfileRepository, recommendationRepository)
 	recommendationHistoryController := controller.NewRecommendationHistoryController(recommendationHistoryUsecase)
@@ -315,6 +319,21 @@ func loadApplicationClock(appEnvironment string) (usecase.IClock, error) {
 	now, err := time.Parse(time.RFC3339, fixedNow)
 	if err != nil {
 		return nil, fmt.Errorf("TEST_FIXED_NOW must be RFC3339: %w", err)
+	}
+	return usecase.NewFixedClock(now), nil
+}
+
+func loadDailyDiscoveryClock(appEnvironment string, fallback usecase.IClock) (usecase.IClock, error) {
+	fixedNow := strings.TrimSpace(os.Getenv("TEST_DAILY_DISCOVERY_NOW"))
+	if fixedNow == "" {
+		return fallback, nil
+	}
+	if !strings.EqualFold(strings.TrimSpace(appEnvironment), "test") {
+		return nil, errors.New("TEST_DAILY_DISCOVERY_NOW is only allowed when APP_ENV=test")
+	}
+	now, err := time.Parse(time.RFC3339, fixedNow)
+	if err != nil {
+		return nil, fmt.Errorf("TEST_DAILY_DISCOVERY_NOW must be RFC3339: %w", err)
 	}
 	return usecase.NewFixedClock(now), nil
 }

@@ -2,7 +2,20 @@ name: E2E Test
 
 on:
   pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/src/**"
+      - "frontend/e2e/**"
+      - "frontend/playwright.config.ts"
+      - "tests/k6/**"
+      - "docker-compose.ci.yml"
+      - "Dockerfile"
+      - ".github/workflows/e2e-test.yml"
   workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -24,12 +37,11 @@ jobs:
       E2E_DAILY_USER_EMAIL: daily@example.com
       E2E_DAILY_USER_PASSWORD: Password123!
       E2E_DAILY_PHASE: day1
-      E2E_DAILY_EXPECT_DATE: "2026-08-08"
       E2E_JWT_SECRET: test-jwt-secret-at-least-32-characters-long
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -42,6 +54,9 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
+
+      - name: Set E2E date in Asia/Tokyo
+        run: echo "E2E_DAILY_EXPECT_DATE=$(TZ=Asia/Tokyo date +%F)" >> "$GITHUB_ENV"
 
       - name: Start CI stack
         run: docker compose -f docker-compose.ci.yml up -d --build
@@ -81,7 +96,7 @@ jobs:
 
       - name: Upload Playwright report and traces
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-results
           path: |

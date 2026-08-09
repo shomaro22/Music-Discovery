@@ -16,6 +16,8 @@ const requiredEnvNames = [
 const missingRequiredEnv = requiredEnvNames.filter((name) => !process.env[name]?.trim());
 test.skip(missingRequiredEnv.length > 0, `Chapter 15 E2E requires: ${missingRequiredEnv.join(", ")}`);
 
+const E2E_API_BASE_URL = process.env.E2E_API_BASE_URL?.trim() || "http://localhost:8080";
+
 function envOr(name: string, fallback: string): string {
   return process.env[name]?.trim() || fallback;
 }
@@ -82,7 +84,7 @@ function expiredAccessToken(): string {
     iss: "music-discovery",
     aud: "music-discovery-frontend",
     sub: randomUUID(),
-    role: "USER",
+    role: "user",
     tv: 0,
     iat: now - 3600,
     exp: now - 60,
@@ -102,19 +104,33 @@ async function loginInBrowser(page: Page, email: string, password: string): Prom
 
 async function answerQuestionsAndGenerateRecommendation(page: Page): Promise<void> {
   await page.getByRole("button", { name: "おすすめを探す" }).click();
-  for (;;) {
-    const selected = page.locator('[aria-checked="true"]');
-    if ((await selected.count()) === 0) {
-      await page.locator('[role="radio"], [role="checkbox"]').first().click();
+  const saveButton = page.getByRole("button", { name: "この回答で保存" });
+
+  for (let step = 0; step < 20; step += 1) {
+    if (await saveButton.isVisible()) break;
+
+    const choices = page.locator('[role="radio"], [role="checkbox"]');
+    await expect(choices.first()).toBeVisible();
+    if ((await page.locator('[aria-checked="true"]').count()) === 0) {
+      await choices.first().click();
     }
+
     const confirm = page.getByRole("button", { name: "回答を確認" });
     if (await confirm.isVisible()) {
+      await expect(confirm).toBeEnabled();
       await confirm.click();
+      await expect(saveButton).toBeVisible();
       break;
     }
-    await page.getByRole("button", { name: "次へ" }).click();
+
+    const next = page.getByRole("button", { name: "次へ" });
+    await expect(next).toBeVisible();
+    await expect(next).toBeEnabled();
+    await next.click();
   }
-  await page.getByRole("button", { name: "この回答で保存" }).click();
+
+  await expect(saveButton).toBeVisible();
+  await saveButton.click();
   await expect(page.getByRole("heading", { name: "今日のおすすめ" })).toBeVisible();
 }
 
@@ -179,27 +195,27 @@ test.describe.serial("Chapter 15 core E2E", () => {
 
       const artistResponse = await context.post("/api/admin/artists", {
         headers,
-        data: { spotify_artist_id: `e2e-artist-${suffix}`, name: `E2E Artist ${suffix}`, image_url: "", spotify_url: "https://open.spotify.com/artist/e2e", popularity: 60, tag_ids: [tag.id] },
+        data: { spotify_artist_id: `e2eartist${suffix}`, name: `E2E Artist ${suffix}`, image_url: "", spotify_url: "https://open.spotify.com/artist/e2e", popularity: 60, tag_ids: [tag.id] },
       });
       expect(artistResponse.status(), await artistResponse.text()).toBe(201);
       const artist = (await artistResponse.json()) as { id: string };
 
       const artistUpdate = await context.patch(`/api/admin/artists/${artist.id}`, {
         headers,
-        data: { spotify_artist_id: `e2e-artist-${suffix}`, name: `E2E Artist Updated ${suffix}`, image_url: "", spotify_url: "https://open.spotify.com/artist/e2e", popularity: 61, tag_ids: [tag.id] },
+        data: { spotify_artist_id: `e2eartist${suffix}`, name: `E2E Artist Updated ${suffix}`, image_url: "", spotify_url: "https://open.spotify.com/artist/e2e", popularity: 61, tag_ids: [tag.id] },
       });
       expect(artistUpdate.status(), await artistUpdate.text()).toBe(200);
 
       const songResponse = await context.post("/api/admin/songs", {
         headers,
-        data: { artist_id: artist.id, spotify_track_id: `e2e-track-${suffix}`, name: `E2E Song ${suffix}`, album_name: "E2E Album", image_url: "", spotify_url: "https://open.spotify.com/track/e2e", preview_url: "", duration_ms: 180000, popularity: 50, release_date: "2026-01-01", explicit: false, tags: [{ tag_id: tag.id, weight: 1 }] },
+        data: { artist_id: artist.id, spotify_track_id: `e2etrack${suffix}`, name: `E2E Song ${suffix}`, album_name: "E2E Album", image_url: "", spotify_url: "https://open.spotify.com/track/e2e", preview_url: "", duration_ms: 180000, popularity: 50, release_date: "2026-01-01", explicit: false, tags: [{ tag_id: tag.id, weight: 1 }] },
       });
       expect(songResponse.status(), await songResponse.text()).toBe(201);
       const song = (await songResponse.json()) as { id: string };
 
       const songUpdate = await context.patch(`/api/admin/songs/${song.id}`, {
         headers,
-        data: { artist_id: artist.id, spotify_track_id: `e2e-track-${suffix}`, name: `E2E Song Updated ${suffix}`, album_name: "E2E Album", image_url: "", spotify_url: "https://open.spotify.com/track/e2e", preview_url: "", duration_ms: 181000, popularity: 51, release_date: "2026-01-01", explicit: false, tags: [{ tag_id: tag.id, weight: 1 }] },
+        data: { artist_id: artist.id, spotify_track_id: `e2etrack${suffix}`, name: `E2E Song Updated ${suffix}`, album_name: "E2E Album", image_url: "", spotify_url: "https://open.spotify.com/track/e2e", preview_url: "", duration_ms: 181000, popularity: 51, release_date: "2026-01-01", explicit: false, tags: [{ tag_id: tag.id, weight: 1 }] },
       });
       expect(songUpdate.status(), await songUpdate.text()).toBe(200);
 
@@ -229,15 +245,15 @@ test.describe.serial("Chapter 15 core E2E", () => {
       const headers = auth(token);
       expect((await context.get("/api/system/users?page=1&limit=20", { headers })).status()).toBe(200);
 
-      const suspend = await context.patch(`/api/system/users/${target.user.id}/status`, { headers, data: { status: "SUSPENDED", reason: "chapter15 e2e" } });
+      const suspend = await context.patch(`/api/system/users/${target.user.id}/status`, { headers, data: { status: "suspended", reason: "chapter15 e2e" } });
       expect(suspend.status(), await suspend.text()).toBe(204);
-      const resume = await context.patch(`/api/system/users/${target.user.id}/status`, { headers, data: { status: "ACTIVE", reason: "chapter15 e2e resume" } });
+      const resume = await context.patch(`/api/system/users/${target.user.id}/status`, { headers, data: { status: "active", reason: "chapter15 e2e resume" } });
       expect(resume.status(), await resume.text()).toBe(204);
 
-      const role = await context.patch(`/api/system/users/${target.user.id}/role`, { headers, data: { role: "CONTENT_ADMIN", reason: "chapter15 e2e" } });
-      expect(role.status(), await role.text()).toBe(200);
-      const roleBack = await context.patch(`/api/system/users/${target.user.id}/role`, { headers, data: { role: "USER", reason: "chapter15 e2e restore" } });
-      expect(roleBack.status(), await roleBack.text()).toBe(200);
+      const role = await context.patch(`/api/system/users/${target.user.id}/role`, { headers, data: { role: "content_admin", reason: "chapter15 e2e" } });
+      expect(role.status(), await role.text()).toBe(204);
+      const roleBack = await context.patch(`/api/system/users/${target.user.id}/role`, { headers, data: { role: "user", reason: "chapter15 e2e restore" } });
+      expect(roleBack.status(), await roleBack.text()).toBe(204);
 
       expect((await context.get("/api/system/audit-logs?page=1&limit=20", { headers })).status()).toBe(200);
       expect((await context.get("/api/system/logs?page=1&limit=20", { headers })).status()).toBe(200);
@@ -260,7 +276,7 @@ test.describe.serial("Chapter 15 core E2E", () => {
       const user = (await signup.json()) as { user: { id: string } };
 
       const systemToken = await apiLogin(context, systemAdminEmail, systemAdminPassword);
-      const suspend = await context.patch(`/api/system/users/${user.user.id}/status`, { headers: auth(systemToken), data: { status: "SUSPENDED", reason: "security e2e" } });
+      const suspend = await context.patch(`/api/system/users/${user.user.id}/status`, { headers: auth(systemToken), data: { status: "suspended", reason: "security e2e" } });
       expect(suspend.status(), await suspend.text()).toBe(204);
 
       const login = await context.post("/api/auth/login", { data: { email, password } });
@@ -278,11 +294,38 @@ test.describe.serial("Chapter 15 core E2E", () => {
 
     await page.goto("/daily-discovery");
     await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible();
-    const firstSongs = await page.locator(".recommendation-card").evaluateAll((cards) => cards.map((card) => card.textContent ?? ""));
-    await page.reload();
     await expect(page.locator(".recommendation-card")).toHaveCount(3);
-    const secondSongs = await page.locator(".recommendation-card").evaluateAll((cards) => cards.map((card) => card.textContent ?? ""));
-    expect(secondSongs).toEqual(firstSongs);
+    const firstSongs = await page.locator(".recommendation-card").evaluateAll((cards) => cards.map((card) => card.textContent ?? ""));
+
+    // 同日2回目取得はAPI専用Contextで再ログインし、Bearer Tokenを明示して確認する。
+    // FrontendとBackendは別Originのため、page.requestのCookie共有には依存しない。
+    const secondContext = await apiContext();
+    let secondDaily: {
+      generated: boolean;
+      recommendations: Array<{ song_name: string; artist_name: string }>;
+    };
+    try {
+      const secondToken = await apiLogin(secondContext, email, password);
+      const secondResponse = await secondContext.get("/api/daily-discovery", {
+        headers: auth(secondToken),
+      });
+      expect(secondResponse.status(), await secondResponse.text()).toBe(200);
+      secondDaily = (await secondResponse.json()) as {
+        generated: boolean;
+        recommendations: Array<{ song_name: string; artist_name: string }>;
+      };
+    } finally {
+      await secondContext.dispose();
+    }
+    expect(secondDaily.generated).toBe(false);
+    expect(secondDaily.recommendations).toHaveLength(3);
+
+    const secondSongs = secondDaily.recommendations.map(
+      (item) => `${item.song_name}${item.artist_name}`,
+    );
+    for (const song of secondSongs) {
+      expect(firstSongs.some((cardText) => cardText.includes(song))).toBe(true);
+    }
 
     const cards = page.locator(".recommendation-card");
     const labels = [/好き LIKE/, /もう少し聴きたい MAYBE/, /今回は違う SKIP/];
@@ -299,36 +342,91 @@ test.describe.serial("Chapter 15 core E2E", () => {
     }
 
     if (dailyPhase === "day1") {
-      const context = await apiContext();
+      const prepareContext = await apiContext();
       try {
-        await ensureUser(context, "Daily Next Day User", dailyUserEmail, dailyUserPassword);
+        await ensureUser(prepareContext, "Daily Next Day User", dailyUserEmail, dailyUserPassword);
       } finally {
-        await context.dispose();
+        await prepareContext.dispose();
       }
+
+      // 利用者操作で質問回答まで完了し、Daily Discoveryの前提条件を作る。
       await loginInBrowser(page, dailyUserEmail, dailyUserPassword);
       await answerQuestionsAndGenerateRecommendation(page);
+    }
+
+    // Daily Discovery自体の生成結果はAPIで厳密に検証する。
+    // UIだけを見ると「表示されない理由」が認証・候補不足・日付判定のどこか判別できないため、
+    // E2EではAPI契約と利用者画面の両方を確認する。
+    const context = await apiContext();
+    let daily: {
+      target_date: string;
+      generated: boolean;
+      recommendations: Array<{
+        song_id: string;
+        song_name: string;
+        artist_name: string;
+      }>;
+    };
+    try {
+      const token = await apiLogin(context, dailyUserEmail, dailyUserPassword);
+      const response = await context.get("/api/daily-discovery", {
+        headers: auth(token),
+      });
+      expect(response.status(), await response.text()).toBe(200);
+      daily = (await response.json()) as typeof daily;
+    } finally {
+      await context.dispose();
+    }
+
+    expect(daily.target_date).toBe(dailyExpectedDate);
+    expect(daily.generated).toBe(true);
+    expect(daily.recommendations).toHaveLength(3);
+
+    const songIDs = daily.recommendations.map((item) => item.song_id);
+    expect(new Set(songIDs).size).toBe(3);
+
+    if (dailyPhase === "day1") {
+      writeFileSync(
+        dailySnapshotPath,
+        JSON.stringify({
+          targetDate: daily.target_date,
+          songIDs,
+        }),
+        "utf8",
+      );
     } else {
+      const previous = JSON.parse(readFileSync(dailySnapshotPath, "utf8")) as {
+        targetDate: string;
+        songIDs: string[];
+      };
+
+      expect(previous.targetDate).not.toBe(daily.target_date);
+      expect(previous.songIDs).toHaveLength(3);
+
+      // 30日以内の重複除外仕様をE2Eでも検証する。
+      // 翌日の3曲は前日の3曲を1曲も再利用してはならない。
+      expect(songIDs.filter((id) => previous.songIDs.includes(id))).toHaveLength(0);
+    }
+
+    // 最後に実際の利用者画面でも、APIで得た同じ3曲が表示されることを確認する。
+    // day2 は新しいブラウザセッションなので通常ログインから開始する。
+    if (dailyPhase === "day2") {
       await loginInBrowser(page, dailyUserEmail, dailyUserPassword);
     }
 
     await page.goto("/daily-discovery");
+    await expect(page).toHaveURL(/\/daily-discovery$/);
     await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible();
     await expect(page.locator(".recommendation-header p").last()).toHaveText(dailyExpectedDate);
     await expect(page.locator(".recommendation-card")).toHaveCount(3);
-    const songs = await page.locator(".recommendation-card").evaluateAll((cards) =>
-      cards.map((card) => card.textContent ?? ""),
-    );
 
-    if (dailyPhase === "day1") {
-      writeFileSync(dailySnapshotPath, JSON.stringify(songs), "utf8");
-      return;
+    for (const item of daily.recommendations) {
+      const card = page.locator(".recommendation-card").filter({
+        hasText: item.song_name,
+      });
+      await expect(card).toHaveCount(1);
+      await expect(card).toContainText(item.artist_name);
     }
-
-    const previousSongs = JSON.parse(readFileSync(dailySnapshotPath, "utf8")) as string[];
-    expect(previousSongs).toHaveLength(3);
-    expect(songs).toHaveLength(3);
-    expect(songs).not.toEqual(previousSongs);
-    expect(songs.filter((song) => previousSongs.includes(song))).toHaveLength(0);
   });
 
 });
