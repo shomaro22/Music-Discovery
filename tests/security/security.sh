@@ -102,7 +102,14 @@ printf '# Netscape HTTP Cookie File\nlocalhost\tFALSE\t/api/auth\tFALSE\t2147483
 status=$(curl -sS -b "$TMP/loggedout.cookies" -o "$TMP/postlogout.json" -w '%{http_code}' -X POST \
   -H "X-CSRF-Token: $CSRF" "$BASE_URL/api/auth/refresh")
 [ "$status" = "401" ] || fail "refresh token remained usable after logout; HTTP $status"
+grep -q 'INVALID_REFRESH_TOKEN' "$TMP/postlogout.json" || fail "logged-out refresh token did not return INVALID_REFRESH_TOKEN"
 pass "logout invalidates refresh token"
+
+# Logout increments token_version, so the access token issued before logout must also be rejected.
+status=$(curl -sS -o "$TMP/postlogout-access.json" -w '%{http_code}' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" "$BASE_URL/api/users/me")
+[ "$status" = "401" ] || fail "access token remained usable after logout; HTTP $status"
+pass "logout invalidates previously issued access token"
 
 # Rate limit: repeated invalid logins must eventually return 429.
 rate_limited=0
