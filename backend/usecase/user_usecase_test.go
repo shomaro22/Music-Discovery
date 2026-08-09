@@ -251,15 +251,21 @@ func (f *refreshRepoStub) RevokeFamily(_ context.Context, familyID uuid.UUID, no
 }
 
 type authTxStub struct {
-	calls int
-	err   error
+	calls    int
+	err      error
+	familyID uuid.UUID
+	userID   uuid.UUID
+	calledAt time.Time
 }
 
 func (f *authTxStub) CreateUserAndRefreshToken(context.Context, *entity.User, *entity.RefreshToken) error {
 	return nil
 }
-func (f *authTxStub) RevokeFamilyAndIncrementTokenVersion(context.Context, uuid.UUID, uuid.UUID, time.Time) error {
+func (f *authTxStub) RevokeFamilyAndIncrementTokenVersion(_ context.Context, familyID uuid.UUID, userID uuid.UUID, now time.Time) error {
 	f.calls++
+	f.familyID = familyID
+	f.userID = userID
+	f.calledAt = now
 	return f.err
 }
 func (f *authTxStub) SaveRefreshToken(context.Context, *entity.RefreshToken) error { return nil }
@@ -492,62 +498,84 @@ func TestRefreshAccessTokenGenerationFailure(t *testing.T) {
 	}
 }
 
-func TestLogoutRevokesFamilyForAnyStoredTokenState(t *testing.T) {
+func TestLogoutRevokesFamilyAndIncrementsTokenVersion(t *testing.T) {
 	now := time.Date(2026, 7, 20, 12, 0, 0, 0, time.UTC)
-	usedAt := now.Add(-2 * time.Hour)
-	revokedAt := now.Add(-time.Hour)
+	userID := uuid.New()
+	familyID := uuid.New()
+	refreshRepo := &refreshRepoStub{current: &entity.RefreshToken{UserID: userID, FamilyID: familyID, ExpiresAt: now.Add(time.Hour)}}
+	tx := &authTxStub{}
+	u := newRefreshUsecaseForTest(&fakeUserRepository{}, refreshRepo, tx, &tokenServiceStub{hash: "hashed-token"}, now)
 
-	tests := []struct {
-		name  string
-		token *entity.RefreshToken
-	}{
-		{name: "active token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour)}},
-		{name: "expired token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(-time.Minute)}},
-		{name: "used token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour), UsedAt: &usedAt}},
-		{name: "revoked token", token: &entity.RefreshToken{FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour), RevokedAt: &revokedAt}},
+	if err := u.Logout(context.Background(), "plain-token"); err != nil {
+		t.Fatal(err)
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			refreshRepo := &refreshRepoStub{current: tc.token}
-			token := &tokenServiceStub{hash: "hashed-token"}
-			u := newRefreshUsecaseForTest(&fakeUserRepository{}, refreshRepo, &authTxStub{}, token, now)
-			if err := u.Logout(context.Background(), "plain-token"); err != nil {
-				t.Fatal(err)
-			}
-			if refreshRepo.findHash != "hashed-token" || refreshRepo.revokeCalls != 1 || refreshRepo.revokeFamily != tc.token.FamilyID || !refreshRepo.revokeAt.Equal(now) {
-				t.Fatalf("repo=%+v", refreshRepo)
-			}
-		})
+	if refreshRepo.findHash != "hashed-token" || refreshRepo.revokeCalls != 0 {
+		t.Fatalf("refreshRepo=%+v", refreshRepo)
+	}
+	if tx.calls != 1 || tx.familyID != familyID || tx.userID != userID || !tx.calledAt.Equal(now) {
+		t.Fatalf("tx=%+v", tx)
 	}
 }
 
-func TestLogoutIsIdempotentForMissingToken(t *testing.T) {
-	for _, tc := range []struct {
+func TestLogoutIsIdempotentForMissingOrAlreadyRevokedToken(t *testing.T) {
+	tests := []struct {
 		name    string
 		plain   string
 		findErr error
+		txErr   error
+		wantTx  int
 	}{
 		{name: "empty cookie", plain: ""},
 		{name: "unknown token", plain: "plain", findErr: entity.ErrInvalidRefreshToken},
-	} {
+		{name: "already revoked family", plain: "plain", txErr: entity.ErrInvalidRefreshToken, wantTx: 1},
+	}
+	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			repo := &refreshRepoStub{findErr: tc.findErr}
-			u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
+			repo := &refreshRepoStub{findErr: tc.findErr, current: &entity.RefreshToken{UserID: uuid.New(), FamilyID: uuid.New()}}
+			if tc.findErr != nil {
+				repo.current = nil
+			}
+			tx := &authTxStub{err: tc.txErr}
+			u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, tx, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
 			if err := u.Logout(context.Background(), tc.plain); err != nil {
 				t.Fatal(err)
 			}
-			if repo.revokeCalls != 0 {
-				t.Fatalf("revokeCalls=%d", repo.revokeCalls)
+			if tx.calls != tc.wantTx {
+				t.Fatalf("tx.calls=%d want=%d", tx.calls, tc.wantTx)
 			}
 		})
 	}
 }
 
-func TestLogoutRevokeFailureReturnsInternalError(t *testing.T) {
-	repo := &refreshRepoStub{current: &entity.RefreshToken{FamilyID: uuid.New()}, revokeErr: errors.New("db down")}
-	u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
+func TestLogoutTransactionFailureReturnsInternalError(t *testing.T) {
+	repo := &refreshRepoStub{current: &entity.RefreshToken{UserID: uuid.New(), FamilyID: uuid.New()}}
+	u := newRefreshUsecaseForTest(&fakeUserRepository{}, repo, &authTxStub{err: errors.New("db down")}, &tokenServiceStub{hash: "hash"}, time.Now().UTC())
 	if err := u.Logout(context.Background(), "plain"); !errors.Is(err, entity.ErrInternal) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestRefreshAlreadyRevokedFamilyReturnsInvalidRefreshToken(t *testing.T) {
+	now := time.Now().UTC()
+	revokedAt := now.Add(-time.Minute)
+	current := &entity.RefreshToken{ID: uuid.New(), UserID: uuid.New(), FamilyID: uuid.New(), RevokedAt: &revokedAt, ExpiresAt: now.Add(time.Hour)}
+	tx := &authTxStub{err: entity.ErrInvalidRefreshToken}
+	_, err := newRefreshUsecaseForTest(&fakeUserRepository{}, &refreshRepoStub{current: current}, tx, &tokenServiceStub{hash: "hash"}, now).Refresh(context.Background(), "token")
+	if !errors.Is(err, entity.ErrInvalidRefreshToken) || tx.calls != 1 {
+		t.Fatalf("err=%v tx.calls=%d", err, tx.calls)
+	}
+}
+
+func TestRefreshRotationConflictAlreadyRevokedFamilyReturnsInvalidRefreshToken(t *testing.T) {
+	now := time.Now().UTC()
+	userID := uuid.New()
+	current := &entity.RefreshToken{ID: uuid.New(), UserID: userID, FamilyID: uuid.New(), ExpiresAt: now.Add(time.Hour)}
+	repo := &fakeUserRepository{findUser: &entity.User{ID: userID, Role: entity.RoleUser, Status: entity.UserStatusActive}}
+	refreshRepo := &refreshRepoStub{current: current, rotateErr: entity.ErrRefreshTokenReused}
+	tx := &authTxStub{err: entity.ErrInvalidRefreshToken}
+	token := &tokenServiceStub{hash: "hash", refreshPlain: "new", refreshHash: "new-hash", ttl: time.Hour}
+	_, err := newRefreshUsecaseForTest(repo, refreshRepo, tx, token, now).Refresh(context.Background(), "token")
+	if !errors.Is(err, entity.ErrInvalidRefreshToken) {
 		t.Fatalf("err=%v", err)
 	}
 }

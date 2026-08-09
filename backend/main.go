@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
-	if err := start(context.Background()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := start(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
