@@ -1,7 +1,12 @@
 import type { ApiError, CSRFResponse, RefreshResponse } from "../types/user";
 import { clearCSRFToken, getCSRFToken, setCSRFToken } from "./csrf";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+// Production calls the API through Vercel's same-origin /api reverse proxy.
+// This keeps refresh/CSRF cookies first-party in the browser instead of relying
+// on cross-site third-party cookie behavior between vercel.app and onrender.com.
+const API_BASE_URL = import.meta.env.PROD
+  ? ""
+  : (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080");
 let accessToken: string | null = null;
 let refreshPromise: Promise<RefreshResponse> | null = null;
 let authStateListener: ((token: string | null, reason?: "expired") => void) | null = null;
