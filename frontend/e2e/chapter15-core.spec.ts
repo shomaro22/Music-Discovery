@@ -298,8 +298,15 @@ test.describe.serial("Chapter 15 core E2E", () => {
     await signUpInBrowser(page, "Daily E2E User", email, password);
     await answerQuestionsAndGenerateRecommendation(page);
 
-    await page.goto("/daily-discovery");
-    await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible();
+    // このテストはDaily Discoveryの機能確認が目的なので、
+    // page.goto()によるフルリロードで認証復元処理まで巻き込まない。
+    // 推薦画面 -> TOP -> Daily Discovery のSPA遷移で、
+    // Access Token / CSRF Tokenのメモリ状態を維持して確認する。
+    await page.getByRole("button", { name: "TOPページへ戻る" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.getByRole("button", { name: "Daily Discoveryを開く" }).click();
+    await expect(page).toHaveURL(/\/daily-discovery$/);
+    await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".recommendation-card")).toHaveCount(3);
     const firstSongs = await page.locator(".recommendation-card").evaluateAll((cards) => cards.map((card) => card.textContent ?? ""));
 
