@@ -329,7 +329,7 @@ func TestRefreshControllerSuccessUpdatesCookies(t *testing.T) {
 	if refreshCookie == nil || refreshCookie.Value != "refresh-new" || refreshCookie.Path != "/api/auth" || !refreshCookie.HttpOnly {
 		t.Fatalf("refresh cookie=%+v", refreshCookie)
 	}
-	if csrfCookie == nil || csrfCookie.Value != "csrf-new" || csrfCookie.Path != "/" || csrfCookie.HttpOnly {
+	if csrfCookie == nil || csrfCookie.Value != "csrf-new" || csrfCookie.Path != "/" || !csrfCookie.HttpOnly {
 		t.Fatalf("csrf cookie=%+v", csrfCookie)
 	}
 }
@@ -612,6 +612,24 @@ func TestSignupControllerProductionCookiesAreSecureAndStrict(t *testing.T) {
 	for _, cookie := range cookies {
 		if cookie.Name == "refresh_token" && !cookie.HttpOnly {
 			t.Fatal("refresh_token must be HttpOnly")
+		}
+	}
+}
+
+func TestSignupControllerSameSiteNoneForCrossSiteProduction(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("COOKIE_SAME_SITE", "none")
+	user := &entity.User{ID: uuid.New(), Name: "Cross Site", Email: "cross@example.com", Role: entity.UserRoleUser, Status: entity.UserStatusActive}
+	rec := runSignupRequest(t, `{"name":"Cross Site","email":"cross@example.com","password":"Password123!"}`, &fakeUserUsecase{user: user})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.SameSite != http.SameSiteNoneMode || !cookie.Secure || !cookie.Partitioned {
+			t.Fatalf("cookie %s SameSite=%v Secure=%v Partitioned=%v", cookie.Name, cookie.SameSite, cookie.Secure, cookie.Partitioned)
+		}
+		if cookie.Name == "csrf_token" && (!cookie.HttpOnly || cookie.Path != "/") {
+			t.Fatalf("csrf cookie=%+v", cookie)
 		}
 	}
 }

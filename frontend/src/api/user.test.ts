@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { logout, signUp, withdraw } from "./user";
 import { ApiRequestError } from "./client";
+import { setCSRFToken } from "./csrf";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -10,6 +11,7 @@ describe("signUp", () => {
       access_token: "access-token",
       token_type: "Bearer",
       expires_in: 300,
+      csrf_token: "csrf-value",
       user: {
         id: "7c4ef6d5-cac5-4fca-b15f-f1641cdada23",
         name: "Taro",
@@ -72,7 +74,7 @@ describe("signUp", () => {
 
 describe("logout", () => {
   it("posts with the CSRF header and accepts 204", async () => {
-    document.cookie = "csrf_token=csrf-value; path=/";
+    setCSRFToken("csrf-value");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(logout()).resolves.toBeUndefined();
@@ -83,12 +85,55 @@ describe("logout", () => {
     expect(options.credentials).toBe("include");
     expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
+
+  it("bootstraps a CSRF pair before logout when memory state is empty", async () => {
+    setCSRFToken(null);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ csrf_token: "bootstrapped", refresh_available: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(logout()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:8080/api/auth/csrf");
+    const [, logoutOptions] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(new Headers(logoutOptions.headers).get("X-CSRF-Token")).toBe("bootstrapped");
+  });
+
+  it("re-bootstraps once when the server rejects a stale CSRF pair", async () => {
+    setCSRFToken("stale");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 403, code: "CSRF_TOKEN_INVALID", message: "invalid", request_id: "req" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ csrf_token: "fresh", refresh_available: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(logout()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [, retryOptions] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(new Headers(retryOptions.headers).get("X-CSRF-Token")).toBe("fresh");
+  });
 });
 
 
 describe("withdraw", () => {
   it("deletes the current user with snake_case current_password", async () => {
-    document.cookie = "csrf_token=csrf-value; path=/";
+    setCSRFToken("csrf-value");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ message: "退会が完了しました。" }), { status: 200, headers: { "Content-Type": "application/json" } }));
     await expect(withdraw({ current_password: "password" })).resolves.toEqual({ message: "退会が完了しました。" });
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];

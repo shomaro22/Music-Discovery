@@ -25,6 +25,7 @@ func (s *routerUserControllerStub) SignUp(c echo.Context) error      { return s.
 func (s *routerUserControllerStub) Login(c echo.Context) error       { return s.hit("login", c) }
 func (s *routerUserControllerStub) Refresh(c echo.Context) error     { return s.hit("refresh", c) }
 func (s *routerUserControllerStub) Logout(c echo.Context) error      { return s.hit("logout", c) }
+func (s *routerUserControllerStub) CSRF(c echo.Context) error        { return s.hit("csrf", c) }
 func (s *routerUserControllerStub) CurrentUser(c echo.Context) error { return s.hit("current", c) }
 func (s *routerUserControllerStub) UpdateProfile(c echo.Context) error {
 	return s.hit("update_profile", c)

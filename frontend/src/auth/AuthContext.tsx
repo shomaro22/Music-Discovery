@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
-import { getCSRFCookie } from "../api/csrf";
+import { bootstrapCSRF, isAuthenticationFailure, setAccessToken as setClientAccessToken, setAuthStateListener } from "../api/client";
+import { clearCSRFToken } from "../api/csrf";
 import { getCurrentUser, login as loginApi, logout as logoutApi, refresh as refreshApi, signUp as signUpApi, withdraw as withdrawApi, updateProfile as updateProfileApi } from "../api/user";
 import type { AuthUser, LoginInput, SignUpInput, WithdrawInput, UpdateProfileInput } from "../types/user";
 import { isUserRole } from "../constants/role";
@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearAuth = useCallback((): void => {
     clearLocalAuth();
     setClientAccessToken(null);
+    clearCSRFToken();
   }, [clearLocalAuth]);
 
   useEffect(() => {
@@ -43,7 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     const restore = async (): Promise<void> => {
       try {
-        if (!getCSRFCookie()) {
+        const csrf = await bootstrapCSRF();
+        if (!csrf.refresh_available) {
           if (active) clearAuth();
           return;
         }

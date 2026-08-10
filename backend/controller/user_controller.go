@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"os"
@@ -46,6 +48,7 @@ type SignUpResponse struct {
 	AccessToken string             `json:"access_token"`
 	TokenType   string             `json:"token_type"`
 	ExpiresIn   int64              `json:"expires_in"`
+	CSRFToken   string             `json:"csrf_token"`
 	User        SignUpUserResponse `json:"user"`
 }
 type LoginUserResponse struct {
@@ -59,6 +62,7 @@ type LoginResponse struct {
 	AccessToken string            `json:"access_token"`
 	TokenType   string            `json:"token_type"`
 	ExpiresIn   int64             `json:"expires_in"`
+	CSRFToken   string            `json:"csrf_token"`
 	User        LoginUserResponse `json:"user"`
 }
 
@@ -66,6 +70,12 @@ type RefreshResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   int64  `json:"expires_in"`
+	CSRFToken   string `json:"csrf_token"`
+}
+
+type CSRFResponse struct {
+	CSRFToken        string `json:"csrf_token"`
+	RefreshAvailable bool   `json:"refresh_available"`
 }
 
 type apiErrorResponse struct {
@@ -80,6 +90,7 @@ type IUserController interface {
 	Login(c echo.Context) error
 	Refresh(c echo.Context) error
 	Logout(c echo.Context) error
+	CSRF(c echo.Context) error
 	CurrentUser(c echo.Context) error
 	UpdateProfile(c echo.Context) error
 	Withdraw(c echo.Context) error
@@ -185,11 +196,13 @@ func (c *userController) SignUp(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Response().Header().Set("Cache-Control", "no-store")
 	ctx.Set(middleware.SystemLogEventKey, "signup_succeeded")
 	return ctx.JSON(http.StatusCreated, SignUpResponse{
 		AccessToken: result.AccessToken,
 		TokenType:   "Bearer",
 		ExpiresIn:   result.ExpiresIn,
+		CSRFToken:   result.CSRFToken,
 		User: SignUpUserResponse{
 			ID:        result.User.ID,
 			Name:      result.User.Name,
@@ -222,16 +235,40 @@ func (c *userController) Login(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Response().Header().Set("Cache-Control", "no-store")
 	ctx.Set(middleware.SystemLogEventKey, "login_succeeded")
 	return ctx.JSON(http.StatusOK, LoginResponse{
 		AccessToken: result.AccessToken,
-		TokenType:   "Bearer", ExpiresIn: result.ExpiresIn,
+		TokenType:   "Bearer", ExpiresIn: result.ExpiresIn, CSRFToken: result.CSRFToken,
 		User: LoginUserResponse{
 			ID:     result.User.ID,
 			Name:   result.User.Name,
 			Email:  result.User.Email,
 			Role:   result.User.Role,
 			Status: result.User.Status}})
+}
+
+func generateCSRFToken() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+func (c *userController) CSRF(ctx echo.Context) error {
+	token, err := generateCSRFToken()
+	if err != nil {
+		return writeAPIError(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", "サーバー内部でエラーが発生しました")
+	}
+	setCSRFCookie(ctx, token, time.Now().UTC().Add(30*time.Minute))
+	refreshName := cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
+	refreshAvailable := false
+	if cookie, err := ctx.Cookie(refreshName); err == nil && cookie.Value != "" {
+		refreshAvailable = true
+	}
+	ctx.Response().Header().Set("Cache-Control", "no-store")
+	return ctx.JSON(http.StatusOK, CSRFResponse{CSRFToken: token, RefreshAvailable: refreshAvailable})
 }
 
 func (c *userController) Refresh(ctx echo.Context) error {
@@ -260,8 +297,9 @@ func (c *userController) Refresh(ctx echo.Context) error {
 		}
 	}
 	setAuthCookies(ctx, result.RefreshToken, result.CSRFToken, result.RefreshTokenExpiresAt)
+	ctx.Response().Header().Set("Cache-Control", "no-store")
 	ctx.Set(middleware.SystemLogEventKey, "refresh_token_rotated")
-	return ctx.JSON(http.StatusOK, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn})
+	return ctx.JSON(http.StatusOK, RefreshResponse{AccessToken: result.AccessToken, TokenType: "Bearer", ExpiresIn: result.ExpiresIn, CSRFToken: result.CSRFToken})
 }
 
 func (c *userController) Logout(ctx echo.Context) error {
@@ -277,49 +315,48 @@ func (c *userController) Logout(ctx echo.Context) error {
 	return ctx.NoContent(http.StatusNoContent)
 }
 
-func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt time.Time) {
-	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
-	sameSite := http.SameSiteLaxMode
-	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
-		sameSite = http.SameSiteStrictMode
+func cookieSameSite() http.SameSite {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("COOKIE_SAME_SITE"))) {
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	default:
+		return http.SameSiteLaxMode
 	}
-	refreshName := cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token")
-	csrfName := cookieName("CSRF_COOKIE_NAME", "csrf_token")
+}
+
+func cookieSecure(sameSite http.SameSite) bool {
+	return strings.EqualFold(os.Getenv("APP_ENV"), "production") || sameSite == http.SameSiteNoneMode
+}
+
+func setAuthCookies(ctx echo.Context, refreshToken, csrfToken string, expiresAt time.Time) {
+	sameSite := cookieSameSite()
+	secure := cookieSecure(sameSite)
 	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	ctx.SetCookie(&http.Cookie{Name: refreshName, Value: refreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
-	ctx.SetCookie(&http.Cookie{Name: csrfName, Value: csrfToken, Path: "/", HttpOnly: false, Secure: secure, SameSite: sameSite, Expires: expiresAt, MaxAge: maxAge})
+	ctx.SetCookie(&http.Cookie{Name: cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token"), Value: refreshToken, Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Partitioned: sameSite == http.SameSiteNoneMode, Expires: expiresAt, MaxAge: maxAge})
+	setCSRFCookie(ctx, csrfToken, expiresAt)
+}
+
+func setCSRFCookie(ctx echo.Context, csrfToken string, expiresAt time.Time) {
+	sameSite := cookieSameSite()
+	secure := cookieSecure(sameSite)
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	ctx.SetCookie(&http.Cookie{Name: cookieName("CSRF_COOKIE_NAME", "csrf_token"), Value: csrfToken, Path: "/", HttpOnly: true, Secure: secure, SameSite: sameSite, Partitioned: sameSite == http.SameSiteNoneMode, Expires: expiresAt, MaxAge: maxAge})
 }
 
 func clearAuthCookies(ctx echo.Context) {
-	secure := strings.EqualFold(os.Getenv("APP_ENV"), "production")
-	sameSite := http.SameSiteLaxMode
-	if strings.EqualFold(os.Getenv("COOKIE_SAME_SITE"), "strict") {
-		sameSite = http.SameSiteStrictMode
-	}
+	sameSite := cookieSameSite()
+	secure := cookieSecure(sameSite)
 	expired := time.Unix(0, 0)
-	ctx.SetCookie(&http.Cookie{
-		Name:     cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token"),
-		Value:    "",
-		Path:     "/api/auth",
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-		Expires:  expired,
-		MaxAge:   -1,
-	})
-	ctx.SetCookie(&http.Cookie{
-		Name:     cookieName("CSRF_COOKIE_NAME", "csrf_token"),
-		Value:    "",
-		Path:     "/",
-		HttpOnly: false,
-		Secure:   secure,
-		SameSite: sameSite,
-		Expires:  expired,
-		MaxAge:   -1,
-	})
+	ctx.SetCookie(&http.Cookie{Name: cookieName("REFRESH_TOKEN_COOKIE_NAME", "refresh_token"), Value: "", Path: "/api/auth", HttpOnly: true, Secure: secure, SameSite: sameSite, Partitioned: sameSite == http.SameSiteNoneMode, Expires: expired, MaxAge: -1})
+	ctx.SetCookie(&http.Cookie{Name: cookieName("CSRF_COOKIE_NAME", "csrf_token"), Value: "", Path: "/", HttpOnly: true, Secure: secure, SameSite: sameSite, Partitioned: sameSite == http.SameSiteNoneMode, Expires: expired, MaxAge: -1})
 }
 
 func cookieName(envName, fallback string) string {

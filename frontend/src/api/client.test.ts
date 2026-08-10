@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
-  document.cookie = "csrf_token=test-csrf; path=/";
+  const csrf = await import("./csrf");
+  csrf.setCSRFToken("test-csrf");
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  document.cookie = "csrf_token=; Max-Age=0; path=/";
+
 });
 
 describe("refreshAccessToken", () => {
   it("returns the backend RefreshResponse without inventing expires_in", async () => {
-    const response = { access_token: "new-token", token_type: "Bearer" as const, expires_in: 123 };
+    const response = { access_token: "new-token", token_type: "Bearer" as const, expires_in: 123, csrf_token: "csrf-next" };
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -31,7 +32,7 @@ describe("refreshAccessToken", () => {
     const second = refreshAccessToken();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    const payload = { access_token: "shared-token", token_type: "Bearer" as const, expires_in: 240 };
+    const payload = { access_token: "shared-token", token_type: "Bearer" as const, expires_in: 240, csrf_token: "csrf-next" };
     resolveResponse(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }));
     await expect(Promise.all([first, second])).resolves.toEqual([payload, payload]);
   });
@@ -41,7 +42,7 @@ describe("request authentication recovery", () => {
   it("retries the original request once after a successful refresh", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300, csrf_token: "csrf-next" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }));
     const client = await import("./client");
     client.setAccessToken("old-token");
@@ -52,7 +53,7 @@ describe("request authentication recovery", () => {
   it("does not refresh again when the retried request is still 401", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300, csrf_token: "csrf-next" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ status: 401, code: "UNAUTHORIZED", message: "unauthorized", request_id: "" }), { status: 401, headers: { "Content-Type": "application/json" } }));
     const client = await import("./client");
     client.setAccessToken("old-token");
@@ -155,7 +156,7 @@ describe("withdraw request authentication recovery", () => {
   it("refreshes and retries DELETE exactly once for UNAUTHORIZED", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ status: 401, code: "UNAUTHORIZED", message: "expired", request_id: "" }), { status: 401, headers: { "Content-Type": "application/json" } }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300 }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: "new-token", token_type: "Bearer", expires_in: 300, csrf_token: "csrf-next" }), { status: 200, headers: { "Content-Type": "application/json" } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ message: "退会が完了しました。" }), { status: 200, headers: { "Content-Type": "application/json" } }));
     const client = await import("./client");
     client.setAccessToken("old-token");
@@ -220,5 +221,57 @@ describe("request authentication expiration boundaries", () => {
     await expect(client.request("/api/recommendation-history", { method: "GET" })).rejects.toBeInstanceOf(client.ApiRequestError);
 
     expect(listener).toHaveBeenLastCalledWith(null, "expired");
+  });
+});
+
+describe("request CSRF header", () => {
+  it("automatically attaches the in-memory CSRF token to PATCH requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "user-1" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+    client.setAccessToken("access-token");
+
+    await client.request("/api/users/me", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "updated" }),
+    });
+
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf");
+    expect(headers.get("Authorization")).toBe("Bearer access-token");
+  });
+
+  it("automatically attaches the in-memory CSRF token to logout", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+    const client = await import("./client");
+
+    await client.request("/api/auth/logout", { method: "POST" });
+
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get("X-CSRF-Token")).toBe("test-csrf");
+  });
+
+  it("does not attach CSRF to signup/login", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = await import("./client");
+
+    await client.request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "user@example.com", password: "password" }),
+    });
+
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get("X-CSRF-Token")).toBeNull();
   });
 });
