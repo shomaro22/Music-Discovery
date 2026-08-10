@@ -425,9 +425,12 @@ test.describe.serial("Chapter 15 core E2E", () => {
     // day2 は新しいブラウザセッションなので通常ログインから開始する。
     if (dailyPhase === "day2") {
       await loginInBrowser(page, dailyUserEmail, dailyUserPassword);
+    } else {
+      await page.getByRole("button", { name: "TOPページへ戻る" }).click();
+      await expect(page).toHaveURL(/\/$/);
     }
 
-    await page.goto("/daily-discovery");
+    await page.getByRole("button", { name: "Daily Discoveryを開く" }).click();
     await expect(page).toHaveURL(/\/daily-discovery$/);
     await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible();
     await expect(page.locator(".recommendation-header p").last()).toHaveText(dailyExpectedDate);
