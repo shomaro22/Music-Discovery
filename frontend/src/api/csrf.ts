@@ -1,8 +1,13 @@
-export function getCSRFCookie(): string | null {
-  const cookie = document.cookie
-    .split(";")
-    .map((value) => value.trim())
-    .find((value) => value.startsWith("csrf_token="));
+let csrfToken: string | null = null;
 
-  return cookie ? decodeURIComponent(cookie.slice("csrf_token=".length)) : null;
+export function getCSRFToken(): string | null {
+  return csrfToken;
+}
+
+export function setCSRFToken(token: string | null): void {
+  csrfToken = token;
+}
+
+export function clearCSRFToken(): void {
+  csrfToken = null;
 }

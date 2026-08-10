@@ -43,12 +43,13 @@ func NewRouter(
 	rateLimit middleware.IRateLimitMiddleware,
 	authMiddleware middleware.IAuthMiddleware,
 ) *echo.Echo {
+	allowedOrigins := loadAllowedOrigins()
 	e := echo.New()
 	e.HideBanner = true
 	e.HTTPErrorHandler = appMiddleware.NewHTTPErrorHandler(logger)
 	e.Use(appMiddleware.NewRequestIDMiddleware(), echoMiddleware.Recover(), echoMiddleware.Logger(), echoMiddleware.Secure(), appMiddleware.NewMetricsMiddleware(metrics))
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins:     loadAllowedOrigins(),
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, echo.HeaderXRequestID, "X-CSRF-Token"},
 		AllowCredentials: true,
@@ -58,13 +59,14 @@ func NewRouter(
 	userOnly := mustRoleMiddleware(logger, entity.RoleUser)
 	contentAdminOnly := mustRoleMiddleware(logger, entity.RoleContentAdmin)
 	systemAdminOnly := mustRoleMiddleware(logger, entity.RoleSystemAdmin)
-	csrf := appMiddleware.NewCSRFMiddleware(os.Getenv("CSRF_COOKIE_NAME"))
+	csrf := appMiddleware.NewCSRFMiddleware(os.Getenv("CSRF_COOKIE_NAME"), allowedOrigins...)
 	requireJSON := appMiddleware.NewRequireJSONMiddleware()
 
 	e.GET("/health", monitoringController.Health)
 	e.GET("/ready", monitoringController.Ready)
 
 	publicAuth := e.Group("/api/auth")
+	publicAuth.GET("/csrf", userController.CSRF)
 	publicAuth.POST("/signup", userController.SignUp, echoMiddleware.BodyLimit(signupBodyLimit), rateLimit.SignUp, requireJSON)
 	publicAuth.POST("/login", userController.Login, echoMiddleware.BodyLimit(loginBodyLimit), rateLimit.Login, requireJSON)
 	publicAuth.POST("/refresh", userController.Refresh, echoMiddleware.BodyLimit(refreshBodyLimit), rateLimit.Refresh, csrf)
@@ -74,7 +76,7 @@ func NewRouter(
 
 	authenticated := e.Group("/api", authMiddleware.Authenticate)
 	authenticated.GET("/users/me", userController.CurrentUser, allAuthenticated.Authorize)
-	authenticated.PATCH("/users/me", userController.UpdateProfile, echoMiddleware.BodyLimit(signupBodyLimit), csrf, requireJSON, allAuthenticated.Authorize)
+	authenticated.PATCH("/users/me", userController.UpdateProfile, echoMiddleware.BodyLimit(signupBodyLimit), requireJSON, allAuthenticated.Authorize)
 	authenticated.GET("/questions", questionController.ListQuestions, allAuthenticated.Authorize)
 	authenticated.GET("/user-answers/latest", questionController.GetLatestAnswers, allAuthenticated.Authorize)
 	authenticated.POST("/user-answers", questionController.SaveAnswers, echoMiddleware.BodyLimit(questionAnswersBodyLimit), rateLimit.QuestionAnswers, requireJSON, allAuthenticated.Authorize)
@@ -88,7 +90,7 @@ func NewRouter(
 	authenticated.GET("/recommendation-history/:recommendationId", recommendationHistoryController.GetByID, userOnly.Authorize)
 	authenticated.PUT("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Save, echoMiddleware.BodyLimit(feedbackBodyLimit), rateLimit.Feedback, requireJSON, allAuthenticated.Authorize)
 	authenticated.GET("/recommendation-details/:recommendationDetailId/feedback", feedbackController.Get, allAuthenticated.Authorize)
-	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, csrf, requireJSON, userOnly.Authorize)
+	authenticated.DELETE("/users/me", userController.Withdraw, echoMiddleware.BodyLimit(withdrawBodyLimit), rateLimit.Withdraw, requireJSON, userOnly.Authorize)
 
 	content := e.Group("/api/admin", authMiddleware.Authenticate, contentAdminOnly.Authorize)
 	registerContentAdminRoutes(content, artistAdminController, songAdminController, tagAdminController, spotifyAdminController)
