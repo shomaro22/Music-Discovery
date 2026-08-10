@@ -156,11 +156,17 @@ test.describe.serial("Chapter 15 core E2E", () => {
 
     await loginInBrowser(page, email, password);
     const refreshStatus = await page.evaluate(async (backendURL) => {
-      const csrf = document.cookie.split("; ").find((entry) => entry.startsWith("csrf_token="))?.split("=")[1] ?? "";
+      const csrfResponse = await fetch(`${backendURL}/api/auth/csrf`, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (!csrfResponse.ok) return csrfResponse.status;
+
+      const csrfBody = (await csrfResponse.json()) as { csrf_token: string };
       const response = await fetch(`${backendURL}/api/auth/refresh`, {
         method: "POST",
         credentials: "include",
-        headers: { "X-CSRF-Token": decodeURIComponent(csrf) },
+        headers: { "X-CSRF-Token": csrfBody.csrf_token },
       });
       return response.status;
     }, apiURL);

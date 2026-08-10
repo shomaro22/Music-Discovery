@@ -66,7 +66,6 @@ export async function bootstrapCSRF(): Promise<CSRFResponse> {
   const response = await fetch(`${API_BASE_URL}/api/auth/csrf`, {
     method: "GET",
     credentials: "include",
-    headers: { "Cache-Control": "no-store" },
   });
   if (!response.ok) throw await parseError(response);
   const result = (await response.json()) as CSRFResponse;

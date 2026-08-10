@@ -71,8 +71,18 @@ async function registerFeedbackForVisibleCards(page: Page): Promise<void> {
   }
 }
 
+async function returnToTop(page: Page): Promise<void> {
+  if (await page.getByRole("button", { name: "TOPページへ戻る" }).isVisible()) {
+    await page.getByRole("button", { name: "TOPページへ戻る" }).click();
+  } else if (await page.getByRole("link", { name: "TOPページへ戻る" }).isVisible()) {
+    await page.getByRole("link", { name: "TOPページへ戻る" }).click();
+  }
+
+  await expect(page.getByRole("button", { name: "推薦履歴を開く" })).toBeVisible();
+}
+
 async function openHistory(page: Page): Promise<void> {
-  await page.goto("/");
+  await returnToTop(page);
   await page.getByRole("button", { name: "推薦履歴を開く" }).click();
   await expect(page.getByRole("heading", { name: "推薦履歴" })).toBeVisible();
 }
@@ -99,7 +109,7 @@ test.describe.serial("推薦履歴", () => {
     await answerAllQuestions(page);
     await registerFeedbackForVisibleCards(page);
 
-    await page.goto("/");
+    await returnToTop(page);
     await page.getByRole("button", { name: "Daily Discoveryを開く" }).click();
     await expect(page.getByRole("heading", { name: "今日の3曲" })).toBeVisible();
     await registerFeedbackForVisibleCards(page);

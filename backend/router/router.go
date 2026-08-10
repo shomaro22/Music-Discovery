@@ -49,9 +49,18 @@ func NewRouter(
 	e.HTTPErrorHandler = appMiddleware.NewHTTPErrorHandler(logger)
 	e.Use(appMiddleware.NewRequestIDMiddleware(), echoMiddleware.Recover(), echoMiddleware.Logger(), echoMiddleware.Secure(), appMiddleware.NewMetricsMiddleware(metrics))
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins:     allowedOrigins,
-		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
-		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization, echo.HeaderXRequestID, "X-CSRF-Token"},
+		AllowOrigins: allowedOrigins,
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions},
+		AllowHeaders: []string{
+			echo.HeaderOrigin,
+			echo.HeaderContentType,
+			echo.HeaderAccept,
+			echo.HeaderAuthorization,
+			echo.HeaderXRequestID,
+			echo.HeaderCacheControl,
+			"Pragma",
+			"X-CSRF-Token",
+		},
 		AllowCredentials: true,
 	}))
 
