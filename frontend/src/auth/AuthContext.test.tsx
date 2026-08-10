@@ -11,8 +11,9 @@ const getCurrentUserMock = vi.fn();
 const logoutMock = vi.fn();
 const withdrawMock = vi.fn();
 let authStateListener: ((token: string | null, reason?: "expired") => void) | null = null;
+const bootstrapCSRFMock = vi.fn();
 
-vi.mock("../api/csrf", () => ({ getCSRFCookie: () => "csrf" }));
+vi.mock("../api/csrf", () => ({ clearCSRFToken: vi.fn() }));
 vi.mock("../api/user", () => ({
   login: vi.fn(),
   logout: () => logoutMock(),
@@ -24,6 +25,7 @@ vi.mock("../api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/client")>();
   return {
     ...actual,
+    bootstrapCSRF: () => bootstrapCSRFMock(),
     setAccessToken: vi.fn(),
     setAuthStateListener: vi.fn((listener: ((token: string | null, reason?: "expired") => void) | null) => { authStateListener = listener; }),
   };
@@ -36,6 +38,8 @@ function Probe() {
 }
 
 beforeEach(() => {
+  bootstrapCSRFMock.mockReset();
+  bootstrapCSRFMock.mockResolvedValue({ csrf_token: "csrf", refresh_available: true });
   refreshMock.mockReset();
   getCurrentUserMock.mockReset();
   logoutMock.mockReset();

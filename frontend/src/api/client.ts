@@ -1,5 +1,5 @@
-import type { ApiError, RefreshResponse } from "../types/user";
-import { getCSRFCookie } from "./csrf";
+import type { ApiError, CSRFResponse, RefreshResponse } from "../types/user";
+import { clearCSRFToken, getCSRFToken, setCSRFToken } from "./csrf";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 let accessToken: string | null = null;
@@ -26,6 +26,7 @@ export function hasAccessToken(): boolean {
 function expireAuthenticationOnce(): void {
   if (authExpirationNotified) return;
   authExpirationNotified = true;
+  clearCSRFToken();
   accessToken = null;
   authStateListener?.(null, "expired");
 }
@@ -61,19 +62,30 @@ export function isAuthenticationFailure(error: unknown): boolean {
   );
 }
 
+export async function bootstrapCSRF(): Promise<CSRFResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/csrf`, {
+    method: "GET",
+    credentials: "include",
+    headers: { "Cache-Control": "no-store" },
+  });
+  if (!response.ok) throw await parseError(response);
+  const result = (await response.json()) as CSRFResponse;
+  setCSRFToken(result.csrf_token);
+  return result;
+}
+
 export async function refreshAccessToken(): Promise<RefreshResponse> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
     try {
-      const csrfToken = getCSRFCookie();
+      let csrfToken = getCSRFToken();
       if (!csrfToken) {
-        throw new ApiRequestError({
-          status: 401,
-          code: "INVALID_REFRESH_TOKEN",
-          message: "認証期限が切れています",
-          request_id: "",
-        });
+        const bootstrap = await bootstrapCSRF();
+        if (!bootstrap.refresh_available) {
+          throw new ApiRequestError({ status: 401, code: "INVALID_REFRESH_TOKEN", message: "認証期限が切れています", request_id: "" });
+        }
+        csrfToken = bootstrap.csrf_token;
       }
 
       const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
@@ -84,6 +96,7 @@ export async function refreshAccessToken(): Promise<RefreshResponse> {
       if (!response.ok) throw await parseError(response);
 
       const result = (await response.json()) as RefreshResponse;
+      setCSRFToken(result.csrf_token);
       setAccessToken(result.access_token);
       return result;
     } catch (error: unknown) {
@@ -99,6 +112,34 @@ export async function refreshAccessToken(): Promise<RefreshResponse> {
   return refreshPromise;
 }
 
+function requiresCSRF(path: string, method: string): boolean {
+  const normalizedMethod = method.toUpperCase();
+  if (["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)) return false;
+
+  // Signup/login/password-reset do not authenticate with an ambient cookie and
+  // therefore do not require CSRF. Refresh/logout do because they rely on the
+  // HttpOnly refresh-token cookie. Authenticated mutation endpoints also carry
+  // CSRF as defense in depth and for compatibility with routes that enforce it.
+  return !(
+    path === "/api/auth/signup" ||
+    path === "/api/auth/login" ||
+    path === "/api/auth/password-reset/request" ||
+    path === "/api/auth/password-reset/confirm"
+  );
+}
+
+async function ensureCSRFHeader(path: string, init: RequestInit, headers: Headers): Promise<void> {
+  const method = init.method ?? "GET";
+  if (!requiresCSRF(path, method) || headers.has("X-CSRF-Token")) return;
+
+  let token = getCSRFToken();
+  if (!token) {
+    const bootstrap = await bootstrapCSRF();
+    token = bootstrap.csrf_token;
+  }
+  headers.set("X-CSRF-Token", token);
+}
+
 export async function request<T>(
   path: string,
   init: RequestInit,
@@ -111,6 +152,7 @@ export async function request<T>(
 
   const requestHadAccessToken = accessToken !== null;
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  await ensureCSRFHeader(path, init, headers);
 
   let response: Response;
   try {

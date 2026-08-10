@@ -57,3 +57,43 @@ func TestCSRFMiddlewareRejectsMissingOrMismatch(t *testing.T) {
 		})
 	}
 }
+
+func TestCSRFMiddlewareRejectsUntrustedOrigin(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "same-token"})
+	req.Header.Set("X-CSRF-Token", "same-token")
+	req.Header.Set(echo.HeaderOrigin, "https://evil.example")
+	rec := httptest.NewRecorder()
+	called := false
+	handler := NewCSRFMiddleware("csrf_token", "https://music-discovery-silk.vercel.app")(func(c echo.Context) error { called = true; return c.NoContent(http.StatusNoContent) })
+	if err := handler(e.NewContext(req, rec)); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusForbidden || called {
+		t.Fatalf("status=%d called=%v", rec.Code, called)
+	}
+	var apiErr apiErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatal(err)
+	}
+	if apiErr.Code != "CSRF_ORIGIN_INVALID" {
+		t.Fatalf("code=%q", apiErr.Code)
+	}
+}
+
+func TestCSRFMiddlewareAllowsTrustedOrigin(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "same-token"})
+	req.Header.Set("X-CSRF-Token", "same-token")
+	req.Header.Set(echo.HeaderOrigin, "https://music-discovery-silk.vercel.app")
+	rec := httptest.NewRecorder()
+	handler := NewCSRFMiddleware("csrf_token", "https://music-discovery-silk.vercel.app")(func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
+	if err := handler(e.NewContext(req, rec)); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status=%d", rec.Code)
+	}
+}
