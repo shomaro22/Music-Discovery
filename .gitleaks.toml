@@ -1,0 +1,9 @@
+# gitleaks のデフォルトルールを使いつつ、テスト/CI専用のダミー値だけを除外する
+[extend]
+useDefault = true
+
+[allowlist]
+description = "テスト・CI用のダミーJWTシークレット(本番では使用しない)"
+regexes = [
+  '''^test-jwt-secret-at-least-32-characters-long$''',
+]
