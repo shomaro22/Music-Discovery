@@ -31,3 +31,6 @@ coverage.out
 
 # Frontend
 frontend/.vite
+
+# macOS
+.DS_Store
